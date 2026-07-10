@@ -21,8 +21,19 @@ final class NotchViewModel: ObservableObject {
     @Published var notch=NotchInfo(screen: NSScreen.main!, notchRect: .zero, hasNotch: false)
     @Published var isExpanded=false
     @Published var nowPlaying=NowPlaying()
+    private let media=MediaController()
+    private let volume=SystemVolumeWatcher()
     
-    func start() {}
+    func start() {
+        media.onUpdate={[weak self] np in
+            Task {@MainActor in self?.nowPlaying=np}
+        }
+        media.start()
+        volume.onChange={lvl in
+            //TODO: HUD
+        }
+        volume.start()
+    }
     
     func setExpanded(_ v:Bool){
         guard v != isExpanded else {return}
@@ -31,9 +42,9 @@ final class NotchViewModel: ObservableObject {
         }
     }
     
-    func playPause() {}
-    func next() {}
-    func prev() {}
+    func playPause() {media.command(.togglePlayPause)}
+    func next() {media.command(.next)}
+    func prev() {media.command(.prev)}
 }
 
 struct NotchShape: Shape {
@@ -54,26 +65,17 @@ struct NotchShape: Shape {
 
 struct NotchRootView: View {
     @EnvironmentObject var vm: NotchViewModel
-    private let notchMargin: CGFloat = 0
-    private var w: CGFloat { vm.isExpanded ? 380 : collapsedWidth }
-    private var h: CGFloat { vm.isExpanded ? 150 : collapsedHeight }
-    private var collapsedWidth: CGFloat {
-        let n = vm.notch.notchRect.width
-        return n > 0 ? n + notchMargin : 200
-    }
-    private var collapsedHeight: CGFloat {
-        let n = vm.notch.notchRect.height
-        return n > 0 ? n + notchMargin : 32
-    }
-    
+
     var body: some View {
         ZStack(alignment: .top) {
-            NotchShape().fill(Color.black)
-                .frame(width: w, height: h)
-                .overlay {
-                    if vm.isExpanded { ExpandedContent() } else { CollapsedContent() }
-                }
-                .shadow(radius: vm.isExpanded ? 12 : 0)
+            if vm.isExpanded {
+                NotchShape().fill(Color.black)
+                    .frame(width: 380, height: 150)
+                    .overlay { ExpandedContent() }
+                    .shadow(radius: 12)
+            } else {
+                CollapsedContent()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.spring(response: 0.35, dampingFraction: 0.72), value: vm.isExpanded)
@@ -82,21 +84,35 @@ struct NotchRootView: View {
 
 struct CollapsedContent: View {
     @EnvironmentObject var vm: NotchViewModel
+    private let side: CGFloat = 44
+    private var notchW: CGFloat { vm.notch.notchRect.width > 0 ? vm.notch.notchRect.width : 200 }
+    private var notchH: CGFloat { vm.notch.notchRect.height > 0 ? vm.notch.notchRect.height : 32 }
+    private var hasTrack: Bool { vm.nowPlaying.artwork != nil || !vm.nowPlaying.title.isEmpty }
+
     var body: some View {
-        HStack {
-            artwork(size: 18)
-            Spacer()
-            if vm.nowPlaying.isPlaying {
-                Image(systemName: "waveform").font(.system(size: 12)).foregroundStyle(.white)
+        HStack(spacing: 0) {
+            artwork(size: notchH - 8)
+                .frame(width: side, alignment: .trailing)
+                .padding(.trailing, 6)
+            Color.clear.frame(width: notchW, height: notchH)
+            Group {
+                if vm.nowPlaying.isPlaying {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white)
+                }
             }
+            .frame(width: side, alignment: .leading)
+            .padding(.leading, 6)
         }
-        .padding(.horizontal, 8)
+        .frame(height: notchH)
     }
+
     @ViewBuilder func artwork(size: CGFloat) -> some View {
         if let d = vm.nowPlaying.artwork, let img = NSImage(data: d) {
             Image(nsImage: img).resizable().frame(width: size, height: size)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
-        } else {
+        } else if hasTrack {
             RoundedRectangle(cornerRadius: 4).fill(.gray.opacity(0.4)).frame(width: size, height: size)
         }
     }

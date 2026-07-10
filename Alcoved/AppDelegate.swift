@@ -25,6 +25,34 @@ final class NotchWindow: NSPanel {
     override var canBecomeMain: Bool {false}
 }
 
+@MainActor
+final class SettingsOpener {
+    static let shared = SettingsOpener()
+    private lazy var hosting = NSHostingView(rootView: SettingsLink { EmptyView() })
+    private lazy var window: NSWindow = {
+        let w = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 1, height: 1),
+                         styleMask: [.borderless], backing: .buffered, defer: false)
+        w.contentView = hosting
+        w.alphaValue = 0
+        return w
+    }()
+
+    func open() {
+        window.orderFrontRegardless()
+        hosting.layoutSubtreeIfNeeded()
+        Self.findButton(in: hosting)?.performClick(nil)
+        window.orderOut(nil)
+    }
+
+    private static func findButton(in view: NSView) -> NSButton? {
+        if let button = view as? NSButton {return button}
+        for sub in view.subviews {
+            if let found = findButton(in: sub) {return found}
+        }
+        return nil
+    }
+}
+
 struct NotchInfo {
     let screen: NSScreen
     let notchRect: CGRect
@@ -63,8 +91,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentView=NSHostingView(rootView: NotchRootView().environmentObject(vm))
         window.ignoresMouseEvents=true
         window.orderFrontRegardless()
+        setupStatusItem()
         installHoverMonitor(screen: screen, notch:info.notchRect)
         vm.start()
+    }
+    
+    private func setupStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.button?.image=NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "notch")
+        let menu=NSMenu()
+        menu.addItem(withTitle: "Settings", action: #selector(openSettings), keyEquivalent: ",")
+        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        statusItem.menu=menu
+    }
+    
+    @objc private func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        MainActor.assumeIsolated {
+            SettingsOpener.shared.open()
+        }
     }
     
     private func installHoverMonitor(screen:NSScreen,notch:CGRect){
