@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct AlcovedApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
+        Settings {SettingsView()}
     }
+}
+
+struct SettingsView: View {
+    var body: some View {Text("settings").padding().frame(width:320,height:160)}
 }

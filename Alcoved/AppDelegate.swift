@@ -1,0 +1,86 @@
+//
+//  AppDelegate.swift
+//  Alcoved
+//
+//  Created by Pierre-Louis ML on 10/07/2026.
+//
+
+import SwiftUI
+import AppKit
+
+final class NotchWindow: NSPanel {
+    init(contentRect: NSRect) {
+        super.init(contentRect: contentRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        isFloatingPanel=true
+        level=NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow))+5)
+        collectionBehavior=[.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+        isMovableByWindowBackground=false
+        isOpaque=false
+        backgroundColor = .clear
+        hasShadow=false
+        titleVisibility = .hidden
+        titlebarAppearsTransparent=true
+    }
+    override var canBecomeKey: Bool {false}
+    override var canBecomeMain: Bool {false}
+}
+
+struct NotchInfo {
+    let screen: NSScreen
+    let notchRect: CGRect
+    let hasNotch: Bool
+}
+
+func detectNotch(on screen: NSScreen)->NotchInfo {
+    let frame=screen.frame
+    let topInset=screen.safeAreaInsets.top
+    if topInset>0, let left=screen.auxiliaryTopLeftArea, let right=screen.auxiliaryTopRightArea {
+        let width=frame.width-left.width-right.width
+        let height=topInset
+        let x=frame.minX+left.width
+        let y=frame.maxY-height
+        return NotchInfo(screen: screen, notchRect: CGRect(x:x,y:y,width:width,height:height), hasNotch: true)
+    }
+    let w: CGFloat=220, h:CGFloat=32
+    let rect=CGRect(x:frame.midX-w/2, y:frame.maxY-h,width:w,height:h)
+    return NotchInfo(screen:screen,notchRect: rect,hasNotch: false)
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var window: NotchWindow!
+    private var statusItem: NSStatusItem!
+    private let vm=NotchViewModel()
+    private var expanded=false
+    
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        let screen=NSScreen.screens.first {$0.safeAreaInsets.top>0} ?? NSScreen.main!
+        let info=detectNotch(on: screen)
+        vm.notch=info
+        let bandw:CGFloat=600, bandh: CGFloat=260
+        let rect=NSRect(x: info.notchRect.midX-bandw/2,y:screen.frame.maxY-bandh,width:bandw,height:bandh)
+        window=NotchWindow(contentRect: rect)
+        window.contentView=NSHostingView(rootView: NotchRootView().environmentObject(vm))
+        window.ignoresMouseEvents=true
+        window.orderFrontRegardless()
+        installHoverMonitor(screen: screen, notch:info.notchRect)
+        vm.start()
+    }
+    
+    private func installHoverMonitor(screen:NSScreen,notch:CGRect){
+        let pad:CGFloat=10
+        let triggerZone=CGRect(x:notch.minX-pad,y:notch.minY-pad,width:notch.width+pad*2,height:screen.frame.maxY-(notch.minY-pad))
+        let expandedZone=CGRect(x:notch.midX-190,y:screen.frame.maxY-150,width:380,height:150)
+        let handler:(NSEvent)->Void={[weak self] _ in
+            guard let self else {return}
+            let zone=self.expanded ? expandedZone : triggerZone
+            let inside=zone.contains(NSEvent.mouseLocation)
+            guard inside != self.expanded else {return}
+            self.expanded=inside
+            self.window.ignoresMouseEvents = !inside
+            Task {@MainActor in self.vm.setExpanded(inside)}
+        }
+        NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved], handler: handler)
+        NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) {handler($0);return $0}
+    }
+}
