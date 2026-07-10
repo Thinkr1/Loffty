@@ -82,6 +82,38 @@ struct NotchRootView: View {
     }
 }
 
+struct WaveBars: View { //TODO: actual soundwaves
+    var isPlaying: Bool
+    var barCount: Int = 4
+    var maxHeight: CGFloat = 14
+    var color: Color = .white
+    private let minHeight: CGFloat = 3
+    private let phases: [Double] = [0.0, 0.9, 1.8, 2.7, 3.6, 4.5]
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .center, spacing: 2.5) {
+                ForEach(0..<barCount, id: \.self) { i in
+                    Capsule()
+                        .fill(color)
+                        .frame(width: 2.5, height: height(i, t))
+                }
+            }
+            .frame(height: maxHeight)
+            .animation(.easeOut(duration: 0.12), value: isPlaying)
+        }
+    }
+
+    private func height(_ i: Int, _ t: Double) -> CGFloat {
+        guard isPlaying else { return minHeight }
+        let phase = phases[i % phases.count]
+        let s = (sin(t * 6.0 + phase) + sin(t * 9.7 + phase * 1.7)) / 2
+        let norm = (s + 1) / 2 // 0...1
+        return minHeight + (maxHeight - minHeight) * CGFloat(norm)
+    }
+}
+
 struct CollapsedContent: View {
     @EnvironmentObject var vm: NotchViewModel
     private let side: CGFloat = 44
@@ -96,10 +128,8 @@ struct CollapsedContent: View {
                 .padding(.trailing, 6)
             Color.clear.frame(width: notchW, height: notchH)
             Group {
-                if vm.nowPlaying.isPlaying {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.white)
+                if hasTrack {
+                    WaveBars(isPlaying: vm.nowPlaying.isPlaying)
                 }
             }
             .frame(width: side, alignment: .leading)

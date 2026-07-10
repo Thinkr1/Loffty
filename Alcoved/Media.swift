@@ -13,6 +13,7 @@ final class NowPlayingStream {
     var onUpdate: ((NowPlaying)->Void)?
     private var process:Process?
     private var current=NowPlaying()
+    private var buf=Data()
     private let pth="/opt/homebrew/bin/media-control"
     func start() {
         let p=Process()
@@ -22,10 +23,14 @@ final class NowPlayingStream {
         p.standardOutput=pipe
         pipe.fileHandleForReading.readabilityHandler={[weak self] h in
             let data=h.availableData
-            guard !data.isEmpty else {return}
-            for l in data.split(separator: 0x0A){
-                guard let obj=try? JSONSerialization.jsonObject(with: Data(l)) as? [String: Any] else {continue}
-                self?.ingest(obj)
+            guard !data.isEmpty, let self else {return}
+            self.buf.append(data)
+            while let nl=self.buf.firstIndex(of: 0x0A) {
+                let line=self.buf[self.buf.startIndex..<nl]
+                self.buf.removeSubrange(self.buf.startIndex...nl)
+                guard !line.isEmpty,
+                      let obj=try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {continue}
+                self.ingest(obj)
             }
         }
         try? p.run()
