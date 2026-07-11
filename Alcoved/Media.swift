@@ -43,6 +43,7 @@ final class NowPlayingStream {
         if let a = info["artist"] as? String { current.artist = a }
         if let al = info["album"] as? String { current.album = al }
         if let pl = info["playing"] as? Bool { current.isPlaying = pl }
+        if let bid = info["bundleIdentifier"] as? String { current.bundleIdentifier = bid }
         if let e = info["elapsedTime"] as? NSNumber { current.elapsed = e.doubleValue }
         if let d = info["duration"] as? NSNumber { current.duration = d.doubleValue }
         if let b64 = info["artworkData"] as? String { current.artwork = Data(base64Encoded: b64) }

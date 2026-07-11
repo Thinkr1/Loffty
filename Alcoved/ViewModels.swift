@@ -13,6 +13,7 @@ struct NowPlaying: Equatable {
     var title: String = ""
     var artist: String = ""
     var album: String = ""
+    var bundleIdentifier: String = ""
     var isPlaying: Bool = false
     var elapsed: Double = 0
     var duration: Double = 0
@@ -49,13 +50,20 @@ final class NotchViewModel: ObservableObject {
     @Published var isExpanded = false
     @Published var nowPlaying = NowPlaying()
     @Published var accentColor: Color = .white.opacity(0.5)
+    @Published var waveLevels: [CGFloat] = Array(repeating: 0, count: AudioTapAnalyzer.barCount)
     private var elapsedAt = Date()
     private let media = MediaController()
     private let volume = SystemVolumeWatcher()
+    private let audioAnalyzer = AudioTapAnalyzer()
 
     func start() {
         media.onUpdate = { [weak self] np in
             Task { @MainActor in self?.apply(np) }
+        }
+        audioAnalyzer.onLevels = { [weak self] levels in
+            Task { @MainActor in
+                self?.waveLevels = levels.map(CGFloat.init)
+            }
         }
         media.start()
         volume.onChange = { _ in
@@ -66,8 +74,13 @@ final class NotchViewModel: ObservableObject {
 
     private func apply(_ np: NowPlaying) {
         let artChanged = np.artwork != nowPlaying.artwork
+        let bundleChanged = np.bundleIdentifier != nowPlaying.bundleIdentifier
+        let playingChanged = np.isPlaying != nowPlaying.isPlaying
         nowPlaying = np
         elapsedAt = Date()
+        if playingChanged || bundleChanged {
+            audioAnalyzer.update(bundleID: np.bundleIdentifier, isPlaying: np.isPlaying)
+        }
         if artChanged {
             let data = np.artwork
             Task.detached(priority: .utility) {
@@ -159,34 +172,29 @@ struct NotchRootView: View {
     }
 }
 
-struct WaveBars: View { // TODO: actual soundwaves
+struct WaveBars: View {
     var isPlaying: Bool
+    var levels: [CGFloat]
     var barCount: Int = 4
     var maxHeight: CGFloat = 14
     private let minHeight: CGFloat = 3
-    private let phases: [Double] = [0.0, 0.9, 1.8, 2.7, 3.6, 4.5]
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            HStack(alignment: .center, spacing: 2.5) {
-                ForEach(0 ..< barCount, id: \.self) { i in
-                    Capsule()
-                        .fill(.primary)
-                        .frame(width: 2.5, height: height(i, t))
-                }
+        HStack(alignment: .center, spacing: 2.5) {
+            ForEach(0 ..< barCount, id: \.self) { i in
+                Capsule()
+                    .fill(.primary)
+                    .frame(width: 2.5, height: height(at: i))
+                    .animation(.easeOut(duration: 0.08), value: levels)
             }
-            .frame(height: maxHeight)
-            .animation(.easeOut(duration: 0.12), value: isPlaying)
         }
+        .frame(height: maxHeight)
     }
 
-    private func height(_ i: Int, _ t: Double) -> CGFloat {
+    private func height(at i: Int) -> CGFloat {
         guard isPlaying else { return minHeight }
-        let phase = phases[i % phases.count]
-        let s = (sin(t * 6.0 + phase) + sin(t * 9.7 + phase * 1.7)) / 2
-        let norm = (s + 1) / 2 // 0...1
-        return minHeight + (maxHeight - minHeight) * CGFloat(norm)
+        let level = i < levels.count ? levels[i] : 0
+        return minHeight + (maxHeight - minHeight) * min(1, max(0, level))
     }
 }
 
@@ -207,7 +215,7 @@ struct CollapsedContent: View {
             Color.clear.frame(width: notchW, height: notchH)
             Group {
                 if hasTrack {
-                    WaveBars(isPlaying: vm.nowPlaying.isPlaying)
+                    WaveBars(isPlaying: vm.nowPlaying.isPlaying, levels: vm.waveLevels, barCount: 4)
                 }
             }
             .frame(width: side, alignment: .leading)
@@ -252,7 +260,7 @@ struct ExpandedContent: View {
                 .animation(.smooth(duration: 0.4), value: title)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                WaveBars(isPlaying: vm.nowPlaying.isPlaying, barCount: 5, maxHeight: 16)
+                WaveBars(isPlaying: vm.nowPlaying.isPlaying, levels: vm.waveLevels, barCount: 5, maxHeight: 16)
                     .foregroundStyle(.white.opacity(0.7))
             }
 
