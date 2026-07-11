@@ -115,7 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installHoverMonitor(screen:NSScreen,notch:CGRect){
         let pad:CGFloat=10
         let triggerZone=CGRect(x:notch.minX-pad,y:notch.minY-pad,width:notch.width+pad*2,height:screen.frame.maxY-(notch.minY-pad))
-        let expandedZone=CGRect(x:notch.midX-190,y:screen.frame.maxY-150,width:380,height:150)
+        let panelW:CGFloat=390, panelH:CGFloat=182, margin:CGFloat=24
+        let expandedZone=CGRect(x:notch.midX-panelW/2-margin,y:screen.frame.maxY-panelH-margin,width:panelW+margin*2,height:panelH+margin)
         let handler:(NSEvent)->Void={[weak self] _ in
             guard let self else {return}
             let zone=self.expanded ? expandedZone : triggerZone

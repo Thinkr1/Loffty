@@ -43,6 +43,8 @@ final class NowPlayingStream {
         if let a=info["artist"] as? String {current.artist=a}
         if let al=info["album"] as? String {current.album=al}
         if let pl=info["playing"] as? Bool {current.isPlaying=pl}
+        if let e=info["elapsedTime"] as? NSNumber {current.elapsed=e.doubleValue}
+        if let d=info["duration"] as? NSNumber {current.duration=d.doubleValue}
         if let b64=info["artworkData"] as? String {current.artwork=Data(base64Encoded: b64)}
         onUpdate?(current)
     }
@@ -51,18 +53,26 @@ final class NowPlayingStream {
 
 final class MediaCommands {
     private typealias SendCmd=@convention(c) (Int, [String: Any]?)->Bool
+    private typealias SetTime=@convention(c) (Double)->Void
     private let send: SendCmd?
-    
+    private let setTime: SetTime?
+
     init() {
         let pth="/System/Library/PrivateFrameworks/MediaRemote.framework"
-        guard let bundle=CFBundleCreate(kCFAllocatorDefault, NSURL(fileURLWithPath: pth)), let ptr=CFBundleGetFunctionPointerForName(bundle, "MRMediaRemoteSendCommand" as CFString) else {send=nil;return}
+        guard let bundle=CFBundleCreate(kCFAllocatorDefault, NSURL(fileURLWithPath: pth)),
+              let ptr=CFBundleGetFunctionPointerForName(bundle, "MRMediaRemoteSendCommand" as CFString)
+        else {send=nil;setTime=nil;return}
         send=unsafeBitCast(ptr,to: SendCmd.self)
+        if let tptr=CFBundleGetFunctionPointerForName(bundle, "MRMediaRemoteSetElapsedTime" as CFString) {
+            setTime=unsafeBitCast(tptr,to: SetTime.self)
+        } else {setTime=nil}
     }
     enum Command: Int {
         case play=0, pause=1, togglePlayPause=2, next=4, prev=5
     }
     @discardableResult
     func perform(_ c: Command) -> Bool {send?(c.rawValue, nil) ?? false}
+    func setElapsed(_ t: Double) {setTime?(t)}
 }
 
 final class MediaController {
@@ -75,4 +85,5 @@ final class MediaController {
         reader.start()
     }
     func command(_ c: MediaCommands.Command) {commands.perform(c)}
+    func setElapsed(_ t: Double) {commands.setElapsed(t)}
 }
