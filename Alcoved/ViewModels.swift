@@ -5,39 +5,39 @@
 //  Created by Pierre-Louis ML on 10/07/2026.
 //
 
-import SwiftUI
 import Combine
 import CoreImage
+import SwiftUI
 
 struct NowPlaying: Equatable {
-    var title: String=""
-    var artist: String=""
-    var album: String=""
-    var isPlaying: Bool=false
-    var elapsed: Double=0
-    var duration: Double=0
-    var artwork: Data?=nil
+    var title: String = ""
+    var artist: String = ""
+    var album: String = ""
+    var isPlaying: Bool = false
+    var elapsed: Double = 0
+    var duration: Double = 0
+    var artwork: Data? = nil
 }
 
 func fmtTime(_ s: Double) -> String {
     guard s.isFinite, s >= 0 else { return "0:00" }
     let t = Int(s)
-    return String(format: "%d:%02d", t/60, t%60)
+    return String(format: "%d:%02d", t / 60, t % 60)
 }
 
 enum AlbumColor {
     private static let ctx = CIContext(options: [.workingColorSpace: NSNull()])
     static func accent(from data: Data?) -> Color {
         guard let data, let img = CIImage(data: data), img.extent.width > 0,
-              let f = CIFilter(name: "CIAreaAverage",parameters: [kCIInputImageKey: img,kCIInputExtentKey: CIVector(cgRect: img.extent)]),
+              let f = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: img, kCIInputExtentKey: CIVector(cgRect: img.extent)]),
               let out = f.outputImage else { return Color.white.opacity(0.5) }
         var px = [UInt8](repeating: 0, count: 4)
-        ctx.render(out, toBitmap: &px, rowBytes: 4,bounds: CGRect(x: 0, y: 0, width: 1, height: 1),format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
-        var color = NSColor(red: CGFloat(px[0])/255, green: CGFloat(px[1])/255,blue: CGFloat(px[2])/255, alpha: 1)
+        ctx.render(out, toBitmap: &px, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+        var color = NSColor(red: CGFloat(px[0]) / 255, green: CGFloat(px[1]) / 255, blue: CGFloat(px[2]) / 255, alpha: 1)
         if let c = color.usingColorSpace(.deviceRGB) {
-            var h: CGFloat=0, s: CGFloat=0, b: CGFloat=0, a: CGFloat=0
+            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             c.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-            color = NSColor(hue: h, saturation: min(1, s*1.7), brightness: max(b, 0.55), alpha: 1)
+            color = NSColor(hue: h, saturation: min(1, s * 1.7), brightness: max(b, 0.55), alpha: 1)
         }
         return Color(nsColor: color)
     }
@@ -45,21 +45,21 @@ enum AlbumColor {
 
 @MainActor
 final class NotchViewModel: ObservableObject {
-    @Published var notch=NotchInfo(screen: NSScreen.main!, notchRect: .zero, hasNotch: false)
-    @Published var isExpanded=false
-    @Published var nowPlaying=NowPlaying()
+    @Published var notch = NotchInfo(screen: NSScreen.main!, notchRect: .zero, hasNotch: false)
+    @Published var isExpanded = false
+    @Published var nowPlaying = NowPlaying()
     @Published var accentColor: Color = .white.opacity(0.5)
     private var elapsedAt = Date()
-    private let media=MediaController()
-    private let volume=SystemVolumeWatcher()
+    private let media = MediaController()
+    private let volume = SystemVolumeWatcher()
 
     func start() {
-        media.onUpdate={[weak self] np in
-            Task {@MainActor in self?.apply(np)}
+        media.onUpdate = { [weak self] np in
+            Task { @MainActor in self?.apply(np) }
         }
         media.start()
-        volume.onChange={lvl in
-            //TODO: HUD
+        volume.onChange = { _ in
+            // TODO: HUD
         }
         volume.start()
     }
@@ -84,17 +84,17 @@ final class NotchViewModel: ObservableObject {
         let t = nowPlaying.elapsed + extra
         return nowPlaying.duration > 0 ? min(t, nowPlaying.duration) : t
     }
-    
-    func setExpanded(_ v:Bool){
-        guard v != isExpanded else {return}
-        withAnimation(.spring(response:0.35, dampingFraction: 0.72)) {
-            isExpanded=v
+
+    func setExpanded(_ v: Bool) {
+        guard v != isExpanded else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
+            isExpanded = v
         }
     }
-    
-    func playPause() {media.command(.togglePlayPause)}
-    func next() {media.command(.next)}
-    func prev() {media.command(.prev)}
+
+    func playPause() { media.command(.togglePlayPause) }
+    func next() { media.command(.next) }
+    func prev() { media.command(.prev) }
 
     func seek(by delta: Double) {
         var t = max(0, currentTime(at: Date()) + delta)
@@ -112,19 +112,19 @@ struct NotchShape: Shape {
         var p = Path()
         let tr = topRadius, br = bottomRadius
         p.move(to: CGPoint(x: r.minX, y: r.minY)) // top left
-        p.addQuadCurve(to: CGPoint(x: r.minX + tr, y: r.minY + tr),control: CGPoint(x: r.minX + tr, y: r.minY))
-        
+        p.addQuadCurve(to: CGPoint(x: r.minX + tr, y: r.minY + tr), control: CGPoint(x: r.minX + tr, y: r.minY))
+
         p.addLine(to: CGPoint(x: r.minX + tr, y: r.maxY - br)) // left side down
-        
-        p.addQuadCurve(to: CGPoint(x: r.minX + tr + br, y: r.maxY),control: CGPoint(x: r.minX + tr, y: r.maxY)) // bottom left
-        
+
+        p.addQuadCurve(to: CGPoint(x: r.minX + tr + br, y: r.maxY), control: CGPoint(x: r.minX + tr, y: r.maxY)) // bottom left
+
         p.addLine(to: CGPoint(x: r.maxX - tr - br, y: r.maxY)) // bottom edge
-        
-        p.addQuadCurve(to: CGPoint(x: r.maxX - tr, y: r.maxY - br),control: CGPoint(x: r.maxX - tr, y: r.maxY)) // bottom right
-        
+
+        p.addQuadCurve(to: CGPoint(x: r.maxX - tr, y: r.maxY - br), control: CGPoint(x: r.maxX - tr, y: r.maxY)) // bottom right
+
         p.addLine(to: CGPoint(x: r.maxX - tr, y: r.minY + tr)) // right side up
 
-        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY),control: CGPoint(x: r.maxX - tr, y: r.minY)) // top right
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY), control: CGPoint(x: r.maxX - tr, y: r.minY)) // top right
         p.closeSubpath()
         return p
     }
@@ -159,7 +159,7 @@ struct NotchRootView: View {
     }
 }
 
-struct WaveBars: View { //TODO: actual soundwaves
+struct WaveBars: View { // TODO: actual soundwaves
     var isPlaying: Bool
     var barCount: Int = 4
     var maxHeight: CGFloat = 14
@@ -170,7 +170,7 @@ struct WaveBars: View { //TODO: actual soundwaves
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             HStack(alignment: .center, spacing: 2.5) {
-                ForEach(0..<barCount, id: \.self) { i in
+                ForEach(0 ..< barCount, id: \.self) { i in
                     Capsule()
                         .fill(.primary)
                         .frame(width: 2.5, height: height(i, t))
