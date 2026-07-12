@@ -57,8 +57,9 @@ final class SkyPanel: NSPanel {
         super.init(contentRect: frame,styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = false
+        hasShadow = true
         isMovable = false
+        //isMovableByWindowBackground=true
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
@@ -128,21 +129,24 @@ struct LockCardView: View {
     
     var body: some View {
         GlassEffectContainer {
-            HStack(spacing: 12) {
-                artwork(size: 56)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white).lineLimit(1)
-                    Text(vm.nowPlaying.artist).font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.6)).lineLimit(1)
-                    progressBar.frame(height: 4).padding(.top, 2)
+            VStack{
+                HStack(spacing: 12) {
+                    artwork(size: 56)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title).font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white).lineLimit(1)
+                        Text(vm.nowPlaying.artist).font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .padding(12)
+                progressBar.padding(.horizontal)
+                controls.padding([.horizontal, .bottom])
             }
-            .padding(12)
             .glassEffect(.clear,in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
-        .frame(width: 340, height: 96)
+        .frame(width: 340, height: 250)
     }
     
     private var progressBar: some View {
@@ -150,13 +154,46 @@ struct LockCardView: View {
             let cur = vm.currentTime(at: ctx.date)
             let dur = vm.nowPlaying.duration
             let p = dur > 0 ? min(1, max(0, cur / dur)) : 0
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.18))
-                    Capsule().fill(.white).frame(width: geo.size.width * p)
+            let remaining = max(0, dur - cur)
+            HStack(spacing: 10) {
+                Text(fmtTime(cur))
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.16))
+                        Capsule().fill(vm.accentColor.opacity(0.9)).frame(width: max(0, geo.size.width * p))
+                    }
                 }
+                .frame(height: 6)
+                Text(dur > 0 ? "-\(fmtTime(remaining))" : fmtTime(cur))
             }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white.opacity(0.5))
+            .monospacedDigit()
         }
+    }
+    
+    private var controls: some View {
+        HStack(spacing: 0) {
+            Spacer()
+            sym("gobackward.10", 18, .white.opacity(0.8)) { vm.seek(by: -10) }.padding(.trailing, 12)
+            sym("backward.fill", 20, .white) { vm.prev() }.padding(.trailing, 12)
+            sym(vm.nowPlaying.isPlaying ? "pause.fill" : "play.fill", 24, .white) { vm.playPause() }.padding(.trailing, 12)
+            sym("forward.fill", 20, .white) { vm.next() }.padding(.trailing, 12)
+            sym("goforward.10", 18, .white.opacity(0.8)) { vm.seek(by: 10) }
+            Spacer()
+        }
+        .padding(.horizontal, -4)
+    }
+    
+    private func sym(_ name: String, _ size: CGFloat, _ tint: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: name)
+                .font(.system(size: size, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 34, height: 30)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
     }
     
     @ViewBuilder private func artwork(size: CGFloat) -> some View {
