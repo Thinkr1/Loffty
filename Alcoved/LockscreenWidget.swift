@@ -116,7 +116,7 @@ final class LockScreenWidget {
     private func makeCardWindow() -> SkyPanel {
         let screen = targetScreen()
         let size = NSSize(width: 340, height: 96)
-        let frame = NSRect(x: screen.frame.midX - size.width / 2,y: screen.frame.minY + screen.frame.height * 0.30,width: size.width, height: size.height)
+        let frame = NSRect(x: screen.frame.midX - size.width / 2,y: screen.frame.minY + screen.frame.height * 0.227,width: size.width, height: size.height)
         let win = SkyPanel(frame: frame)
         win.contentViewController = NSHostingController(rootView: LockCardView().environmentObject(vm))
         return win
