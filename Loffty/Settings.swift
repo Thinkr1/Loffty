@@ -1,6 +1,6 @@
 //
 //  Settings.swift
-//  Alcoved
+//  Loffty
 //
 //  Created by Pierre-Louis ML on 12/07/2026.
 //
