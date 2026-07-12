@@ -25,7 +25,8 @@ final class SystemVolumeWatcher {
     func start() {
         device = defaultOutputDevice()
         var addr = mainVolumeAddress()
-        AudioObjectAddPropertyListenerBlock(device, &addr, DispatchQueue.main) { [weak self] _, _ in
+        AudioObjectAddPropertyListenerBlock(device, &addr, DispatchQueue.main) {
+            [weak self] _, _ in
             self?.emit()
         }
     }
@@ -34,20 +35,37 @@ final class SystemVolumeWatcher {
         var addr = mainVolumeAddress()
         var vol = Float32(0)
         var size = UInt32(MemoryLayout<Float32>.size)
-        if AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &vol) == noErr {
+        if AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &vol)
+            == noErr
+        {
             onChange?(vol)
         }
     }
 
     private func mainVolumeAddress() -> AudioObjectPropertyAddress {
-        AudioObjectPropertyAddress(mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume, mScope: kAudioObjectPropertyScopeOutput, mElement: kAudioObjectPropertyElementMain)
+        AudioObjectPropertyAddress(
+            mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+            mScope: kAudioObjectPropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
     }
 
     private func defaultOutputDevice() -> AudioDeviceID {
-        var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
         var id = AudioDeviceID(0)
         var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &id)
+        AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &addr,
+            0,
+            nil,
+            &size,
+            &id
+        )
         return id
     }
 }

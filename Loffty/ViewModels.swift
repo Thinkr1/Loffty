@@ -29,15 +29,42 @@ enum AlbumColor {
     private static let ctx = CIContext(options: [.workingColorSpace: NSNull()])
     static func accent(from data: Data?) -> Color {
         guard let data, let img = CIImage(data: data), img.extent.width > 0,
-              let f = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: img, kCIInputExtentKey: CIVector(cgRect: img.extent)]),
-              let out = f.outputImage else { return Color.white.opacity(0.5) }
+            let f = CIFilter(
+                name: "CIAreaAverage",
+                parameters: [
+                    kCIInputImageKey: img,
+                    kCIInputExtentKey: CIVector(cgRect: img.extent),
+                ]
+            ),
+            let out = f.outputImage
+        else { return Color.white.opacity(0.5) }
         var px = [UInt8](repeating: 0, count: 4)
-        ctx.render(out, toBitmap: &px, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
-        var color = NSColor(red: CGFloat(px[0]) / 255, green: CGFloat(px[1]) / 255, blue: CGFloat(px[2]) / 255, alpha: 1)
+        ctx.render(
+            out,
+            toBitmap: &px,
+            rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+        var color = NSColor(
+            red: CGFloat(px[0]) / 255,
+            green: CGFloat(px[1]) / 255,
+            blue: CGFloat(px[2]) / 255,
+            alpha: 1
+        )
         if let c = color.usingColorSpace(.deviceRGB) {
-            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            var h: CGFloat = 0
+            var s: CGFloat = 0
+            var b: CGFloat = 0
+            var a: CGFloat = 0
             c.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-            color = NSColor(hue: h, saturation: min(1, s * 1.7), brightness: max(b, 0.55), alpha: 1)
+            color = NSColor(
+                hue: h,
+                saturation: min(1, s * 1.7),
+                brightness: max(b, 0.55),
+                alpha: 1
+            )
         }
         return Color(nsColor: color)
     }
@@ -45,7 +72,11 @@ enum AlbumColor {
 
 @MainActor
 final class NotchViewModel: ObservableObject {
-    @Published var notch = NotchInfo(screen: NSScreen.main!, notchRect: .zero, hasNotch: false)
+    @Published var notch = NotchInfo(
+        screen: NSScreen.main!,
+        notchRect: .zero,
+        hasNotch: false
+    )
     @Published var isExpanded = false
     @Published var nowPlaying = NowPlaying()
     @Published var accentColor: Color = .white.opacity(0.5)
@@ -74,19 +105,24 @@ final class NotchViewModel: ObservableObject {
             Task.detached(priority: .utility) {
                 let c = await AlbumColor.accent(from: data)
                 await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.6)) { self.accentColor = c }
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        self.accentColor = c
+                    }
                 }
             }
         }
     }
-    
+
     func setLocked(_ v: Bool) {
         guard v != isLocked else { return }
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { isLocked = v }
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) {
+            isLocked = v
+        }
     }
 
     func currentTime(at date: Date) -> Double {
-        let extra = nowPlaying.isPlaying ? max(0, date.timeIntervalSince(elapsedAt)) : 0
+        let extra =
+            nowPlaying.isPlaying ? max(0, date.timeIntervalSince(elapsedAt)) : 0
         let t = nowPlaying.elapsed + extra
         return nowPlaying.duration > 0 ? min(t, nowPlaying.duration) : t
     }
@@ -114,58 +150,129 @@ final class NotchViewModel: ObservableObject {
 struct NotchShape: Shape {
     var topRadius: CGFloat = 20
     var bottomRadius: CGFloat = 30
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(topRadius, bottomRadius) }
+        set {
+            topRadius = newValue.first
+            bottomRadius = newValue.second
+        }
+    }
+
     func path(in r: CGRect) -> Path {
         var p = Path()
-        let tr = topRadius, br = bottomRadius
-        p.move(to: CGPoint(x: r.minX, y: r.minY)) // top left
-        p.addQuadCurve(to: CGPoint(x: r.minX + tr, y: r.minY + tr), control: CGPoint(x: r.minX + tr, y: r.minY))
+        let tr = topRadius
+        let br = bottomRadius
+        p.move(to: CGPoint(x: r.minX, y: r.minY))  // top left
+        p.addQuadCurve(
+            to: CGPoint(x: r.minX + tr, y: r.minY + tr),
+            control: CGPoint(x: r.minX + tr, y: r.minY)
+        )
 
-        p.addLine(to: CGPoint(x: r.minX + tr, y: r.maxY - br)) // left side down
+        p.addLine(to: CGPoint(x: r.minX + tr, y: r.maxY - br))  // left side down
 
-        p.addQuadCurve(to: CGPoint(x: r.minX + tr + br, y: r.maxY), control: CGPoint(x: r.minX + tr, y: r.maxY)) // bottom left
+        p.addQuadCurve(
+            to: CGPoint(x: r.minX + tr + br, y: r.maxY),
+            control: CGPoint(x: r.minX + tr, y: r.maxY)
+        )  // bottom left
 
-        p.addLine(to: CGPoint(x: r.maxX - tr - br, y: r.maxY)) // bottom edge
+        p.addLine(to: CGPoint(x: r.maxX - tr - br, y: r.maxY))  // bottom edge
 
-        p.addQuadCurve(to: CGPoint(x: r.maxX - tr, y: r.maxY - br), control: CGPoint(x: r.maxX - tr, y: r.maxY)) // bottom right
+        p.addQuadCurve(
+            to: CGPoint(x: r.maxX - tr, y: r.maxY - br),
+            control: CGPoint(x: r.maxX - tr, y: r.maxY)
+        )  // bottom right
 
-        p.addLine(to: CGPoint(x: r.maxX - tr, y: r.minY + tr)) // right side up
+        p.addLine(to: CGPoint(x: r.maxX - tr, y: r.minY + tr))  // right side up
 
-        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY), control: CGPoint(x: r.maxX - tr, y: r.minY)) // top right
+        p.addQuadCurve(
+            to: CGPoint(x: r.maxX, y: r.minY),
+            control: CGPoint(x: r.maxX - tr, y: r.minY)
+        )  // top right
         p.closeSubpath()
         return p
     }
 }
 
+struct NotchMetrics {
+    var notchW: CGFloat
+    var notchH: CGFloat
+    var expanded: Bool
+    var extended: Bool
+    let gapExtended: CGFloat = 12
+    let edgePad: CGFloat = 14
+    let barsW: CGFloat = 18
+    var topRadius: CGFloat { expanded ? 20 : 10 }
+    var bottomRadius: CGFloat { expanded ? 30 : 12 }
+    var height: CGFloat { expanded ? 182 : notchH }
+    var artSize: CGFloat { notchH - 8 }
+    var gap: CGFloat { extended ? gapExtended : 6 }
+    var side: CGFloat { extended ? edgePad + max(artSize, barsW) + gap : 50 }
+    var width: CGFloat {
+        if expanded { return 380 }
+        return notchW + 2 * (extended ? side : 0) + 2 * topRadius
+    }
+}
+
 struct NotchRootView: View {
     @EnvironmentObject var vm: NotchViewModel
+    @ObservedObject private var settings = AppSettings.shared
     @Namespace private var ns
+
+    private var hasTrack: Bool {
+        vm.nowPlaying.artwork != nil || !vm.nowPlaying.title.isEmpty
+    }
+    private var m: NotchMetrics {
+        NotchMetrics(
+            notchW: vm.notch.notchRect.width > 0
+                ? vm.notch.notchRect.width : 200,
+            notchH: vm.notch.notchRect.height > 0
+                ? vm.notch.notchRect.height + 1 : 32,
+            expanded: vm.isExpanded,
+            extended: settings.extendNotch && hasTrack
+        )
+    }
 
     var body: some View {
         GlassEffectContainer(spacing: 0) {
             ZStack(alignment: .top) {
+                NotchShape(topRadius: m.topRadius, bottomRadius: m.bottomRadius)
+                    .fill(.black)
+                    .frame(width: m.width, height: m.height)
+                    .background {
+                        NotchShape(
+                            topRadius: m.topRadius,
+                            bottomRadius: m.bottomRadius
+                        )
+                        .fill(Color.black.opacity(0.95))
+                        .blur(radius: 28)
+                        .scaleEffect(x: 1.12, y: 1.18)
+                        .opacity(vm.isExpanded ? 0.55 : 0)
+                        .frame(width: m.width, height: m.height)
+                    }
+
                 if vm.isExpanded {
                     ExpandedContent(ns: ns)
-                        .frame(width: 380, height: 182)
-                        .background(NotchShape().fill(.black))
-                        .background {
-                            NotchShape()
-                                .fill(Color.black.opacity(0.95))
-                                .blur(radius: 28)
-                                .scaleEffect(x: 1.12, y: 1.18)
-                                .opacity(0.55)
-                        }
-                        .transition(.scale(scale: 0.32, anchor: .top).combined(with: .opacity))
+                        .frame(width: m.width, height: m.height)
+                        .transition(.opacity)
                 } else {
-                    CollapsedContent(ns: ns)
+                    CollapsedContent(ns: ns, m: m)
+                        .transition(.opacity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.72), value: vm.isExpanded)
+        .animation(
+            .spring(response: 0.42, dampingFraction: 0.78),
+            value: vm.isExpanded
+        )
+        .animation(
+            .spring(response: 0.42, dampingFraction: 0.78),
+            value: m.extended
+        )
     }
 }
 
-struct WaveBars: View { // TODO: actual soundwaves
+struct WaveBars: View {  // TODO: actual soundwaves
     @EnvironmentObject var vm: NotchViewModel
     var isPlaying: Bool
     var barCount: Int = 4
@@ -174,12 +281,15 @@ struct WaveBars: View { // TODO: actual soundwaves
     private let phases: [Double] = [0.0, 0.9, 1.8, 2.7, 3.6, 4.5]
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
+        TimelineView(
+            .animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)
+        ) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             HStack(alignment: .center, spacing: 2.5) {
-                ForEach(0 ..< barCount, id: \.self) { i in
+                ForEach(0..<barCount, id: \.self) { i in
                     Capsule()
-                        .fill(vm.isExpanded ? vm.accentColor: .primary).blendMode(vm.isExpanded ? .normal : .difference)
+                        .fill(vm.isExpanded ? vm.accentColor : .primary)
+                        .blendMode(vm.isExpanded ? .normal : .difference)
                         .frame(width: 2.5, height: height(i, t))
                 }
             }
@@ -192,7 +302,7 @@ struct WaveBars: View { // TODO: actual soundwaves
         guard isPlaying else { return minHeight }
         let phase = phases[i % phases.count]
         let s = (sin(t * 6.0 + phase) + sin(t * 9.7 + phase * 1.7)) / 2
-        let norm = (s + 1) / 2 // 0...1
+        let norm = (s + 1) / 2  // 0...1
         return minHeight + (maxHeight - minHeight) * CGFloat(norm)
     }
 }
@@ -200,27 +310,27 @@ struct WaveBars: View { // TODO: actual soundwaves
 struct CollapsedContent: View {
     @EnvironmentObject var vm: NotchViewModel
     let ns: Namespace.ID
-    private let side: CGFloat = 44
-    private var notchW: CGFloat { vm.notch.notchRect.width > 0 ? vm.notch.notchRect.width : 200 }
-    private var notchH: CGFloat { vm.notch.notchRect.height > 0 ? vm.notch.notchRect.height : 32 }
-    private var hasTrack: Bool { vm.nowPlaying.artwork != nil || !vm.nowPlaying.title.isEmpty }
+    let m: NotchMetrics
+    private var hasTrack: Bool {
+        vm.nowPlaying.artwork != nil || !vm.nowPlaying.title.isEmpty
+    }
 
     var body: some View {
         HStack(spacing: 0) {
-            artwork(size: notchH - 8)
+            artwork(size: m.artSize)
                 .matchedGeometryEffect(id: "artwork", in: ns)
-                .frame(width: side, alignment: .trailing)
-                .padding(.trailing, 6)
-            Color.clear.frame(width: notchW, height: notchH)
+                .frame(width: m.side - m.gap, alignment: .trailing)
+                .padding(.trailing, m.gap)
+            Color.clear.frame(width: m.notchW, height: m.height)
             Group {
                 if hasTrack {
                     WaveBars(isPlaying: vm.nowPlaying.isPlaying)
                 }
             }
-            .frame(width: side, alignment: .leading)
-            .padding(.leading, 6)
+            .frame(width: m.side - m.gap, alignment: .leading)
+            .padding(.leading, m.gap)
         }
-        .frame(height: notchH)
+        .frame(height: m.height)
     }
 
     @ViewBuilder func artwork(size: CGFloat) -> some View {
@@ -228,7 +338,10 @@ struct CollapsedContent: View {
             Image(nsImage: img).resizable().frame(width: size, height: size)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         } else if hasTrack {
-            RoundedRectangle(cornerRadius: 4).fill(.gray.opacity(0.4)).frame(width: size, height: size)
+            RoundedRectangle(cornerRadius: 4).fill(.gray.opacity(0.4)).frame(
+                width: size,
+                height: size
+            )
         }
     }
 }
@@ -237,7 +350,9 @@ struct ExpandedContent: View {
     @EnvironmentObject var vm: NotchViewModel
     let ns: Namespace.ID
 
-    private var title: String { vm.nowPlaying.title.isEmpty ? "Nothing playing" : vm.nowPlaying.title }
+    private var title: String {
+        vm.nowPlaying.title.isEmpty ? "Nothing playing" : vm.nowPlaying.title
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -259,8 +374,12 @@ struct ExpandedContent: View {
                 .animation(.smooth(duration: 0.4), value: title)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                WaveBars(isPlaying: vm.nowPlaying.isPlaying, barCount: 5, maxHeight: 16)
-                    .foregroundStyle(.white.opacity(0.7))
+                WaveBars(
+                    isPlaying: vm.nowPlaying.isPlaying,
+                    barCount: 5,
+                    maxHeight: 16
+                )
+                .foregroundStyle(.white.opacity(0.7))
             }
             progressBar
             controls
@@ -269,9 +388,11 @@ struct ExpandedContent: View {
         .padding(.top, 30)
         .padding(.bottom, 16)
         .overlay(alignment: .topTrailing) {
-            sym("gearshape.fill", 13, .white.opacity(0.45)) { SettingsOpener.shared.open() }
-                .padding(.trailing, 30)
-                .padding(.top, 2)
+            sym("gearshape.fill", 13, .white.opacity(0.45)) {
+                SettingsOpener.shared.open()
+            }
+            .padding(.trailing, 30)
+            .padding(.top, 2)
         }
     }
 
@@ -286,7 +407,9 @@ struct ExpandedContent: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(.white.opacity(0.16))
-                        Capsule().fill(vm.accentColor.opacity(0.9)).frame(width: max(0, geo.size.width * p))
+                        Capsule().fill(vm.accentColor.opacity(0.9)).frame(
+                            width: max(0, geo.size.width * p)
+                        )
                     }
                 }
                 .frame(height: 6)
@@ -301,9 +424,17 @@ struct ExpandedContent: View {
     private var controls: some View {
         HStack(spacing: 0) {
             Spacer()
-            sym("gobackward.10", 18, .white.opacity(0.8)) { vm.seek(by: -10) }.padding(.trailing, 12)
-            sym("backward.fill", 20, .white) { vm.prev() }.padding(.trailing, 12)
-            sym(vm.nowPlaying.isPlaying ? "pause.fill" : "play.fill", 24, .white) { vm.playPause() }.padding(.trailing, 12)
+            sym("gobackward.10", 18, .white.opacity(0.8)) { vm.seek(by: -10) }
+                .padding(.trailing, 12)
+            sym("backward.fill", 20, .white) { vm.prev() }.padding(
+                .trailing,
+                12
+            )
+            sym(
+                vm.nowPlaying.isPlaying ? "pause.fill" : "play.fill",
+                24,
+                .white
+            ) { vm.playPause() }.padding(.trailing, 12)
             sym("forward.fill", 20, .white) { vm.next() }.padding(.trailing, 12)
             sym("goforward.10", 18, .white.opacity(0.8)) { vm.seek(by: 10) }
             Spacer()
@@ -311,7 +442,12 @@ struct ExpandedContent: View {
         .padding(.horizontal, -4)
     }
 
-    private func sym(_ name: String, _ size: CGFloat, _ tint: Color, _ action: @escaping () -> Void) -> some View {
+    private func sym(
+        _ name: String,
+        _ size: CGFloat,
+        _ tint: Color,
+        _ action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: name)
                 .font(.system(size: size, weight: .medium))

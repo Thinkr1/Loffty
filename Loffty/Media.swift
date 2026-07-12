@@ -26,10 +26,12 @@ final class NowPlayingStream {
             guard !data.isEmpty, let self else { return }
             self.buf.append(data)
             while let nl = self.buf.firstIndex(of: 0x0A) {
-                let line = self.buf[self.buf.startIndex ..< nl]
-                self.buf.removeSubrange(self.buf.startIndex ... nl)
+                let line = self.buf[self.buf.startIndex..<nl]
+                self.buf.removeSubrange(self.buf.startIndex...nl)
                 guard !line.isEmpty,
-                      let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
+                    let obj = try? JSONSerialization.jsonObject(with: line)
+                        as? [String: Any]
+                else { continue }
                 self.ingest(obj)
             }
         }
@@ -43,9 +45,15 @@ final class NowPlayingStream {
         if let a = info["artist"] as? String { current.artist = a }
         if let al = info["album"] as? String { current.album = al }
         if let pl = info["playing"] as? Bool { current.isPlaying = pl }
-        if let e = info["elapsedTime"] as? NSNumber { current.elapsed = e.doubleValue }
-        if let d = info["duration"] as? NSNumber { current.duration = d.doubleValue }
-        if let b64 = info["artworkData"] as? String { current.artwork = Data(base64Encoded: b64) }
+        if let e = info["elapsedTime"] as? NSNumber {
+            current.elapsed = e.doubleValue
+        }
+        if let d = info["duration"] as? NSNumber {
+            current.duration = d.doubleValue
+        }
+        if let b64 = info["artworkData"] as? String {
+            current.artwork = Data(base64Encoded: b64)
+        }
         onUpdate?(current)
     }
 
@@ -60,17 +68,37 @@ final class MediaCommands {
 
     init() {
         let pth = "/System/Library/PrivateFrameworks/MediaRemote.framework"
-        guard let bundle = CFBundleCreate(kCFAllocatorDefault, NSURL(fileURLWithPath: pth)),
-              let ptr = CFBundleGetFunctionPointerForName(bundle, "MRMediaRemoteSendCommand" as CFString)
-        else { send = nil; setTime = nil; return }
+        guard
+            let bundle = CFBundleCreate(
+                kCFAllocatorDefault,
+                NSURL(fileURLWithPath: pth)
+            ),
+            let ptr = CFBundleGetFunctionPointerForName(
+                bundle,
+                "MRMediaRemoteSendCommand" as CFString
+            )
+        else {
+            send = nil
+            setTime = nil
+            return
+        }
         send = unsafeBitCast(ptr, to: SendCmd.self)
-        if let tptr = CFBundleGetFunctionPointerForName(bundle, "MRMediaRemoteSetElapsedTime" as CFString) {
+        if let tptr = CFBundleGetFunctionPointerForName(
+            bundle,
+            "MRMediaRemoteSetElapsedTime" as CFString
+        ) {
             setTime = unsafeBitCast(tptr, to: SetTime.self)
-        } else { setTime = nil }
+        } else {
+            setTime = nil
+        }
     }
 
     enum Command: Int {
-        case play = 0, pause = 1, togglePlayPause = 2, next = 4, prev = 5
+        case play = 0
+        case pause = 1
+        case togglePlayPause = 2
+        case next = 4
+        case prev = 5
     }
 
     @discardableResult
