@@ -5,3 +5,6 @@
 <img width="1920" height="1245" alt="Loffty" src="https://github.com/user-attachments/assets/6d920f5e-bc1e-4cb0-ba1f-92dca3f41c34" />
 
 Install `ungive/media-control` (homebrew) before running (I'll bundle it later).
+
+---
+Special thanks to [Alcove](https://tryalcove.com/) for the original inspiration.
