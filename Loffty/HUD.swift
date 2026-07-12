@@ -1,6 +1,6 @@
 //
 //  HUD.swift
-//  Alcoved
+//  Loffty
 //
 //  Created by Pierre-Louis ML on 11/07/2026.
 //
