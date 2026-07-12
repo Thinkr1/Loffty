@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
 
 final class NotchWindow: NSPanel {
@@ -29,28 +30,19 @@ final class NotchWindow: NSPanel {
 @MainActor
 final class SettingsOpener {
     static let shared = SettingsOpener()
-    private lazy var hosting = NSHostingView(rootView: SettingsLink { EmptyView() })
-    private lazy var window: NSWindow = {
-        let w = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 1, height: 1),
-                         styleMask: [.borderless], backing: .buffered, defer: false)
-        w.contentView = hosting
-        w.alphaValue = 0
-        return w
-    }()
+    private var window: NSWindow?
 
     func open() {
-        window.orderFrontRegardless()
-        hosting.layoutSubtreeIfNeeded()
-        Self.findButton(in: hosting)?.performClick(nil)
-        window.orderOut(nil)
-    }
-
-    private static func findButton(in view: NSView) -> NSButton? {
-        if let button = view as? NSButton { return button }
-        for sub in view.subviews {
-            if let found = findButton(in: sub) { return found }
+        if window == nil {
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 150),styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            w.title = "Settings"
+            w.contentView = NSHostingView(rootView: SettingsView())
+            w.isReleasedWhenClosed = false
+            w.center()
+            window = w
         }
-        return nil
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
     }
 }
 
@@ -81,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let vm = NotchViewModel()
     private var lockWidget: LockScreenWidget!
     private var expanded = false
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -107,6 +100,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Settings", action: #selector(openSettings), keyEquivalent: ",")
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
+
+        MainActor.assumeIsolated {
+            AppSettings.shared.$hideMenuBarItem
+                .receive(on: RunLoop.main)
+                .sink { [weak self] hidden in self?.statusItem.isVisible = !hidden }
+                .store(in: &cancellables)
+        }
     }
 
     @objc private func openSettings() {

@@ -262,13 +262,17 @@ struct ExpandedContent: View {
                 WaveBars(isPlaying: vm.nowPlaying.isPlaying, barCount: 5, maxHeight: 16)
                     .foregroundStyle(.white.opacity(0.7))
             }
-
             progressBar
             controls
         }
         .padding(.horizontal, 42)
         .padding(.top, 30)
         .padding(.bottom, 16)
+        .overlay(alignment: .topTrailing) {
+            sym("gearshape.fill", 13, .white.opacity(0.45)) { SettingsOpener.shared.open() }
+                .padding(.trailing, 30)
+                .padding(.top, 2)
+        }
     }
 
     private var progressBar: some View {
