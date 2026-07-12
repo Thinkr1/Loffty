@@ -79,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NotchWindow!
     private var statusItem: NSStatusItem!
     private let vm = NotchViewModel()
+    private var lockWidget: LockScreenWidget!
     private var expanded = false
 
     func applicationDidFinishLaunching(_: Notification) {
@@ -95,6 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         installHoverMonitor(screen: screen, notch: info.notchRect)
         vm.start()
+        lockWidget = LockScreenWidget(vm: vm)
+        lockWidget.start()
     }
 
     private func setupStatusItem() {

@@ -49,6 +49,7 @@ final class NotchViewModel: ObservableObject {
     @Published var isExpanded = false
     @Published var nowPlaying = NowPlaying()
     @Published var accentColor: Color = .white.opacity(0.5)
+    @Published var isLocked = false
     private var elapsedAt = Date()
     private let media = MediaController()
     private let volume = SystemVolumeWatcher()
@@ -77,6 +78,11 @@ final class NotchViewModel: ObservableObject {
                 }
             }
         }
+    }
+    
+    func setLocked(_ v: Bool) {
+        guard v != isLocked else { return }
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { isLocked = v }
     }
 
     func currentTime(at date: Date) -> Double {
@@ -160,6 +166,7 @@ struct NotchRootView: View {
 }
 
 struct WaveBars: View { // TODO: actual soundwaves
+    @EnvironmentObject var vm: NotchViewModel
     var isPlaying: Bool
     var barCount: Int = 4
     var maxHeight: CGFloat = 14
@@ -172,7 +179,7 @@ struct WaveBars: View { // TODO: actual soundwaves
             HStack(alignment: .center, spacing: 2.5) {
                 ForEach(0 ..< barCount, id: \.self) { i in
                     Capsule()
-                        .fill(.primary)
+                        .fill(vm.isExpanded ? vm.accentColor: .primary).blendMode(vm.isExpanded ? .normal : .difference)
                         .frame(width: 2.5, height: height(i, t))
                 }
             }
