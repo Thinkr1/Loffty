@@ -355,13 +355,13 @@ struct NotchControlButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.85 : 1.0)
             .opacity(configuration.isPressed ? 0.7 : 1.0)
             .animation(
-                .spring(response: 0.25, dampingFraction: 0.6),
+                .spring(response: 0.25, dampingFraction: 1.0),
                 value: configuration.isPressed
             )
     }
 }
 
-private struct ControlButton: View {
+struct ControlButton: View {
     let systemName: String
     let size: CGFloat
     let tint: Color
@@ -373,7 +373,7 @@ private struct ControlButton: View {
                 .font(.system(size: size, weight: .medium))
                 .foregroundStyle(tint)
                 .frame(width: 34, height: 30)
-                .contentTransition(.symbolEffect(.replace))
+                .contentTransition(.symbolEffect(.replace.offUp))
         }
         .buttonStyle(NotchControlButtonStyle())
     }

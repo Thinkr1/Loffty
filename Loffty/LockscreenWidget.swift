@@ -225,40 +225,35 @@ struct LockCardView: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 0) {
-            Spacer()
-            sym("gobackward.10", 18, .white.opacity(0.8)) { vm.seek(by: -10) }
-                .padding(.trailing, 12)
-            sym("backward.fill", 20, .white) { vm.prev() }.padding(
-                .trailing,
-                12
-            )
-            sym(
-                vm.nowPlaying.isPlaying ? "pause.fill" : "play.fill",
-                24,
-                .white
-            ) { vm.playPause() }.padding(.trailing, 12)
-            sym("forward.fill", 20, .white) { vm.next() }.padding(.trailing, 12)
-            sym("goforward.10", 18, .white.opacity(0.8)) { vm.seek(by: 10) }
-            Spacer()
+        HStack(spacing: 12) {
+            ControlButton(
+                systemName: "gobackward.10",
+                size: 18,
+                tint: .white.opacity(0.8)
+            ) { vm.seek(by: -10) }
+            ControlButton(
+                systemName: "backward.fill",
+                size: 20,
+                tint: .white
+            ) { vm.prev() }
+            ControlButton(
+                systemName: vm.nowPlaying.isPlaying
+                    ? "pause.fill" : "play.fill",
+                size: 24,
+                tint: .white
+            ) { vm.playPause() }
+            ControlButton(
+                systemName: "forward.fill",
+                size: 20,
+                tint: .white
+            ) { vm.next() }
+            ControlButton(
+                systemName: "goforward.10",
+                size: 18,
+                tint: .white.opacity(0.8)
+            ) { vm.seek(by: 10) }
         }
-        .padding(.horizontal, -4)
-    }
-
-    private func sym(
-        _ name: String,
-        _ size: CGFloat,
-        _ tint: Color,
-        _ action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: name)
-                .font(.system(size: size, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: 34, height: 30)
-                .contentTransition(.symbolEffect(.replace))
-        }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private func artwork(size: CGFloat) -> some View {
