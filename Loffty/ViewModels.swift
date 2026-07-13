@@ -133,6 +133,8 @@ final class NotchViewModel: ObservableObject {
     private let media = MediaController()
     private let volume = SystemVolumeWatcher()
     private let brightness = SystemBrightnessWatcher()
+    private let keyInterceptor = SystemKeyInterceptor()
+    private var cancellables = Set<AnyCancellable>()
 
     func start() {
         media.onUpdate = { [weak self] np in
@@ -140,8 +142,17 @@ final class NotchViewModel: ObservableObject {
         }
         media.start()
 
+        keyInterceptor.setEnabled(AppSettings.shared.replaceSystemHUD)
+        AppSettings.shared.$replaceSystemHUD
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                self?.keyInterceptor.setEnabled(enabled)
+            }
+            .store(in: &cancellables)
+
         volume.onChange = { [weak self] level, muted in
             Task { @MainActor in
+                guard AppSettings.shared.replaceSystemHUD else { return }
                 self?.showHUD(.volume, lvl: level, muted: muted || level == 0)
             }
         }
@@ -149,7 +160,9 @@ final class NotchViewModel: ObservableObject {
 
         brightness.onChange = { [weak self] level in
             Task { @MainActor in
-                guard AppSettings.shared.brightnessHUD else { return }
+                guard AppSettings.shared.brightnessHUD,
+                    AppSettings.shared.replaceSystemHUD
+                else { return }
                 self?.showHUD(.brightness, lvl: level)
             }
         }
@@ -198,9 +211,6 @@ final class NotchViewModel: ObservableObject {
 
     func showHUD(_ kind: HUDKind, lvl: Float, muted: Bool = false) {
         hudHideTask?.cancel()
-        if AppSettings.shared.replaceSystemHUD {
-            SystemHUD.suppress()
-        }
 
         withAnimation(Self.hudSpring) {
             hud = kind

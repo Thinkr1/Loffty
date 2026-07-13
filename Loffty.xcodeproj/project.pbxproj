@@ -10,9 +10,22 @@
 		DB7403743000F63500879106 /* Loffty.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Loffty.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		DB7403823000F63800879107 /* Exceptions for "Loffty" folder in "Loffty" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DB7403733000F63500879106 /* Loffty */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DB7403763000F63500879106 /* Loffty */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DB7403823000F63800879107 /* Exceptions for "Loffty" folder in "Loffty" target */,
+			);
 			path = Loffty;
 			sourceTree = "<group>";
 		};
@@ -256,8 +269,8 @@
 				DEVELOPMENT_TEAM = BML64T9T2X;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Loffty/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Loffty;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -289,8 +302,8 @@
 				DEVELOPMENT_TEAM = BML64T9T2X;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Loffty/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Loffty;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

@@ -82,9 +82,9 @@ struct SettingsView: View {
                 Toggle("Hide menu bar icon", isOn: $settings.hideMenuBarItem)
                 Toggle("Extend notch around media", isOn: $settings.extendNotch)
             }
-            Section("System HUDs") {
+            Section {
                 Toggle(
-                    "Replace macOS volume & brightness overlays",
+                    "Hide macOS volume & brightness overlays",
                     isOn: $settings.replaceSystemHUD
                 )
                 Toggle("Show brightness HUD", isOn: $settings.brightnessHUD)
@@ -94,6 +94,14 @@ struct SettingsView: View {
                     Text(String(format: "%.1fs", settings.hudDuration))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("System HUDs")
+            } footer: {
+                if settings.replaceSystemHUD {
+                    Text(
+                        "Requires Accessibility permission. Loffty only intercepts volume and brightness keys."
+                    )
                 }
             }
         }
