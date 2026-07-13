@@ -19,6 +19,45 @@ struct NowPlaying: Equatable {
     var artwork: Data? = nil
 }
 
+struct NotchMetrics {
+    var notchW: CGFloat
+    var notchH: CGFloat
+    var expanded: Bool
+    var extended: Bool
+    var hudActive: Bool
+    let gapExtended: CGFloat = 12
+    let edgePad: CGFloat = 14
+    let barsW: CGFloat = 18
+    let hudExtra: CGFloat = 38
+    var topRadius: CGFloat {
+        if expanded { return 20 }
+        if hudActive { return 16 }
+        return 10
+    }
+    var bottomRadius: CGFloat {
+        if expanded { return 30 }
+        if hudActive { return 26 }
+        return 12
+    }
+    var height: CGFloat {
+        if expanded { return 182 }
+        if hudActive { return notchH + hudExtra }
+        return notchH
+    }
+    var artSize: CGFloat { notchH - 8 }
+    var gap: CGFloat { extended ? gapExtended : 6 }
+    var side: CGFloat { extended ? edgePad + max(artSize, barsW) + gap : 50 }
+    var width: CGFloat {
+        if expanded { return 380 }
+        if hudActive { return notchW + 2 * topRadius + 36 }
+        return notchW + 2 * (extended ? side : 0) + 2 * topRadius
+    }
+}
+
+enum HUDKind: Equatable {
+    case volume, brightness
+}
+
 func fmtTime(_ s: Double) -> String {
     guard s.isFinite, s >= 0 else { return "0:00" }
     let t = Int(s)
@@ -81,19 +120,42 @@ final class NotchViewModel: ObservableObject {
     @Published var nowPlaying = NowPlaying()
     @Published var accentColor: Color = .white.opacity(0.5)
     @Published var isLocked = false
+    @Published var hud: HUDKind? = nil
+    @Published var hudDisplay: HUDKind? = nil
+    @Published var hudLevel: Float = 0
+    @Published var hudMuted: Bool = false
+    private var hudHideTask: Task<Void, Never>?
+    fileprivate static let hudSpring = Animation.spring(
+        response: 0.35,
+        dampingFraction: 0.82
+    )
     private var elapsedAt = Date()
     private let media = MediaController()
     private let volume = SystemVolumeWatcher()
+    private let brightness = SystemBrightnessWatcher()
 
     func start() {
         media.onUpdate = { [weak self] np in
             Task { @MainActor in self?.apply(np) }
         }
         media.start()
-        volume.onChange = { _ in
-            // TODO: HUD
+
+        volume.onChange = { [weak self] level, muted in
+            Task { @MainActor in
+                self?.showHUD(.volume, lvl: level, muted: muted || level == 0)
+            }
         }
         volume.start()
+
+        brightness.onChange = { [weak self] level in
+            Task { @MainActor in
+                guard AppSettings.shared.brightnessHUD else { return }
+                self?.showHUD(.brightness, lvl: level)
+            }
+        }
+        if AppSettings.shared.brightnessHUD {
+            brightness.start()
+        }
     }
 
     private func apply(_ np: NowPlaying) {
@@ -131,6 +193,32 @@ final class NotchViewModel: ObservableObject {
         guard v != isExpanded else { return }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
             isExpanded = v
+        }
+    }
+
+    func showHUD(_ kind: HUDKind, lvl: Float, muted: Bool = false) {
+        hudHideTask?.cancel()
+        if AppSettings.shared.replaceSystemHUD {
+            SystemHUD.suppress()
+        }
+
+        withAnimation(Self.hudSpring) {
+            hud = kind
+            hudDisplay = kind
+            hudLevel = max(0, min(1, lvl))
+            hudMuted = muted
+        }
+
+        let duration = AppSettings.shared.hudDuration
+        hudHideTask = Task {
+            try? await Task.sleep(for: .seconds(duration))
+            guard !Task.isCancelled else { return }
+            withAnimation(Self.hudSpring) {
+                hud = nil
+            }
+            try? await Task.sleep(for: .seconds(0.42))
+            guard !Task.isCancelled else { return }
+            hudDisplay = nil
         }
     }
 
@@ -193,26 +281,6 @@ struct NotchShape: Shape {
     }
 }
 
-struct NotchMetrics {
-    var notchW: CGFloat
-    var notchH: CGFloat
-    var expanded: Bool
-    var extended: Bool
-    let gapExtended: CGFloat = 12
-    let edgePad: CGFloat = 14
-    let barsW: CGFloat = 18
-    var topRadius: CGFloat { expanded ? 20 : 10 }
-    var bottomRadius: CGFloat { expanded ? 30 : 12 }
-    var height: CGFloat { expanded ? 182 : notchH }
-    var artSize: CGFloat { notchH - 8 }
-    var gap: CGFloat { extended ? gapExtended : 6 }
-    var side: CGFloat { extended ? edgePad + max(artSize, barsW) + gap : 50 }
-    var width: CGFloat {
-        if expanded { return 380 }
-        return notchW + 2 * (extended ? side : 0) + 2 * topRadius
-    }
-}
-
 struct NotchRootView: View {
     @EnvironmentObject var vm: NotchViewModel
     @ObservedObject private var settings = AppSettings.shared
@@ -221,6 +289,8 @@ struct NotchRootView: View {
     private var hasTrack: Bool {
         vm.nowPlaying.artwork != nil || !vm.nowPlaying.title.isEmpty
     }
+    private var hudActive: Bool { vm.hud != nil && !vm.isExpanded }
+    private var hudVisible: Bool { vm.hudDisplay != nil && !vm.isExpanded }
     private var m: NotchMetrics {
         NotchMetrics(
             notchW: vm.notch.notchRect.width > 0
@@ -228,7 +298,8 @@ struct NotchRootView: View {
             notchH: vm.notch.notchRect.height > 0
                 ? vm.notch.notchRect.height + 0.25 : 32,
             expanded: vm.isExpanded,
-            extended: settings.extendNotch && hasTrack
+            extended: settings.extendNotch && hasTrack && !hudVisible,
+            hudActive: hudActive
         )
     }
 
@@ -246,7 +317,7 @@ struct NotchRootView: View {
                         .fill(Color.black.opacity(0.95))
                         .blur(radius: 28)
                         .scaleEffect(x: 1.12, y: 1.18)
-                        .opacity(vm.isExpanded ? 0.55 : 0)
+                        .opacity(vm.isExpanded || hudVisible ? 0.55 : 0)
                         .frame(width: m.width, height: m.height)
                     }
 
@@ -255,8 +326,33 @@ struct NotchRootView: View {
                         .frame(width: m.width, height: m.height)
                         .transition(.opacity)
                 } else {
-                    CollapsedContent(ns: ns, m: m)
-                        .transition(.opacity)
+                    ZStack(alignment: .top) {
+                        CollapsedContent(ns: ns, m: m)
+                            .opacity(vm.hudDisplay == nil ? 1 : 0)
+
+                        if let kind = vm.hudDisplay {
+                            VStack(spacing: 0) {
+                                Color.clear.frame(height: m.notchH)
+                                HUDChip(kind: kind)
+                                    .padding(.horizontal, 40)
+                                    .frame(
+                                        height: m.hudExtra,
+                                        alignment: .center
+                                    )
+                            }
+                            .frame(
+                                width: m.width,
+                                height: m.height,
+                                alignment: .top
+                            )
+                            .clipShape(
+                                NotchShape(
+                                    topRadius: m.topRadius,
+                                    bottomRadius: m.bottomRadius
+                                )
+                            )
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -272,6 +368,7 @@ struct NotchRootView: View {
             .spring(response: 0.42, dampingFraction: 0.78),
             value: m.extended
         )
+        .animation(NotchViewModel.hudSpring, value: vm.hud)
     }
 }
 
@@ -498,6 +595,49 @@ struct ExpandedContent: View {
         } else {
             RoundedRectangle(cornerRadius: 12).fill(.gray.opacity(0.35))
                 .frame(width: size, height: size)
+        }
+    }
+}
+
+struct HUDChip: View {
+    @EnvironmentObject var vm: NotchViewModel
+    let kind: HUDKind
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 14)
+                .contentTransition(.symbolEffect(.replace))
+
+            Capsule()
+                .fill(.white.opacity(0.16))
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(.white.opacity(0.85))
+                        .scaleEffect(
+                            x: max(CGFloat(vm.hudLevel), 0.001),
+                            y: 1,
+                            anchor: .leading
+                        )
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 5)
+                .clipShape(Capsule())
+        }
+        .animation(
+            .spring(response: 0.32, dampingFraction: 0.78),
+            value: vm.hudLevel
+        )
+    }
+
+    private var icon: String {
+        switch kind {
+        case .volume:
+            vm.hudMuted ? "speaker.slash.fill" : "speaker.wave.2.fill"
+        case .brightness:
+            vm.hudLevel < 0.01 ? "sun.min.fill" : "sun.max.fill"
         }
     }
 }
