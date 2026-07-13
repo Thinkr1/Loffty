@@ -226,7 +226,7 @@ struct NotchRootView: View {
             notchW: vm.notch.notchRect.width > 0
                 ? vm.notch.notchRect.width : 200,
             notchH: vm.notch.notchRect.height > 0
-                ? vm.notch.notchRect.height + 1 : 32,
+                ? vm.notch.notchRect.height + 0.25 : 32,
             expanded: vm.isExpanded,
             extended: settings.extendNotch && hasTrack
         )
@@ -262,7 +262,10 @@ struct NotchRootView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .animation(
-            .spring(response: 0.42, dampingFraction: 0.78),
+            .spring(
+                response: vm.isExpanded ? 0.42 : 0.35,
+                dampingFraction: vm.isExpanded ? 0.72 : 0.86
+            ),
             value: vm.isExpanded
         )
         .animation(
@@ -346,6 +349,36 @@ struct CollapsedContent: View {
     }
 }
 
+struct NotchControlButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.85 : 1.0)
+            .opacity(configuration.isPressed ? 0.7 : 1.0)
+            .animation(
+                .spring(response: 0.25, dampingFraction: 0.6),
+                value: configuration.isPressed
+            )
+    }
+}
+
+private struct ControlButton: View {
+    let systemName: String
+    let size: CGFloat
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: size, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 34, height: 30)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(NotchControlButtonStyle())
+    }
+}
+
 struct ExpandedContent: View {
     @EnvironmentObject var vm: NotchViewModel
     let ns: Namespace.ID
@@ -388,7 +421,11 @@ struct ExpandedContent: View {
         .padding(.top, 30)
         .padding(.bottom, 16)
         .overlay(alignment: .topTrailing) {
-            sym("gearshape.fill", 13, .white.opacity(0.45)) {
+            ControlButton(
+                systemName: "gearshape.fill",
+                size: 13,
+                tint: .white.opacity(0.45)
+            ) {
                 SettingsOpener.shared.open()
             }
             .padding(.trailing, 30)
@@ -422,40 +459,35 @@ struct ExpandedContent: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 0) {
-            Spacer()
-            sym("gobackward.10", 18, .white.opacity(0.8)) { vm.seek(by: -10) }
-                .padding(.trailing, 12)
-            sym("backward.fill", 20, .white) { vm.prev() }.padding(
-                .trailing,
-                12
-            )
-            sym(
-                vm.nowPlaying.isPlaying ? "pause.fill" : "play.fill",
-                24,
-                .white
-            ) { vm.playPause() }.padding(.trailing, 12)
-            sym("forward.fill", 20, .white) { vm.next() }.padding(.trailing, 12)
-            sym("goforward.10", 18, .white.opacity(0.8)) { vm.seek(by: 10) }
-            Spacer()
+        HStack(spacing: 12) {
+            ControlButton(
+                systemName: "gobackward.10",
+                size: 18,
+                tint: .white.opacity(0.8)
+            ) { vm.seek(by: -10) }
+            ControlButton(
+                systemName: "backward.fill",
+                size: 20,
+                tint: .white
+            ) { vm.prev() }
+            ControlButton(
+                systemName: vm.nowPlaying.isPlaying
+                    ? "pause.fill" : "play.fill",
+                size: 24,
+                tint: .white
+            ) { vm.playPause() }
+            ControlButton(
+                systemName: "forward.fill",
+                size: 20,
+                tint: .white
+            ) { vm.next() }
+            ControlButton(
+                systemName: "goforward.10",
+                size: 18,
+                tint: .white.opacity(0.8)
+            ) { vm.seek(by: 10) }
         }
-        .padding(.horizontal, -4)
-    }
-
-    private func sym(
-        _ name: String,
-        _ size: CGFloat,
-        _ tint: Color,
-        _ action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: name)
-                .font(.system(size: size, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: 34, height: 30)
-                .contentTransition(.symbolEffect(.replace))
-        }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder func artwork(size: CGFloat) -> some View {
