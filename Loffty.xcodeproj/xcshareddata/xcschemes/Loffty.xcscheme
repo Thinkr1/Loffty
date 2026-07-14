@@ -75,5 +75,24 @@
    <ArchiveAction
       buildConfiguration = "Release"
       revealArchiveInOrganizer = "YES">
+      <PostActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Run Script"
+               scriptText = "#!/bin/bash&#10;set -euo pipefail&#10;&#10;LOG_FILE=&quot;${HOME}/Library/Logs/xcode-archive-postaction.log&quot;&#10;exec &gt; &gt;(tee -a &quot;$LOG_FILE&quot;) 2&gt;&amp;1&#10;echo &quot;=== Post-action run: $(date) ===&quot;&#10;&#10;APP_NAME=&quot;${TARGET_NAME:-${PROJECT_NAME:-MyApp}}&quot;&#10;BUILT_APP_PATH=&quot;${ARCHIVE_PATH}/Products/Applications/${APP_NAME}.app&quot;&#10;&#10;if [[ ! -d &quot;$BUILT_APP_PATH&quot; ]]; then&#10;    echo &quot;Built .app not found at: $BUILT_APP_PATH&quot;&#10;    echo &quot;Contents of Applications folder:&quot;&#10;    ls -la &quot;${ARCHIVE_PATH}/Products/Applications/&quot; 2&gt;&amp;1 || echo &quot;Applications folder missing&quot;&#10;    exit 1&#10;fi&#10;&#10;DOWNLOAD_ROOT=&quot;${HOME}/Downloads&quot;&#10;DEST_FOLDER=&quot;${DOWNLOAD_ROOT}/${APP_NAME}&quot;&#10;rm -rf &quot;${DEST_FOLDER}&quot;&#10;mkdir -p &quot;${DEST_FOLDER}&quot;&#10;echo &quot;Copying ${APP_NAME}.app to ${DEST_FOLDER}&quot;&#10;ditto &quot;${BUILT_APP_PATH}&quot; &quot;${DEST_FOLDER}/${APP_NAME}.app&quot;&#10;&#10;DMG_PATH=&quot;${DOWNLOAD_ROOT}/${APP_NAME}.dmg&quot;&#10;echo &quot;Building dmg: ${DMG_PATH}&quot;&#10;hdiutil create -volname &quot;${APP_NAME}&quot; \&#10;               -srcfolder &quot;${DEST_FOLDER}&quot; \&#10;               -ov -format UDZO \&#10;               -quiet &quot;${DMG_PATH}&quot;&#10;&#10;ZIP_PATH=&quot;${DOWNLOAD_ROOT}/${APP_NAME}.zip&quot;&#10;echo &quot;Creating zip archive: ${ZIP_PATH}&quot;&#10;ditto -c -k --keepParent &quot;${DEST_FOLDER}&quot; &quot;${ZIP_PATH}&quot;&#10;&#10;hash_file() {&#10;    local file_path=&quot;$1&quot;&#10;    shasum -a 256 &quot;${file_path}&quot; &gt; &quot;${file_path}.sha256&quot;&#10;    echo &quot;SHA-256 for $(basename &quot;${file_path}&quot;) written to ${file_path}.sha256&quot;&#10;}&#10;hash_file &quot;${DMG_PATH}&quot;&#10;hash_file &quot;${ZIP_PATH}&quot;&#10;&#10;echo &quot;Success, output files:&quot;&#10;echo &quot;      ${DEST_FOLDER}&quot;&#10;echo &quot;      - ${APP_NAME}.dmg&quot;&#10;echo &quot;      - ${APP_NAME}.zip&quot;&#10;echo &quot;      - ${APP_NAME}.dmg.sha256&quot;&#10;echo &quot;      - ${APP_NAME}.zip.sha256&quot;&#10;"
+               shellToInvoke = "/bin/bash">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "DB7403733000F63500879106"
+                     BuildableName = "Loffty.app"
+                     BlueprintName = "Loffty"
+                     ReferencedContainer = "container:Loffty.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PostActions>
    </ArchiveAction>
 </Scheme>
