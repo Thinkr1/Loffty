@@ -106,5 +106,12 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
+        }
     }
 }
