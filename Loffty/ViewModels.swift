@@ -299,8 +299,9 @@ struct NotchRootView: View {
     private var hasTrack: Bool {
         vm.nowPlaying.artwork != nil || !vm.nowPlaying.title.isEmpty
     }
-    private var hudActive: Bool { vm.hud != nil && !vm.isExpanded }
-    private var hudVisible: Bool { vm.hudDisplay != nil && !vm.isExpanded }
+    private var hudVisible: Bool { vm.hudDisplay != nil }
+    private var hudIntegrated: Bool { hudVisible && !vm.isExpanded }
+    private var hudBelowExpanded: Bool { hudVisible && vm.isExpanded }
     private var m: NotchMetrics {
         NotchMetrics(
             notchW: vm.notch.notchRect.width > 0
@@ -309,14 +310,29 @@ struct NotchRootView: View {
                 ? vm.notch.notchRect.height + 0.25 : 32,
             expanded: vm.isExpanded,
             extended: settings.extendNotch && hasTrack && !hudVisible,
-            hudActive: hudActive
+            hudActive: hudIntegrated
+        )
+    }
+    private var hudTailMetrics: NotchMetrics {
+        NotchMetrics(
+            notchW: vm.notch.notchRect.width > 0
+                ? vm.notch.notchRect.width : 200,
+            notchH: vm.notch.notchRect.height > 0
+                ? vm.notch.notchRect.height + 0.25 : 32,
+            expanded: false,
+            extended: false,
+            hudActive: true
         )
     }
 
     var body: some View {
         GlassEffectContainer(spacing: 0) {
-            ZStack(alignment: .top) {
-                NotchShape(topRadius: m.topRadius, bottomRadius: m.bottomRadius)
+            VStack(spacing: hudBelowExpanded ? 6 : 0) {
+                ZStack(alignment: .top) {
+                    NotchShape(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
                     .fill(.black)
                     .frame(width: m.width, height: m.height)
                     .background {
@@ -331,38 +347,59 @@ struct NotchRootView: View {
                         .frame(width: m.width, height: m.height)
                     }
 
-                if vm.isExpanded {
-                    ExpandedContent(ns: ns)
-                        .frame(width: m.width, height: m.height)
-                        .transition(.opacity)
-                } else {
-                    ZStack(alignment: .top) {
-                        CollapsedContent(ns: ns, m: m)
-                            .opacity(vm.hudDisplay == nil ? 1 : 0)
+                    if vm.isExpanded {
+                        ExpandedContent(ns: ns)
+                            .frame(width: m.width, height: m.height)
+                            .transition(.opacity)
+                    } else {
+                        ZStack(alignment: .top) {
+                            CollapsedContent(ns: ns, m: m)
+                                .opacity(vm.hudDisplay == nil ? 1 : 0)
 
-                        if let kind = vm.hudDisplay {
-                            VStack(spacing: 0) {
-                                Color.clear.frame(height: m.notchH)
-                                HUDChip(kind: kind)
-                                    .padding(.horizontal, 40)
-                                    .frame(
-                                        height: m.hudExtra,
-                                        alignment: .center
-                                    )
-                            }
-                            .frame(
-                                width: m.width,
-                                height: m.height,
-                                alignment: .top
-                            )
-                            .clipShape(
-                                NotchShape(
-                                    topRadius: m.topRadius,
-                                    bottomRadius: m.bottomRadius
+                            if hudIntegrated, let kind = vm.hudDisplay {
+                                VStack(spacing: 0) {
+                                    Color.clear.frame(height: m.notchH)
+                                    HUDChip(kind: kind)
+                                        .padding(.horizontal, 40)
+                                        .frame(
+                                            height: m.hudExtra,
+                                            alignment: .center
+                                        )
+                                }
+                                .frame(
+                                    width: m.width,
+                                    height: m.height,
+                                    alignment: .top
                                 )
-                            )
+                                .clipShape(
+                                    NotchShape(
+                                        topRadius: m.topRadius,
+                                        bottomRadius: m.bottomRadius
+                                    )
+                                )
+                            }
                         }
                     }
+                }
+                .frame(width: m.width, height: m.height)
+
+                if hudBelowExpanded, let kind = vm.hudDisplay {
+                    ZStack {
+                        RoundedRectangle(
+                            cornerRadius: hudTailMetrics.bottomRadius,
+                            style: .continuous
+                        )
+                        .fill(.black)
+                        HUDChip(kind: kind)
+                            .padding(.horizontal, 20)
+                            .frame(height: m.hudExtra, alignment: .center)
+                    }
+                    .frame(width: hudTailMetrics.width, height: m.hudExtra)
+                    .transition(
+                        .opacity.combined(
+                            with: .scale(scale: 0.92, anchor: .top)
+                        )
+                    )
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
