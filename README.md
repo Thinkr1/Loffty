@@ -34,6 +34,20 @@ Then open it normally.
 
 Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a cool idea—[open an issue](https://github.com/Thinkr1/Loffty/issues) or submit a PR.
 
+## TODOs
+
+- Fix AirPods/bt bugs
+- Add queue?
+- Add more controls (shuffle, repeat, etc)
+- Click to seek in progress bar
+- Marquee for long titles
+- Actual soundwaves
+- Current player indicator badge?
+- Improve idle mode
+- Lock screen lyrics
+- Support other system HUD overrides (bt device connection, AirDrop?, battery)
+- Auto-expand on track change?
+
 ## License
 
 This project is released under the [MIT License](LICENSE).
