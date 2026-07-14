@@ -200,7 +200,7 @@ struct LockCardView: View {
                     Spacer(minLength: 0)
                 }
                 .padding(12)
-                progressBar.padding(.horizontal)
+                Progress(accent: vm.accentColor).padding(.horizontal)
                 controls.padding([.horizontal, .bottom])
             }
             .glassEffect(
@@ -209,31 +209,6 @@ struct LockCardView: View {
             )
         }
         .frame(width: 350, height: 250)
-    }
-
-    private var progressBar: some View {
-        TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
-            let cur = vm.currentTime(at: ctx.date)
-            let dur = vm.nowPlaying.duration
-            let p = dur > 0 ? min(1, max(0, cur / dur)) : 0
-            let remaining = max(0, dur - cur)
-            HStack(spacing: 10) {
-                Text(fmtTime(cur))
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(.white.opacity(0.16))
-                        Capsule().fill(vm.accentColor.opacity(0.9)).frame(
-                            width: max(0, geo.size.width * p)
-                        )
-                    }
-                }
-                .frame(height: 6)
-                Text(dur > 0 ? "-\(fmtTime(remaining))" : fmtTime(cur))
-            }
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(.white.opacity(0.5))
-            .monospacedDigit()
-        }
     }
 
     private var controls: some View {
