@@ -10,6 +10,8 @@ import Combine
 import SwiftUI
 
 final class NotchWindow: NSPanel {
+    var acceptsInteraction = false
+
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
@@ -30,9 +32,10 @@ final class NotchWindow: NSPanel {
         hasShadow = false
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
+        acceptsMouseMovedEvents = true
     }
 
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { acceptsInteraction }
     override var canBecomeMain: Bool { false }
 }
 
@@ -44,7 +47,7 @@ final class SettingsOpener {
     func open() {
         if window == nil {
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 380, height: 320),
+                contentRect: NSRect(x: 0, y: 0, width: 380, height: 360),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
@@ -52,11 +55,14 @@ final class SettingsOpener {
             w.title = "Loffty Settings"
             w.contentView = NSHostingView(rootView: SettingsView())
             w.isReleasedWhenClosed = false
+            w.level = .floating
+            w.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             w.center()
             window = w
         }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()
     }
 }
 
@@ -98,7 +104,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let vm = NotchViewModel()
     private var lockWidget: LockScreenWidget!
-    private var expanded = false
+    private var hoverExpanded = false
+    private var mouseButtonDown = false
+    private var triggerZone = CGRect.zero
+    private var expandedZone = CGRect.zero
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_: Notification) {
@@ -169,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func installHoverMonitor(screen: NSScreen, notch: CGRect) {
         let pad: CGFloat = 10
-        let triggerZone = CGRect(
+        triggerZone = CGRect(
             x: notch.minX - pad,
             y: notch.minY - pad,
             width: notch.width + pad * 2,
@@ -177,29 +186,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         let panelW: CGFloat = 390
         let panelH: CGFloat = 182
-        let margin: CGFloat = 24
-        let expandedZone = CGRect(
+        let margin: CGFloat = 36
+        expandedZone = CGRect(
             x: notch.midX - panelW / 2 - margin,
             y: screen.frame.maxY - panelH - margin,
             width: panelW + margin * 2,
             height: panelH + margin
         )
-        let handler: (NSEvent) -> Void = { [weak self] _ in
-            guard let self else { return }
-            let zone = self.expanded ? expandedZone : triggerZone
-            let inside = zone.contains(NSEvent.mouseLocation)
-            guard inside != self.expanded else { return }
-            self.expanded = inside
-            self.window.ignoresMouseEvents = !inside
-            Task { @MainActor in self.vm.setExpanded(inside) }
+
+        let mouseHandler: (NSEvent) -> Void = { [weak self] _ in
+            self?.updateHoverState()
         }
         NSEvent.addGlobalMonitorForEvents(
             matching: [.mouseMoved],
-            handler: handler
+            handler: mouseHandler
         )
         NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) {
-            handler($0)
+            mouseHandler($0)
             return $0
         }
+        NSEvent.addGlobalMonitorForEvents(matching: [
+            .leftMouseDown, .rightMouseDown,
+        ]) {
+            [weak self] _ in
+            self?.mouseButtonDown = true
+        }
+        NSEvent.addGlobalMonitorForEvents(matching: [
+            .leftMouseUp, .rightMouseUp,
+        ]) {
+            [weak self] _ in
+            self?.mouseButtonDown = false
+            self?.updateHoverState()
+        }
+    }
+
+    private func updateHoverState() {
+        if hoverExpanded {
+            guard !expandedZone.contains(NSEvent.mouseLocation) else { return }
+            guard !mouseButtonDown else { return }
+            setHoverExpanded(false)
+            return
+        }
+
+        guard triggerZone.contains(NSEvent.mouseLocation) else { return }
+        setHoverExpanded(true)
+    }
+
+    private func setHoverExpanded(_ expanded: Bool) {
+        guard hoverExpanded != expanded else { return }
+        hoverExpanded = expanded
+        window.ignoresMouseEvents = !expanded
+        window.acceptsInteraction = expanded
+        if expanded { window.makeKey() }
+        Task { @MainActor in vm.setExpanded(expanded) }
     }
 }

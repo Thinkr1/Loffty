@@ -129,6 +129,14 @@ final class NotchViewModel: ObservableObject {
         response: 0.35,
         dampingFraction: 0.82
     )
+    fileprivate static let notchExpandSpring = Animation.spring(
+        response: 0.35,
+        dampingFraction: 0.72
+    )
+    fileprivate static let notchCollapseSpring = Animation.spring(
+        response: 0.35,
+        dampingFraction: 1.0
+    )
     private var elapsedAt = Date()
     private let media = MediaController()
     private let volume = SystemVolumeWatcher()
@@ -211,7 +219,7 @@ final class NotchViewModel: ObservableObject {
 
     func setExpanded(_ v: Bool) {
         guard v != isExpanded else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
+        withAnimation(v ? Self.notchExpandSpring : Self.notchCollapseSpring) {
             isExpanded = v
         }
     }
@@ -356,8 +364,11 @@ struct NotchRootView: View {
 
                     if vm.isExpanded {
                         ExpandedContent(ns: ns)
-                            .frame(width: m.width, height: m.height)
-                            .transition(.opacity)
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .top
+                            )
                     } else {
                         ZStack(alignment: .top) {
                             CollapsedContent(ns: ns, m: m)
@@ -378,17 +389,17 @@ struct NotchRootView: View {
                                     height: m.height,
                                     alignment: .top
                                 )
-                                .clipShape(
-                                    NotchShape(
-                                        topRadius: m.topRadius,
-                                        bottomRadius: m.bottomRadius
-                                    )
-                                )
                             }
                         }
                     }
                 }
-                .frame(width: m.width, height: m.height)
+                .frame(width: m.width, height: m.height, alignment: .top)
+                .clipShape(
+                    NotchShape(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                )
 
                 if hudBelowExpanded, let kind = vm.hudDisplay {
                     ZStack {
@@ -412,14 +423,15 @@ struct NotchRootView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .animation(
-            .spring(
-                response: vm.isExpanded ? 0.42 : 0.35,
-                dampingFraction: vm.isExpanded ? 0.72 : 0.86
-            ),
+            vm.isExpanded
+                ? NotchViewModel.notchExpandSpring
+                : NotchViewModel.notchCollapseSpring,
             value: vm.isExpanded
         )
         .animation(
-            .spring(response: 0.42, dampingFraction: 0.78),
+            vm.isExpanded
+                ? NotchViewModel.notchExpandSpring
+                : NotchViewModel.notchCollapseSpring,
             value: m.extended
         )
         .animation(NotchViewModel.hudSpring, value: vm.hud)
@@ -516,6 +528,7 @@ struct ControlButton: View {
     let systemName: String
     let size: CGFloat
     let tint: Color
+    var hitSize: CGFloat = 34
     let action: () -> Void
 
     var body: some View {
@@ -523,7 +536,8 @@ struct ControlButton: View {
             Image(systemName: systemName)
                 .font(.system(size: size, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: 34, height: 30)
+                .frame(width: hitSize, height: hitSize)
+                .contentShape(Rectangle())
                 .contentTransition(.symbolEffect(.replace.offUp))
         }
         .buttonStyle(NotchControlButtonStyle())
@@ -575,12 +589,13 @@ struct ExpandedContent: View {
             ControlButton(
                 systemName: "gearshape.fill",
                 size: 13,
-                tint: .white.opacity(0.45)
+                tint: .white.opacity(0.45),
+                hitSize: 40
             ) {
-                SettingsOpener.shared.open()
+                Task { @MainActor in SettingsOpener.shared.open() }
             }
-            .padding(.trailing, 30)
-            .padding(.top, 2)
+            .padding(.trailing, 24)
+            .padding(.top, 0)
         }
     }
 
