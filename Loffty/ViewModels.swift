@@ -18,6 +18,7 @@ struct NowPlaying: Equatable {
     var elapsedTimestamp: Date? = nil
     var playbackRate: Double = 1
     var duration: Double = 0
+    var isLive: Bool = false
     var artwork: Data? = nil
     var artworkUnavailable: Bool = true
 }
@@ -361,6 +362,16 @@ final class NotchViewModel: ObservableObject {
         nowPlaying.elapsed = t
         nowPlaying.elapsedTimestamp = Date()
     }
+
+    func seekToLive() {
+        guard nowPlaying.isLive, nowPlaying.duration > 0 else { return }
+        seek(to: nowPlaying.duration)
+    }
+
+    func isBehindLive(at date: Date = Date()) -> Bool {
+        guard nowPlaying.isLive, nowPlaying.duration > 0 else { return false }
+        return currentTime(at: date) < nowPlaying.duration - 4
+    }
 }
 
 struct NotchShape: Shape {
@@ -628,6 +639,7 @@ struct ControlButton: View {
     let size: CGFloat
     let tint: Color
     var hitSize: CGFloat = 34
+    var enabled: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -640,6 +652,146 @@ struct ControlButton: View {
                 .contentTransition(.symbolEffect(.replace.offUp))
         }
         .buttonStyle(NotchControlButtonStyle())
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.22)
+    }
+}
+
+struct LiveEdgeButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Circle().fill(.red).frame(width: 6, height: 6)
+                Text("Live")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(.white.opacity(0.14)))
+        }
+        .buttonStyle(NotchControlButtonStyle())
+    }
+}
+
+struct MediaTransportControls: View {
+    @EnvironmentObject var vm: NotchViewModel
+
+    var body: some View {
+        Group {
+            if vm.nowPlaying.isLive {
+                TimelineView(.periodic(from: .now, by: 0.25)) { ctx in
+                    transportControls(behindLive: vm.isBehindLive(at: ctx.date))
+                }
+            } else {
+                transportControls(behindLive: false)
+            }
+        }
+    }
+
+    private func transportControls(behindLive: Bool) -> some View {
+        HStack(spacing: 12) {
+            ControlButton(
+                systemName: "gobackward.10",
+                size: 18,
+                tint: .white.opacity(0.8),
+                enabled: !vm.nowPlaying.isLive
+            ) { vm.seek(by: -10) }
+            ControlButton(
+                systemName: "backward.fill",
+                size: 20,
+                tint: .white
+            ) { vm.prev() }
+            ControlButton(
+                systemName: vm.nowPlaying.isPlaying
+                    ? "pause.fill" : "play.fill",
+                size: 24,
+                tint: .white
+            ) { vm.playPause() }
+            ControlButton(
+                systemName: "forward.fill",
+                size: 20,
+                tint: .white
+            ) { vm.next() }
+            if behindLive {
+                LiveEdgeButton { vm.seekToLive() }
+            } else {
+                ControlButton(
+                    systemName: "goforward.10",
+                    size: 18,
+                    tint: .white.opacity(0.8),
+                    enabled: !vm.nowPlaying.isLive
+                ) { vm.seek(by: 10) }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .animation(.smooth(duration: 0.2), value: behindLive)
+    }
+}
+
+struct MediaProgressRow: View {
+    @EnvironmentObject var vm: NotchViewModel
+    let accent: Color
+
+    var body: some View {
+        if vm.nowPlaying.isLive {
+            LiveProgressIndicator(accent: accent)
+        } else {
+            Progress(accent: accent)
+        }
+    }
+}
+
+struct LiveProgressIndicator: View {
+    @EnvironmentObject var vm: NotchViewModel
+    let accent: Color
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
+            let behindLive = vm.isBehindLive(at: ctx.date)
+            if behindLive, vm.nowPlaying.duration > 0 {
+                let cur = vm.currentTime(at: ctx.date)
+                let dur = vm.nowPlaying.duration
+                let p = min(1, max(0, cur / dur))
+                HStack(spacing: 10) {
+                    Text(fmtTime(cur))
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.16))
+                        Capsule().fill(accent.opacity(0.75))
+                            .frame(width: max(0, 200 * p))
+                    }
+                    .frame(height: 5)
+                    liveBadge(active: true)
+                }
+            } else {
+                HStack {
+                    Spacer(minLength: 0)
+                    liveBadge(active: true)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.white.opacity(0.5))
+        .monospacedDigit()
+        .frame(height: 22)
+    }
+
+    private func liveBadge(active: Bool) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(.red)
+                .frame(width: 6, height: 6)
+                .opacity(active ? 1 : 0.45)
+            Text("LIVE")
+                .font(.system(size: 11, weight: .bold))
+        }
+        .foregroundStyle(.white.opacity(active ? 0.85 : 0.45))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(.white.opacity(0.1)))
     }
 }
 
@@ -689,8 +841,8 @@ struct ExpandedContent: View {
                 )
                 .foregroundStyle(.white.opacity(0.7))
             }
-            Progress(accent: vm.accentColor)
-            controls
+            MediaProgressRow(accent: vm.accentColor)
+            MediaTransportControls()
         }
         .padding(.horizontal, 42)
         .padding(.top, 30)
@@ -707,38 +859,6 @@ struct ExpandedContent: View {
             .padding(.trailing, 24)
             .padding(.top, 0)
         }
-    }
-
-    private var controls: some View {
-        HStack(spacing: 12) {
-            ControlButton(
-                systemName: "gobackward.10",
-                size: 18,
-                tint: .white.opacity(0.8)
-            ) { vm.seek(by: -10) }
-            ControlButton(
-                systemName: "backward.fill",
-                size: 20,
-                tint: .white
-            ) { vm.prev() }
-            ControlButton(
-                systemName: vm.nowPlaying.isPlaying
-                    ? "pause.fill" : "play.fill",
-                size: 24,
-                tint: .white
-            ) { vm.playPause() }
-            ControlButton(
-                systemName: "forward.fill",
-                size: 20,
-                tint: .white
-            ) { vm.next() }
-            ControlButton(
-                systemName: "goforward.10",
-                size: 18,
-                tint: .white.opacity(0.8)
-            ) { vm.seek(by: 10) }
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -766,7 +886,7 @@ struct Progress: View {
                     .contentTransition(.numericText())
                 seekTrack(
                     fraction: displayFraction,
-                    enabled: dur > 0,
+                    enabled: dur > 0 && !vm.nowPlaying.isLive,
                     active: active
                 )
                 Text(dur > 0 ? "-\(fmtTime(remaining))" : fmtTime(displayTime))

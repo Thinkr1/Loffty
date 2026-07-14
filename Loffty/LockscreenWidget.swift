@@ -200,8 +200,8 @@ struct LockCardView: View {
                     Spacer(minLength: 0)
                 }
                 .padding(12)
-                Progress(accent: vm.accentColor).padding(.horizontal)
-                controls.padding([.horizontal, .bottom])
+                MediaProgressRow(accent: vm.accentColor).padding(.horizontal)
+                MediaTransportControls().padding([.horizontal, .bottom])
             }
             .glassEffect(
                 .clear,
@@ -209,37 +209,5 @@ struct LockCardView: View {
             )
         }
         .frame(width: 350, height: 250)
-    }
-
-    private var controls: some View {
-        HStack(spacing: 12) {
-            ControlButton(
-                systemName: "gobackward.10",
-                size: 18,
-                tint: .white.opacity(0.8)
-            ) { vm.seek(by: -10) }
-            ControlButton(
-                systemName: "backward.fill",
-                size: 20,
-                tint: .white
-            ) { vm.prev() }
-            ControlButton(
-                systemName: vm.nowPlaying.isPlaying
-                    ? "pause.fill" : "play.fill",
-                size: 24,
-                tint: .white
-            ) { vm.playPause() }
-            ControlButton(
-                systemName: "forward.fill",
-                size: 20,
-                tint: .white
-            ) { vm.next() }
-            ControlButton(
-                systemName: "goforward.10",
-                size: 18,
-                tint: .white.opacity(0.8)
-            ) { vm.seek(by: 10) }
-        }
-        .frame(maxWidth: .infinity)
     }
 }

@@ -112,9 +112,10 @@ final class NowPlayingStream {
     private func ingest(_ obj: [String: Any]) {
         let isDiff = obj["diff"] as? Bool ?? false
         let info = (obj["payload"] as? [String: Any]) ?? obj
+        var trackChanged = false
 
         if let incomingKey = trackKey(from: info, isDiff: isDiff) {
-            let trackChanged = incomingKey != lastTrackKey
+            trackChanged = incomingKey != lastTrackKey
             if trackChanged {
                 lastTrackKey = incomingKey
                 lastSpotifyEnrichmentKey = nil
@@ -139,10 +140,49 @@ final class NowPlayingStream {
         if let d = info["duration"] as? NSNumber {
             current.duration = d.doubleValue
         }
+        applyLiveState(from: info, isDiff: isDiff, trackChanged: trackChanged)
         onUpdate?(current)
         enrichSpotifyArtistsIfNeeded(from: info)
         scheduleArtworkPollingIfNeeded()
         scheduleElapsedPollingIfNeeded()
+    }
+
+    private func applyLiveState(
+        from info: [String: Any],
+        isDiff: Bool,
+        trackChanged: Bool
+    ) {
+        let liveKeys = [
+            "duration", "mediaType", "radioStationIdentifier",
+            "radioStationHash", "title",
+        ]
+        if isDiff, !trackChanged,
+            !liveKeys.contains(where: { info.keys.contains($0) })
+        {
+            return
+        }
+        current.isLive = parseIsLive(from: info)
+    }
+
+    private func parseIsLive(from info: [String: Any]) -> Bool {
+        if let station = info["radioStationIdentifier"], !(station is NSNull) {
+            return true
+        }
+        if let hash = info["radioStationHash"], !(hash is NSNull) {
+            return true
+        }
+        if let mt = info["mediaType"] as? String,
+            mt.localizedCaseInsensitiveContains("radio")
+        {
+            return true
+        }
+        let duration =
+            (info["duration"] as? NSNumber)?.doubleValue ?? current.duration
+        let title = (info["title"] as? String) ?? current.title
+        if duration <= 0, !title.isEmpty {
+            return true
+        }
+        return false
     }
 
     private func applyElapsed(from info: [String: Any]) {
