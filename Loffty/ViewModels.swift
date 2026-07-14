@@ -142,6 +142,13 @@ final class NotchViewModel: ObservableObject {
         }
         media.start()
 
+        AppSettings.shared.$artistEnrichment
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.media.refreshArtistEnrichment()
+            }
+            .store(in: &cancellables)
+
         keyInterceptor.setEnabled(AppSettings.shared.replaceSystemHUD)
         AppSettings.shared.$replaceSystemHUD
             .receive(on: RunLoop.main)

@@ -6,7 +6,59 @@
 //
 
 import Combine
+import Network
 import SwiftUI
+
+enum ArtistEnrichmentMode: String, CaseIterable, Identifiable {
+    case never
+    case wifiOnly
+    case always
+
+    static let storageKey = "artistEnrichment"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .never: "First artist only"
+        case .wifiOnly: "All artists on Wi‑Fi"
+        case .always: "All artists (any network)"
+        }
+    }
+
+    static var current: ArtistEnrichmentMode {
+        guard
+            let raw = UserDefaults.standard.string(forKey: storageKey),
+            let mode = ArtistEnrichmentMode(rawValue: raw)
+        else { return .always }
+        return mode
+    }
+
+    var allowsNetworkFetch: Bool {
+        switch self {
+        case .never: false
+        case .always: true
+        case .wifiOnly: NetworkInterface.isOnWiFi
+        }
+    }
+}
+
+private enum NetworkInterface {
+    static var isOnWiFi: Bool {
+        let monitor = NWPathMonitor(requiredInterfaceType: .wifi)
+        let sem = DispatchSemaphore(value: 0)
+        var onWiFi = false
+        monitor.pathUpdateHandler = { path in
+            onWiFi = path.status == .satisfied
+            sem.signal()
+        }
+        let queue = DispatchQueue(label: "Loffty.wifiCheck")
+        monitor.start(queue: queue)
+        if sem.wait(timeout: .now() + 1) == .timedOut { onWiFi = false }
+        monitor.cancel()
+        return onWiFi
+    }
+}
 
 @MainActor
 final class AppSettings: ObservableObject {
@@ -56,6 +108,15 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var artistEnrichment: ArtistEnrichmentMode {
+        didSet {
+            UserDefaults.standard.set(
+                artistEnrichment.rawValue,
+                forKey: ArtistEnrichmentMode.storageKey
+            )
+        }
+    }
+
     private init() {
         hideMenuBarItem = UserDefaults.standard.bool(
             forKey: Self.hideMenuBarItemKey
@@ -70,6 +131,13 @@ final class AppSettings: ObservableObject {
         brightnessHUD =
             UserDefaults.standard.object(forKey: Self.brightnessHUDKey) as? Bool
             ?? true
+        if let raw = UserDefaults.standard.string(
+            forKey: ArtistEnrichmentMode.storageKey
+        ), let mode = ArtistEnrichmentMode(rawValue: raw) {
+            artistEnrichment = mode
+        } else {
+            artistEnrichment = .always
+        }
     }
 }
 
@@ -81,6 +149,22 @@ struct SettingsView: View {
             Section {
                 Toggle("Hide menu bar icon", isOn: $settings.hideMenuBarItem)
                 Toggle("Extend notch around media", isOn: $settings.extendNotch)
+            }
+            Section {
+                Picker(
+                    "Show all artists (Spotify)",
+                    selection: $settings.artistEnrichment
+                ) {
+                    ForEach(ArtistEnrichmentMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+            } header: {
+                Text("Media")
+            } footer: {
+                Text(
+                    "Spotify only reports the first artist to macOS. Loffty can look up the full list from Spotify over the network."
+                )
             }
             Section {
                 Toggle(
