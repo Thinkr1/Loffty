@@ -36,7 +36,6 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 
 ## TODOs
 
-- Fix AirPods/bt bugs
 - Add queue?
 - Add more controls (shuffle, repeat, etc)
 - Click to seek in progress bar
