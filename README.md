@@ -47,6 +47,7 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 - Lock screen lyrics
 - Support other system HUD overrides (bt device connection, AirDrop?, battery)
 - Auto-expand on track change?
+- media-control skip Spotify ads
 
 ## License
 
@@ -55,3 +56,5 @@ This project is released under the [MIT License](LICENSE).
 ## Acknowledgements
 
 Special thanks to [Alcove](https://tryalcove.com/) for the original inspiration.
+
+Thanks to ungive for his great [media-control](https://github.com/ungive/media-control) tool.
