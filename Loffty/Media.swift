@@ -79,7 +79,11 @@ final class NowPlayingStream {
     private var lastEnrichedTrackID: String?
     private var lastSpotifyEnrichmentKey: String?
     private var lastSpotifyInfo: [String: Any]?
+    private var lastTrackKey: String?
     private var enrichmentTask: Task<Void, Never>?
+    private var artworkPollTask: Task<Void, Never>?
+    private var elapsedPollTask: Task<Void, Never>?
+    private let tsFormatter = ISO8601DateFormatter()
     private let pth = "/opt/homebrew/bin/media-control"
     func start() {
         let p = Process()
@@ -106,22 +110,118 @@ final class NowPlayingStream {
     }
 
     private func ingest(_ obj: [String: Any]) {
+        let isDiff = obj["diff"] as? Bool ?? false
         let info = (obj["payload"] as? [String: Any]) ?? obj
-        if let t = info["title"] as? String { current.title = t }
-        if let a = parseArtist(from: info) { current.artist = a }
-        if let al = info["album"] as? String { current.album = al }
-        if let pl = info["playing"] as? Bool { current.isPlaying = pl }
-        if let e = info["elapsedTime"] as? NSNumber {
-            current.elapsed = e.doubleValue
+
+        if let incomingKey = trackKey(from: info, isDiff: isDiff) {
+            let trackChanged = incomingKey != lastTrackKey
+            if trackChanged {
+                lastTrackKey = incomingKey
+                lastSpotifyEnrichmentKey = nil
+                lastEnrichedTrackID = nil
+                enrichmentTask?.cancel()
+                cancelArtworkPolling()
+                if info["bundleIdentifier"] as? String != "com.spotify.client" {
+                    lastSpotifyInfo = nil
+                }
+            }
+            applyTrackFields(
+                from: info,
+                isDiff: isDiff,
+                trackChanged: trackChanged
+            )
+        } else {
+            applyTrackFields(from: info, isDiff: isDiff, trackChanged: false)
         }
+
+        if let pl = info["playing"] as? Bool { current.isPlaying = pl }
+        applyElapsed(from: info)
         if let d = info["duration"] as? NSNumber {
             current.duration = d.doubleValue
         }
-        if let b64 = info["artworkData"] as? String {
-            current.artwork = Data(base64Encoded: b64)
-        }
         onUpdate?(current)
         enrichSpotifyArtistsIfNeeded(from: info)
+        scheduleArtworkPollingIfNeeded()
+        scheduleElapsedPollingIfNeeded()
+    }
+
+    private func applyElapsed(from info: [String: Any]) {
+        if let rate = info["playbackRate"] as? NSNumber {
+            current.playbackRate = max(0, rate.doubleValue)
+        }
+        if let e = info["elapsedTime"] as? NSNumber {
+            current.elapsed = e.doubleValue
+            if let ts = parseTimestamp(info["timestamp"]) {
+                current.elapsedTimestamp = ts
+            } else if info.keys.contains("elapsedTime") {
+                current.elapsedTimestamp = Date()
+            }
+        }
+    }
+
+    private func parseTimestamp(_ value: Any?) -> Date? {
+        if let d = value as? Date { return d }
+        guard let raw = value as? String else { return nil }
+        tsFormatter.formatOptions = [
+            .withInternetDateTime, .withFractionalSeconds,
+        ]
+        if let d = tsFormatter.date(from: raw) { return d }
+        tsFormatter.formatOptions = [.withInternetDateTime]
+        return tsFormatter.date(from: raw)
+    }
+
+    private func trackKey(from info: [String: Any], isDiff: Bool) -> String? {
+        let title = info["title"] as? String
+        let bundle = info["bundleIdentifier"] as? String ?? ""
+        guard title != nil || !bundle.isEmpty else {
+            return isDiff ? nil : lastTrackKey
+        }
+        let resolvedTitle = title ?? current.title
+        guard !resolvedTitle.isEmpty || !bundle.isEmpty else {
+            return isDiff ? nil : lastTrackKey
+        }
+        return "\(bundle)|\(resolvedTitle)"
+    }
+
+    private func applyTrackFields(
+        from info: [String: Any],
+        isDiff: Bool,
+        trackChanged: Bool
+    ) {
+        if let t = info["title"] as? String { current.title = t }
+
+        if isDiff {
+            if info["artist"] is NSNull || info["artists"] is NSNull {
+                current.artist = ""
+            } else if info.keys.contains("artist")
+                || info.keys.contains("artists")
+            {
+                current.artist = parseArtist(from: info) ?? ""
+            } else if trackChanged {
+                current.artist = ""
+            }
+        } else {
+            current.artist = parseArtist(from: info) ?? ""
+        }
+
+        if trackChanged {
+            current.artworkUnavailable = false
+        }
+        applyArtwork(from: info, trackChanged: trackChanged)
+
+        if isDiff {
+            if info["album"] is NSNull {
+                current.album = ""
+            } else if let al = info["album"] as? String {
+                current.album = al
+            } else if trackChanged {
+                current.album = ""
+            }
+        } else if let al = info["album"] as? String {
+            current.album = al
+        } else {
+            current.album = ""
+        }
     }
 
     private func parseArtist(from info: [String: Any]) -> String? {
@@ -140,6 +240,25 @@ final class NowPlayingStream {
             return artists.joined(separator: ", ")
         }
         return nil
+    }
+
+    private func applyArtwork(from info: [String: Any], trackChanged: Bool) {
+        if info["artworkData"] is NSNull {
+            guard trackChanged else { return }
+            current.artwork = nil
+            current.artworkUnavailable = true
+            cancelArtworkPolling()
+            return
+        }
+        guard let b64 = info["artworkData"] as? String, !b64.isEmpty,
+            let data = Data(base64Encoded: b64)
+        else {
+            if trackChanged { current.artwork = nil }
+            return
+        }
+        current.artwork = data
+        current.artworkUnavailable = false
+        cancelArtworkPolling()
     }
 
     private func enrichSpotifyArtistsIfNeeded(from info: [String: Any]) {
@@ -190,16 +309,115 @@ final class NowPlayingStream {
         guard let info = lastSpotifyInfo else { return }
         if ArtistEnrichmentMode.current.allowsNetworkFetch {
             enrichSpotifyArtistsIfNeeded(from: info)
-        } else if let artist = parseArtist(from: info),
-            current.artist != artist
-        {
-            current.artist = artist
-            onUpdate?(current)
+        } else {
+            let artist = parseArtist(from: info) ?? ""
+            if current.artist != artist {
+                current.artist = artist
+                onUpdate?(current)
+            }
         }
+    }
+
+    private func scheduleArtworkPollingIfNeeded() {
+        guard current.artwork == nil, !current.artworkUnavailable else {
+            cancelArtworkPolling()
+            return
+        }
+        guard artworkPollTask == nil, let trackKeyAtStart = lastTrackKey else {
+            return
+        }
+
+        artworkPollTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.artworkPollTask = nil }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(0.5))
+                guard !Task.isCancelled else { return }
+                guard self.lastTrackKey == trackKeyAtStart else { return }
+                guard self.current.artwork == nil,
+                    !self.current.artworkUnavailable
+                else { return }
+
+                guard let info = self.fetchNowPlaying() else { continue }
+                guard
+                    self.trackKey(from: info, isDiff: false) == trackKeyAtStart
+                else { return }
+
+                if info["artworkData"] is NSNull { continue }
+                if let b64 = info["artworkData"] as? String, !b64.isEmpty,
+                    let data = Data(base64Encoded: b64)
+                {
+                    self.current.artwork = data
+                    self.current.artworkUnavailable = false
+                    self.onUpdate?(self.current)
+                    return
+                }
+            }
+        }
+    }
+
+    private func scheduleElapsedPollingIfNeeded() {
+        elapsedPollTask?.cancel()
+        elapsedPollTask = nil
+        guard current.isPlaying else { return }
+
+        elapsedPollTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.elapsedPollTask = nil }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, self.current.isPlaying else { return }
+                guard let info = self.fetchNowPlaying(now: true) else {
+                    continue
+                }
+                if let now = info["elapsedTimeNow"] as? NSNumber {
+                    self.current.elapsed = now.doubleValue
+                    self.current.elapsedTimestamp = Date()
+                } else {
+                    self.applyElapsed(from: info)
+                }
+                if let pl = info["playing"] as? Bool {
+                    self.current.isPlaying = pl
+                }
+                self.onUpdate?(self.current)
+            }
+        }
+    }
+
+    private func fetchNowPlaying(now: Bool = false) -> [String: Any]? {
+        var args = ["get", "--no-artwork"]
+        if now { args.append("--now") }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: pth)
+        proc.arguments = args
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()
+        try? proc.run()
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let obj = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+        if obj is NSNull { return nil }
+        return obj as? [String: Any]
+    }
+
+    private func cancelArtworkPolling() {
+        artworkPollTask?.cancel()
+        artworkPollTask = nil
+    }
+
+    private func cancelElapsedPolling() {
+        elapsedPollTask?.cancel()
+        elapsedPollTask = nil
     }
 
     func stop() {
         enrichmentTask?.cancel()
+        cancelArtworkPolling()
+        cancelElapsedPolling()
         process?.terminate()
     }
 }

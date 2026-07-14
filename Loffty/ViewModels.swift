@@ -15,8 +15,58 @@ struct NowPlaying: Equatable {
     var album: String = ""
     var isPlaying: Bool = false
     var elapsed: Double = 0
+    var elapsedTimestamp: Date? = nil
+    var playbackRate: Double = 1
     var duration: Double = 0
     var artwork: Data? = nil
+    var artworkUnavailable: Bool = true
+}
+
+struct ArtworkThumbnail: View {
+    let artwork: Data?
+    let unavailable: Bool
+    let size: CGFloat
+    var cornerRadius: CGFloat = 12
+    var namespace: Namespace.ID? = nil
+
+    private var showsSlot: Bool { artwork != nil || !unavailable }
+
+    var body: some View {
+        if showsSlot {
+            Group {
+                if let artwork, let img = NSImage(data: artwork) {
+                    Image(nsImage: img).resizable().aspectRatio(
+                        contentMode: .fill
+                    )
+                } else {
+                    RoundedRectangle(
+                        cornerRadius: cornerRadius,
+                        style: .continuous
+                    )
+                    .fill(.gray.opacity(0.35))
+                }
+            }
+            .frame(width: size, height: size)
+            .clipShape(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+            .applyMatchedGeometry(id: "artwork", in: namespace)
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    fileprivate func applyMatchedGeometry(
+        id: String,
+        in namespace: Namespace.ID?
+    ) -> some View {
+        if let namespace {
+            matchedGeometryEffect(id: id, in: namespace)
+        } else {
+            self
+        }
+    }
 }
 
 struct NotchMetrics {
@@ -138,6 +188,8 @@ final class NotchViewModel: ObservableObject {
         dampingFraction: 1.0
     )
     private var elapsedAt = Date()
+    private var pendingSeekTime: Double?
+    private var pendingSeekAt: Date?
     private let media = MediaController()
     private let volume = SystemVolumeWatcher()
     private let brightness = SystemBrightnessWatcher()
@@ -187,9 +239,29 @@ final class NotchViewModel: ObservableObject {
     }
 
     private func apply(_ np: NowPlaying) {
-        let artChanged = np.artwork != nowPlaying.artwork
-        nowPlaying = np
-        elapsedAt = Date()
+        if np.title != nowPlaying.title {
+            pendingSeekTime = nil
+            pendingSeekAt = nil
+        }
+        var incoming = np
+        if let target = pendingSeekTime, let at = pendingSeekAt,
+            Date().timeIntervalSince(at) < 4
+        {
+            let reported = Self.interpolatedElapsed(from: np, at: Date())
+            if abs(reported - target) > 1.5 {
+                incoming.elapsed = target
+                incoming.elapsedTimestamp = Date()
+            } else {
+                pendingSeekTime = nil
+                pendingSeekAt = nil
+            }
+        }
+
+        let artChanged = incoming.artwork != nowPlaying.artwork
+        nowPlaying = incoming
+        if incoming.elapsedTimestamp == nil {
+            elapsedAt = Date()
+        }
         if artChanged {
             let data = np.artwork
             Task.detached(priority: .utility) {
@@ -210,11 +282,36 @@ final class NotchViewModel: ObservableObject {
         }
     }
 
+    static func interpolatedElapsed(from np: NowPlaying, at date: Date)
+        -> Double
+    {
+        let rate = np.isPlaying ? max(0, np.playbackRate) : 0
+        if let ts = np.elapsedTimestamp {
+            return np.elapsed + date.timeIntervalSince(ts) * rate
+        }
+        return np.elapsed
+    }
+
     func currentTime(at date: Date) -> Double {
-        let extra =
-            nowPlaying.isPlaying ? max(0, date.timeIntervalSince(elapsedAt)) : 0
-        let t = nowPlaying.elapsed + extra
-        return nowPlaying.duration > 0 ? min(t, nowPlaying.duration) : t
+        let t: Double
+        if let target = pendingSeekTime, let at = pendingSeekAt,
+            date.timeIntervalSince(at) < 4
+        {
+            let rate =
+                nowPlaying.isPlaying ? max(0, nowPlaying.playbackRate) : 0
+            t = target + date.timeIntervalSince(at) * rate
+        } else if let ts = nowPlaying.elapsedTimestamp {
+            let rate =
+                nowPlaying.isPlaying ? max(0, nowPlaying.playbackRate) : 0
+            t = nowPlaying.elapsed + date.timeIntervalSince(ts) * rate
+        } else {
+            let extra =
+                nowPlaying.isPlaying
+                ? max(0, date.timeIntervalSince(elapsedAt)) : 0
+            t = nowPlaying.elapsed + extra
+        }
+        guard nowPlaying.duration > 0 else { return max(0, t) }
+        return min(max(0, t), nowPlaying.duration)
     }
 
     func setExpanded(_ v: Bool) {
@@ -255,8 +352,10 @@ final class NotchViewModel: ObservableObject {
         var t = max(0, currentTime(at: Date()) + delta)
         if nowPlaying.duration > 0 { t = min(t, nowPlaying.duration) }
         media.setElapsed(t)
+        pendingSeekTime = t
+        pendingSeekAt = Date()
         nowPlaying.elapsed = t
-        elapsedAt = Date()
+        nowPlaying.elapsedTimestamp = Date()
     }
 }
 
@@ -483,10 +582,18 @@ struct CollapsedContent: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            artwork(size: m.artSize)
-                .matchedGeometryEffect(id: "artwork", in: ns)
+            if vm.nowPlaying.artwork != nil || !vm.nowPlaying.artworkUnavailable
+            {
+                ArtworkThumbnail(
+                    artwork: vm.nowPlaying.artwork,
+                    unavailable: vm.nowPlaying.artworkUnavailable,
+                    size: m.artSize,
+                    cornerRadius: 4,
+                    namespace: ns
+                )
                 .frame(width: m.side - m.gap, alignment: .trailing)
                 .padding(.trailing, m.gap)
+            }
             Color.clear.frame(width: m.notchW, height: m.height)
             Group {
                 if hasTrack {
@@ -497,18 +604,6 @@ struct CollapsedContent: View {
             .padding(.leading, m.gap)
         }
         .frame(height: m.height)
-    }
-
-    @ViewBuilder func artwork(size: CGFloat) -> some View {
-        if let d = vm.nowPlaying.artwork, let img = NSImage(data: d) {
-            Image(nsImage: img).resizable().frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-        } else if hasTrack {
-            RoundedRectangle(cornerRadius: 4).fill(.gray.opacity(0.4)).frame(
-                width: size,
-                height: size
-            )
-        }
     }
 }
 
@@ -555,19 +650,30 @@ struct ExpandedContent: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 14) {
-                artwork(size: 52)
-                    .matchedGeometryEffect(id: "artwork", in: ns)
+                if vm.nowPlaying.artwork != nil
+                    || !vm.nowPlaying.artworkUnavailable
+                {
+                    ArtworkThumbnail(
+                        artwork: vm.nowPlaying.artwork,
+                        unavailable: vm.nowPlaying.artworkUnavailable,
+                        size: 52,
+                        cornerRadius: 12,
+                        namespace: ns
+                    )
                     .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 15))
                         .foregroundStyle(.white).lineLimit(1)
                         .id(title).transition(.blurReplace)
-                    Text(vm.nowPlaying.artist)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.45)).lineLimit(1)
-                        .id(vm.nowPlaying.artist).transition(.blurReplace)
+                    if !vm.nowPlaying.artist.isEmpty {
+                        Text(vm.nowPlaying.artist)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.45)).lineLimit(1)
+                            .id(vm.nowPlaying.artist).transition(.blurReplace)
+                    }
                 }
                 .animation(.smooth(duration: 0.4), value: title)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -600,7 +706,7 @@ struct ExpandedContent: View {
     }
 
     private var progressBar: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+        TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
             let cur = vm.currentTime(at: ctx.date)
             let dur = vm.nowPlaying.duration
             let p = dur > 0 ? min(1, max(0, cur / dur)) : 0
@@ -654,17 +760,6 @@ struct ExpandedContent: View {
             ) { vm.seek(by: 10) }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder func artwork(size: CGFloat) -> some View {
-        if let d = vm.nowPlaying.artwork, let img = NSImage(data: d) {
-            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
-                .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-        } else {
-            RoundedRectangle(cornerRadius: 12).fill(.gray.opacity(0.35))
-                .frame(width: size, height: size)
-        }
     }
 }
 

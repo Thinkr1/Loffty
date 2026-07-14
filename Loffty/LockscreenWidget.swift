@@ -178,12 +178,24 @@ struct LockCardView: View {
         GlassEffectContainer {
             VStack {
                 HStack(spacing: 12) {
-                    artwork(size: 56)
+                    if vm.nowPlaying.artwork != nil
+                        || !vm.nowPlaying.artworkUnavailable
+                    {
+                        ArtworkThumbnail(
+                            artwork: vm.nowPlaying.artwork,
+                            unavailable: vm.nowPlaying.artworkUnavailable,
+                            size: 56,
+                            cornerRadius: 12
+                        )
+                    }
                     VStack(alignment: .leading, spacing: 3) {
                         Text(title).font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white).lineLimit(1)
-                        Text(vm.nowPlaying.artist).font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                        if !vm.nowPlaying.artist.isEmpty {
+                            Text(vm.nowPlaying.artist).font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .lineLimit(1)
+                        }
                     }
                     Spacer(minLength: 0)
                 }
@@ -200,7 +212,7 @@ struct LockCardView: View {
     }
 
     private var progressBar: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+        TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
             let cur = vm.currentTime(at: ctx.date)
             let dur = vm.nowPlaying.duration
             let p = dur > 0 ? min(1, max(0, cur / dur)) : 0
@@ -254,18 +266,5 @@ struct LockCardView: View {
             ) { vm.seek(by: 10) }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder private func artwork(size: CGFloat) -> some View {
-        if let d = vm.nowPlaying.artwork, let img = NSImage(data: d) {
-            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
-                .frame(width: size, height: size)
-                .clipShape(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                )
-        } else {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(0.15)).frame(width: size, height: size)
-        }
     }
 }
