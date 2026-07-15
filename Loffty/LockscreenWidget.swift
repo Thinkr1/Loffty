@@ -185,16 +185,26 @@ struct LockCardView: View {
                             artwork: vm.nowPlaying.artwork,
                             unavailable: vm.nowPlaying.artworkUnavailable,
                             size: 56,
-                            cornerRadius: 12
+                            cornerRadius: 12,
+                            trackKey: vm.nowPlaying.trackKey
                         )
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(.system(size: 14, weight: .semibold))
+                        Text(title)
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white).lineLimit(1)
+                            .contentTransition(.numericText())
+                            .animation(.smooth(duration: 0.18), value: title)
                         if !vm.nowPlaying.artist.isEmpty {
-                            Text(vm.nowPlaying.artist).font(.system(size: 12))
+                            Text(vm.nowPlaying.artist)
+                                .font(.system(size: 12))
                                 .foregroundStyle(.white.opacity(0.6))
                                 .lineLimit(1)
+                                .contentTransition(.numericText())
+                                .animation(
+                                    .smooth(duration: 0.18),
+                                    value: vm.nowPlaying.artist
+                                )
                         }
                     }
                     Spacer(minLength: 0)

@@ -71,6 +71,21 @@ private enum SpotifyMetadata {
     }
 }
 
+struct NowPlaying: Equatable {
+    var title: String = ""
+    var artist: String = ""
+    var album: String = ""
+    var isPlaying: Bool = false
+    var elapsed: Double = 0
+    var elapsedTimestamp: Date? = nil
+    var playbackRate: Double = 1
+    var duration: Double = 0
+    var isLive: Bool = false
+    var trackKey: String = ""
+    var artwork: Data? = nil
+    var artworkUnavailable: Bool = true
+}
+
 final class NowPlayingStream {
     var onUpdate: ((NowPlaying) -> Void)?
     private var process: Process?
@@ -141,6 +156,7 @@ final class NowPlayingStream {
             current.duration = d.doubleValue
         }
         applyLiveState(from: info, isDiff: isDiff, trackChanged: trackChanged)
+        current.trackKey = lastTrackKey ?? ""
         onUpdate?(current)
         enrichSpotifyArtistsIfNeeded(from: info)
         scheduleArtworkPollingIfNeeded()
