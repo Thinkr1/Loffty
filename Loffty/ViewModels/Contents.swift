@@ -32,20 +32,19 @@ struct ExpandedContent: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 15))
-                        .foregroundStyle(.white).lineLimit(1)
-                        .contentTransition(.numericText())
-                        .animation(.smooth(duration: 0.18), value: title)
+                    MarqueeText(
+                        text: title,
+                        font: .system(size: 15),
+                        color: .white,
+                        height: 18
+                    )
                     if !vm.nowPlaying.artist.isEmpty {
-                        Text(vm.nowPlaying.artist)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.45)).lineLimit(1)
-                            .contentTransition(.numericText())
-                            .animation(
-                                .smooth(duration: 0.18),
-                                value: vm.nowPlaying.artist
-                            )
+                        MarqueeText(
+                            text: vm.nowPlaying.artist,
+                            font: .system(size: 13),
+                            color: .white.opacity(0.45),
+                            height: 16
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -190,21 +190,19 @@ struct LockCardView: View {
                         )
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white).lineLimit(1)
-                            .contentTransition(.numericText())
-                            .animation(.smooth(duration: 0.18), value: title)
+                        MarqueeText(
+                            text: title,
+                            font: .system(size: 14, weight: .semibold),
+                            color: .white,
+                            height: 17
+                        )
                         if !vm.nowPlaying.artist.isEmpty {
-                            Text(vm.nowPlaying.artist)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .lineLimit(1)
-                                .contentTransition(.numericText())
-                                .animation(
-                                    .smooth(duration: 0.18),
-                                    value: vm.nowPlaying.artist
-                                )
+                            MarqueeText(
+                                text: vm.nowPlaying.artist,
+                                font: .system(size: 12),
+                                color: .white.opacity(0.6),
+                                height: 15
+                            )
                         }
                     }
                     Spacer(minLength: 0)
