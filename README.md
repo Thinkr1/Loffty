@@ -38,7 +38,6 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 
 - Add queue?
 - Add more controls (shuffle, repeat, etc)
-- Marquee for long titles
 - Actual soundwaves
 - Current player indicator badge?
 - Improve idle mode
