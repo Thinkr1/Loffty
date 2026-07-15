@@ -68,6 +68,7 @@ final class AppSettings: ObservableObject {
     private static let replaceSystemHUDKey = "replaceSystemHUD"
     private static let hudDurationKey = "hudDuration"
     private static let brightnessHUDKey = "brightnessHUD"
+    private static let movableWidgetKey = "movableWidget"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -117,6 +118,17 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var movableWidget: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                movableWidget,
+                forKey: Self.movableWidgetKey
+            )
+        }
+    }
+
+    @Published private(set) var widgetPositionResetToken: UInt = 0
+
     private init() {
         hideMenuBarItem = UserDefaults.standard.bool(
             forKey: Self.hideMenuBarItemKey
@@ -131,6 +143,9 @@ final class AppSettings: ObservableObject {
         brightnessHUD =
             UserDefaults.standard.object(forKey: Self.brightnessHUDKey) as? Bool
             ?? true
+        movableWidget = UserDefaults.standard.bool(
+            forKey: Self.movableWidgetKey
+        )
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
@@ -138,6 +153,10 @@ final class AppSettings: ObservableObject {
         } else {
             artistEnrichment = .always
         }
+    }
+
+    func resetWidgetPosition() {
+        widgetPositionResetToken &+= 1
     }
 }
 
@@ -150,9 +169,22 @@ struct SettingsView: View {
                 Toggle("Hide menu bar icon", isOn: $settings.hideMenuBarItem)
                 Toggle("Extend notch around media", isOn: $settings.extendNotch)
             }
+
+            Section {
+                Toggle(
+                    "Allow moving lock screen widget",
+                    isOn: $settings.movableWidget
+                )
+                Button("Reset widget position") {
+                    settings.resetWidgetPosition()
+                }
+            } header: {
+                Text("Lock Screen")
+            }
+
             Section {
                 Picker(
-                    "Show all artists (Spotify)",
+                    "Spotify artists",
                     selection: $settings.artistEnrichment
                 ) {
                     ForEach(ArtistEnrichmentMode.allCases) { mode in
@@ -163,21 +195,30 @@ struct SettingsView: View {
                 Text("Media")
             } footer: {
                 Text(
-                    "Spotify only reports the first artist to macOS. Loffty can look up the full list from Spotify over the network."
+                    "Spotify only reports the first artist to macOS. Loffty can look up the full list over the network."
                 )
             }
+
             Section {
                 Toggle(
-                    "Hide macOS volume & brightness overlays",
+                    "Replace system volume and brightness HUDs",
                     isOn: $settings.replaceSystemHUD
                 )
-                Toggle("Show brightness HUD", isOn: $settings.brightnessHUD)
-                HStack {
-                    Text("HUD duration")
-                    Slider(value: $settings.hudDuration, in: 1...3, step: 0.25)
-                    Text(String(format: "%.1fs", settings.hudDuration))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                if settings.replaceSystemHUD {
+                    Toggle("Show brightness HUD", isOn: $settings.brightnessHUD)
+                    LabeledContent("HUD duration") {
+                        HStack(spacing: 8) {
+                            Slider(
+                                value: $settings.hudDuration,
+                                in: 1...3,
+                                step: 0.25
+                            )
+                            Text(String(format: "%.1fs", settings.hudDuration))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, alignment: .trailing)
+                        }
+                    }
                 }
             } header: {
                 Text("System HUDs")
@@ -190,6 +231,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: 400)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Quit") {

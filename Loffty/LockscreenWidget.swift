@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
 
 final class LockScreenSpace {
@@ -78,7 +79,7 @@ final class LockScreenSpace {
 }
 
 final class SkyPanel: NSPanel {
-    init(frame: NSRect) {
+    init(frame: NSRect, movableByBackground: Bool = false) {
         super.init(
             contentRect: frame,
             styleMask: [
@@ -90,8 +91,7 @@ final class SkyPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
-        isMovable = false
-        //isMovableByWindowBackground=true
+        applyMovable(movableByBackground)
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
         collectionBehavior = [
@@ -100,8 +100,48 @@ final class SkyPanel: NSPanel {
         canBecomeVisibleWithoutLogin = true
         level = NSWindow.Level(rawValue: Int(Int32.max) - 2)
     }
+
+    func applyMovable(_ movable: Bool) {
+        isMovable = movable
+        isMovableByWindowBackground = movable
+    }
+
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+}
+
+private final class MovableHostingView<Content: View>: NSHostingView<Content> {
+    var allowsWindowDrag = false
+
+    override var mouseDownCanMoveWindow: Bool {
+        allowsWindowDrag
+    }
+}
+
+private final class MovableHostingController<Content: View>:
+    NSHostingController<
+        Content
+    >
+{
+    var allowsWindowDrag = false {
+        didSet { hostingView.allowsWindowDrag = allowsWindowDrag }
+    }
+
+    private var hostingView: MovableHostingView<Content> {
+        view as! MovableHostingView<Content>
+    }
+
+    init(rootView: Content, allowsWindowDrag: Bool = false) {
+        self.allowsWindowDrag = allowsWindowDrag
+        super.init(rootView: rootView)
+        let hostingView = MovableHostingView(rootView: rootView)
+        hostingView.allowsWindowDrag = allowsWindowDrag
+        view = hostingView
+    }
+
+    @MainActor required dynamic init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 }
 
 @MainActor
@@ -111,12 +151,29 @@ final class LockScreenWidget {
 
     private var notchWindow: SkyPanel?
     private var cardWindow: SkyPanel?
+    private var cardController: MovableHostingController<LockCardRootView>?
     private var notchDelegated = false
     private var cardDelegated = false
+    private var cancellables = Set<AnyCancellable>()
 
     init(vm: NotchViewModel) { self.vm = vm }
 
     func start() {
+        AppSettings.shared.$movableWidget
+            .receive(on: RunLoop.main)
+            .sink { [weak self] movable in
+                self?.applyMovableSetting(movable)
+            }
+            .store(in: &cancellables)
+
+        AppSettings.shared.$widgetPositionResetToken
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.resetCardPosition()
+            }
+            .store(in: &cancellables)
+
         lock.onChange = { [weak self] locked in
             guard let self else { return }
             if locked {
@@ -132,6 +189,11 @@ final class LockScreenWidget {
 
     private func targetScreen() -> NSScreen {
         NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main!
+    }
+
+    private func applyMovableSetting(_ movable: Bool) {
+        cardWindow?.applyMovable(movable)
+        cardController?.allowsWindowDrag = movable
     }
 
     private func hideWindows() {
@@ -151,20 +213,42 @@ final class LockScreenWidget {
         }
     }
 
-    private func makeCardWindow() -> SkyPanel {
-        let screen = targetScreen()
-        let size = NSSize(width: 350, height: 96)
-        let frame = NSRect(
+    private func resetCardPosition() {
+        cardWindow?.setFrame(
+            Self.defaultCardFrame(for: targetScreen()),
+            display: true
+        )
+    }
+
+    private static func defaultCardFrame(for screen: NSScreen) -> NSRect {
+        let size = NSSize(width: 350, height: 250)
+        return NSRect(
             x: screen.frame.midX - size.width / 2,
             y: screen.frame.minY + screen.frame.height * 0.15,
             width: size.width,
             height: size.height
         )
-        let win = SkyPanel(frame: frame)
-        win.contentViewController = NSHostingController(
-            rootView: LockCardView().environmentObject(vm)
+    }
+
+    private func makeCardWindow() -> SkyPanel {
+        let movable = AppSettings.shared.movableWidget
+        let frame = Self.defaultCardFrame(for: targetScreen())
+        let win = SkyPanel(frame: frame, movableByBackground: movable)
+        let controller = MovableHostingController(
+            rootView: LockCardRootView(vm: vm),
+            allowsWindowDrag: movable
         )
+        win.contentViewController = controller
+        cardController = controller
         return win
+    }
+}
+
+private struct LockCardRootView: View {
+    @ObservedObject var vm: NotchViewModel
+
+    var body: some View {
+        LockCardView().environmentObject(vm)
     }
 }
 
