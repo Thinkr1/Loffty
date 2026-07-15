@@ -150,7 +150,11 @@ final class NowPlayingStream {
             applyTrackFields(from: info, isDiff: isDiff, trackChanged: false)
         }
 
-        if let pl = info["playing"] as? Bool { current.isPlaying = pl }
+        var playStateChanged = false
+        if let pl = info["playing"] as? Bool {
+            playStateChanged = pl != current.isPlaying
+            current.isPlaying = pl
+        }
         applyElapsed(from: info)
         if let d = info["duration"] as? NSNumber {
             current.duration = d.doubleValue
@@ -160,7 +164,10 @@ final class NowPlayingStream {
         onUpdate?(current)
         enrichSpotifyArtistsIfNeeded(from: info)
         scheduleArtworkPollingIfNeeded()
-        scheduleElapsedPollingIfNeeded()
+        scheduleElapsedPollingIfNeeded(
+            trackChanged: trackChanged,
+            playStateChanged: playStateChanged
+        )
     }
 
     private func applyLiveState(
@@ -412,10 +419,20 @@ final class NowPlayingStream {
         }
     }
 
-    private func scheduleElapsedPollingIfNeeded() {
+    private func scheduleElapsedPollingIfNeeded(
+        trackChanged: Bool,
+        playStateChanged: Bool
+    ) {
+        guard current.isPlaying else {
+            cancelElapsedPolling()
+            return
+        }
+        guard trackChanged || playStateChanged || elapsedPollTask == nil else {
+            return
+        }
+
         elapsedPollTask?.cancel()
         elapsedPollTask = nil
-        guard current.isPlaying else { return }
 
         elapsedPollTask = Task { [weak self] in
             guard let self else { return }

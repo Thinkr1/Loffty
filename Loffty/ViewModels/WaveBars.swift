@@ -34,7 +34,7 @@ struct WaveBars: View {  // TODO: actual soundwaves
             .animation(.easeOut(duration: 0.12), value: isPlaying)
         }
         .onChange(of: vm.trackChangeToken) { _, token in
-            guard token > 0 else { return }
+            guard token > 0, !vm.isRapidSkipping else { return }
             withAnimation(.spring(response: 0.32, dampingFraction: 0.62)) {
                 burst = 1
             }

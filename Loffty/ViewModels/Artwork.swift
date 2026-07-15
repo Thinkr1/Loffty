@@ -66,6 +66,36 @@ enum AlbumColor {
     }
 }
 
+private actor ArtworkImageStore {
+    static let shared = ArtworkImageStore()
+    private var cache: [Int: NSImage] = [:]
+    private let maxEntries = 24
+
+    func image(for data: Data) async -> NSImage? {
+        let key = data.hashValue
+        if let cached = cache[key] {
+            return cached
+        }
+
+        let img = await Task.detached(priority: .userInitiated) {
+            NSImage(data: data)
+        }.value
+        guard let img else { return nil }
+
+        if cache.count >= maxEntries, let oldest = cache.keys.first {
+            cache.removeValue(forKey: oldest)
+        }
+        cache[key] = img
+        return img
+    }
+}
+
+enum ArtworkImageCache {
+    static func image(for data: Data) async -> NSImage? {
+        await ArtworkImageStore.shared.image(for: data)
+    }
+}
+
 struct ArtworkThumbnail: View {
     let artwork: Data?
     let unavailable: Bool
@@ -97,8 +127,11 @@ private struct ArtworkCrossfade: View {
 
     @State private var front: Data?
     @State private var back: Data?
+    @State private var frontImage: NSImage?
+    @State private var backImage: NSImage?
     @State private var blend: CGFloat = 1
     @State private var pop: CGFloat = 0
+    @State private var loadGeneration = 0
 
     private var showsSlot: Bool {
         artwork != nil || !unavailable || front != nil || back != nil
@@ -111,13 +144,13 @@ private struct ArtworkCrossfade: View {
     var body: some View {
         if showsSlot {
             ZStack {
-                artworkImage(back)
+                artworkImage(backImage)
                     .opacity(1 - blend)
                     .scaleEffect(0.985 + (1 - blend) * 0.015)
                     .blur(radius: blend < 1 ? (1 - blend) * 2.5 : 0)
 
-                if let front {
-                    artworkImage(front)
+                if let frontImage {
+                    artworkImage(frontImage)
                         .opacity(blend)
                         .scaleEffect(0.965 + blend * 0.035)
                 } else if !loadingNewArt {
@@ -147,7 +180,7 @@ private struct ArtworkCrossfade: View {
             .onChange(of: unavailable) { _, _ in syncArtwork(animated: true) }
             .onChange(of: trackKey) { _, _ in syncArtwork(animated: true) }
             .onChange(of: vm.trackChangeToken) { _, token in
-                guard token > 0 else { return }
+                guard token > 0, !vm.isRapidSkipping else { return }
                 withAnimation(.spring(response: 0.34, dampingFraction: 0.64)) {
                     pop = 1
                 }
@@ -164,57 +197,90 @@ private struct ArtworkCrossfade: View {
     }
 
     @ViewBuilder
-    private func artworkImage(_ data: Data?) -> some View {
-        if let data, let img = NSImage(data: data) {
-            Image(nsImage: img)
+    private func artworkImage(_ image: NSImage?) -> some View {
+        if let image {
+            Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
         }
     }
 
     private func syncArtwork(animated: Bool) {
+        let useAnimation = animated && !vm.isRapidSkipping
+
         if unavailable, artwork == nil {
             guard front != nil || back != nil else { return }
-            if animated {
+            if useAnimation {
                 withAnimation(.easeOut(duration: 0.28)) { blend = 0 }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(300))
                     front = nil
                     back = nil
+                    frontImage = nil
+                    backImage = nil
                     blend = 1
                 }
             } else {
                 front = nil
                 back = nil
+                frontImage = nil
+                backImage = nil
                 blend = 1
             }
             return
         }
 
         guard let artwork else { return }
-
         if front == artwork { return }
 
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        Task {
+            guard let image = await ArtworkImageCache.image(for: artwork) else {
+                return
+            }
+            await MainActor.run {
+                guard generation == loadGeneration else { return }
+                applyLoadedArtwork(image, data: artwork, animated: useAnimation)
+            }
+        }
+    }
+
+    private func applyLoadedArtwork(
+        _ image: NSImage,
+        data: Data,
+        animated: Bool
+    ) {
+        if front == data { return }
+
         if front == nil {
-            front = artwork
+            front = data
+            frontImage = image
             blend = 1
             return
         }
 
         guard animated else {
-            front = artwork
+            front = data
+            frontImage = image
             back = nil
+            backImage = nil
             blend = 1
             return
         }
 
         back = front
-        front = artwork
+        backImage = frontImage
+        front = data
+        frontImage = image
         blend = 0
         withAnimation(.easeInOut(duration: 0.42)) { blend = 1 }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(460))
-            if front == artwork { back = nil }
+            if front == data {
+                back = nil
+                backImage = nil
+            }
         }
     }
 }

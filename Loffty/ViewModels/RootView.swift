@@ -75,6 +75,12 @@ final class NotchViewModel: ObservableObject {
     private var elapsedAt = Date()
     private var pendingSeekTime: Double?
     private var pendingSeekAt: Date?
+    private var pendingUpdate: NowPlaying?
+    private var applyDebounceTask: Task<Void, Never>?
+    private var accentTask: Task<Void, Never>?
+    private var rapidSkipResetTask: Task<Void, Never>?
+    private var lastTrackChangeAt = Date.distantPast
+    @Published private(set) var isRapidSkipping = false
     private let media = MediaController()
     private let volume = SystemVolumeWatcher()
     private let brightness = SystemBrightnessWatcher()
@@ -83,7 +89,7 @@ final class NotchViewModel: ObservableObject {
 
     func start() {
         media.onUpdate = { [weak self] np in
-            Task { @MainActor in self?.apply(np) }
+            Task { @MainActor in self?.scheduleApply(np) }
         }
         media.start()
 
@@ -123,6 +129,17 @@ final class NotchViewModel: ObservableObject {
         }
     }
 
+    private func scheduleApply(_ np: NowPlaying) {
+        pendingUpdate = np
+        applyDebounceTask?.cancel()
+        applyDebounceTask = Task {
+            try? await Task.sleep(for: .milliseconds(75))
+            guard !Task.isCancelled, let pending = pendingUpdate else { return }
+            pendingUpdate = nil
+            apply(pending)
+        }
+    }
+
     private func apply(_ np: NowPlaying) {
         let trackChanged =
             !np.trackKey.isEmpty && np.trackKey != nowPlaying.trackKey
@@ -146,16 +163,37 @@ final class NotchViewModel: ObservableObject {
 
         let artChanged = incoming.artwork != nowPlaying.artwork
         nowPlaying = incoming
-        if trackChanged { trackChangeToken &+= 1 }
+        if trackChanged {
+            let now = Date()
+            isRapidSkipping = now.timeIntervalSince(lastTrackChangeAt) < 0.25
+            lastTrackChangeAt = now
+            trackChangeToken &+= 1
+            accentTask?.cancel()
+            rapidSkipResetTask?.cancel()
+            rapidSkipResetTask = Task {
+                try? await Task.sleep(for: .milliseconds(280))
+                guard !Task.isCancelled else { return }
+                isRapidSkipping = false
+            }
+        }
         if incoming.elapsedTimestamp == nil {
             elapsedAt = Date()
         }
         if artChanged {
             let data = np.artwork
-            Task.detached(priority: .utility) {
+            let trackKey = incoming.trackKey
+            accentTask = Task.detached(priority: .utility) {
                 let c = await AlbumColor.accent(from: data)
                 await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.6)) {
+                    guard !Task.isCancelled,
+                        self.nowPlaying.trackKey == trackKey
+                    else { return }
+                    let animate = !self.isRapidSkipping
+                    if animate {
+                        withAnimation(.easeInOut(duration: 0.6)) {
+                            self.accentColor = c
+                        }
+                    } else {
                         self.accentColor = c
                     }
                 }
@@ -464,7 +502,7 @@ struct NotchRootView: View {
         )
         .animation(NotchViewModel.hudSpring, value: vm.hud)
         .onChange(of: vm.trackChangeToken) { _, token in
-            guard token > 0 else { return }
+            guard token > 0, !vm.isRapidSkipping else { return }
             withAnimation(.easeOut(duration: 0.16)) { trackPulse = 1 }
             withAnimation(
                 .spring(response: 0.55, dampingFraction: 0.78).delay(0.06)
