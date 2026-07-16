@@ -40,11 +40,12 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 - Add more controls (shuffle, repeat, etc)
 - Actual soundwaves
 - Current player indicator badge?
-- Improve idle mode
 - Lock screen lyrics
+- Improve lock screen widget
 - Support other system HUD overrides (bt device connection, AirDrop?, battery)
 - Auto-expand on track change?
 - media-control skip Spotify ads
+- Settings perf
 
 ## License
 
