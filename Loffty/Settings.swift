@@ -71,6 +71,7 @@ final class AppSettings: ObservableObject {
     private static let batteryHUDKey = "batteryHUD"
     private static let bluetoothHUDKey = "bluetoothHUD"
     private static let focusHUDKey = "focusHUD"
+    private static let airDropHUDKey = "airDropHUD"
     private static let movableWidgetKey = "movableWidget"
 
     @Published var hideMenuBarItem: Bool {
@@ -133,6 +134,12 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var airDropHUD: Bool {
+        didSet {
+            UserDefaults.standard.set(airDropHUD, forKey: Self.airDropHUDKey)
+        }
+    }
+
     @Published var artistEnrichment: ArtistEnrichmentMode {
         didSet {
             UserDefaults.standard.set(
@@ -154,7 +161,7 @@ final class AppSettings: ObservableObject {
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
-        replaceSystemHUD || batteryHUD || bluetoothHUD || focusHUD
+        replaceSystemHUD || batteryHUD || bluetoothHUD || focusHUD || airDropHUD
     }
 
     private init() {
@@ -179,6 +186,9 @@ final class AppSettings: ObservableObject {
             ?? true
         focusHUD =
             UserDefaults.standard.object(forKey: Self.focusHUDKey) as? Bool
+            ?? true
+        airDropHUD =
+            UserDefaults.standard.object(forKey: Self.airDropHUDKey) as? Bool
             ?? true
         movableWidget = UserDefaults.standard.bool(
             forKey: Self.movableWidgetKey
@@ -247,6 +257,7 @@ struct SettingsView: View {
                 Toggle("Battery status HUD", isOn: $settings.batteryHUD)
                 Toggle("Bluetooth connection HUD", isOn: $settings.bluetoothHUD)
                 Toggle("Focus HUD", isOn: $settings.focusHUD)
+                Toggle("AirDrop in notch", isOn: $settings.airDropHUD)
                 if settings.anyHUDEnabled {
                     LabeledContent("HUD duration") {
                         HStack(spacing: 8) {
@@ -266,7 +277,7 @@ struct SettingsView: View {
                 Text("System HUDs")
             } footer: {
                 Text(
-                    "Volume and brightness require Accessibility and replace the system HUD. Battery uses the drop-down chip; Bluetooth and Focus take over the notch sides."
+                    "Volume and brightness require Accessibility and replace the system HUD. Battery uses the drop-down chip; Bluetooth and Focus take over the notch sides. Drop a file on the notch to open AirDrop."
                 )
             }
         }
