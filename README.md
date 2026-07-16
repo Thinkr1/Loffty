@@ -42,6 +42,7 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 - Current player indicator badge?
 - Lock screen lyrics
 - Improve lock screen widget
+- Quit button in idle mode
 - Remove system focus HUD
 - AirDrop notch HUD
 - Auto-expand on track change?
