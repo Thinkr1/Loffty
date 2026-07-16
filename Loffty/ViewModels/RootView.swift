@@ -143,6 +143,10 @@ final class NotchViewModel: ObservableObject {
     }
 
     private func scheduleApply(_ np: NowPlaying) {
+        if isDisplayMetadataEqual(np), pendingSeekTime == nil {
+            return
+        }
+
         let immediate =
             np.trackKey != nowPlaying.trackKey
             || np.title != nowPlaying.title
@@ -168,6 +172,20 @@ final class NotchViewModel: ObservableObject {
             pendingUpdate = nil
             apply(pending)
         }
+    }
+
+    private func isDisplayMetadataEqual(_ np: NowPlaying) -> Bool {
+        np.trackKey == nowPlaying.trackKey
+            && np.title == nowPlaying.title
+            && np.artist == nowPlaying.artist
+            && np.album == nowPlaying.album
+            && np.artworkUnavailable == nowPlaying.artworkUnavailable
+            && (np.artwork == nil) == (nowPlaying.artwork == nil)
+            && np.artwork?.count == nowPlaying.artwork?.count
+            && np.isPlaying == nowPlaying.isPlaying
+            && np.isLive == nowPlaying.isLive
+            && np.duration == nowPlaying.duration
+            && np.playbackRate == nowPlaying.playbackRate
     }
 
     private func apply(_ np: NowPlaying) {

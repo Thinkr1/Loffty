@@ -97,8 +97,10 @@ final class NowPlayingStream {
     private var lastTrackKey: String?
     private var enrichmentTask: Task<Void, Never>?
     private var artworkPollTask: Task<Void, Never>?
-    private var elapsedPollTask: Task<Void, Never>?
     private let queue = DispatchQueue(label: "Loffty.NowPlayingStream")
+    private static let elapsedOnlyKeys: Set<String> = [
+        "elapsedTime", "timestamp", "playbackRate", "elapsedTimeNow",
+    ]
     private let tsFormatter = ISO8601DateFormatter()
     private let pth = "/opt/homebrew/bin/media-control"
     func start() {
@@ -164,13 +166,31 @@ final class NowPlayingStream {
         }
         applyLiveState(from: info, isDiff: isDiff, trackChanged: trackChanged)
         current.trackKey = lastTrackKey ?? ""
-        onUpdate?(current)
-        enrichSpotifyArtistsIfNeeded(from: info)
-        scheduleArtworkPollingIfNeeded()
-        scheduleElapsedPollingIfNeeded(
+        if shouldPublish(
+            info: info,
+            isDiff: isDiff,
             trackChanged: trackChanged,
             playStateChanged: playStateChanged
-        )
+        ) {
+            onUpdate?(current)
+        }
+        enrichSpotifyArtistsIfNeeded(from: info)
+        scheduleArtworkPollingIfNeeded()
+    }
+
+    private func shouldPublish(
+        info: [String: Any],
+        isDiff: Bool,
+        trackChanged: Bool,
+        playStateChanged: Bool
+    ) -> Bool {
+        if trackChanged || playStateChanged { return true }
+        if !isDiff { return true }
+        let keys = Set(info.keys.map { String($0) })
+        if keys.isSubset(of: Self.elapsedOnlyKeys), current.isPlaying {
+            return false
+        }
+        return true
     }
 
     private func applyLiveState(
@@ -322,7 +342,7 @@ final class NowPlayingStream {
             if trackChanged { current.artwork = nil }
             return
         }
-        current.artwork = data
+        current.artwork = ArtworkProcessor.thumbnailData(from: data)
         current.artworkUnavailable = false
         cancelArtworkPolling()
     }
@@ -402,8 +422,15 @@ final class NowPlayingStream {
             defer {
                 self.queue.async { self.artworkPollTask = nil }
             }
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(0.5))
+            var delay: Duration = .milliseconds(500)
+            var attempts = 0
+            let maxAttempts = 6
+            while !Task.isCancelled, attempts < maxAttempts {
+                if attempts > 0 {
+                    try? await Task.sleep(for: delay)
+                    delay = min(delay * 2, .seconds(4))
+                }
+                attempts += 1
                 guard !Task.isCancelled else { return }
 
                 let info = self.fetchNowPlaying()
@@ -431,7 +458,10 @@ final class NowPlayingStream {
                             !b64.isEmpty,
                             let data = Data(base64Encoded: b64)
                         {
-                            self.current.artwork = data
+                            self.current.artwork =
+                                ArtworkProcessor.thumbnailData(
+                                    from: data
+                                )
                             self.current.artworkUnavailable = false
                             self.onUpdate?(self.current)
                             cont.resume(returning: true)
@@ -441,59 +471,6 @@ final class NowPlayingStream {
                     }
                 }
                 if applied { return }
-            }
-        }
-    }
-
-    private func scheduleElapsedPollingIfNeeded(
-        trackChanged: Bool,
-        playStateChanged: Bool
-    ) {
-        guard current.isPlaying else {
-            cancelElapsedPolling()
-            return
-        }
-        guard trackChanged || playStateChanged || elapsedPollTask == nil else {
-            return
-        }
-
-        elapsedPollTask?.cancel()
-        elapsedPollTask = nil
-
-        elapsedPollTask = Task { [weak self] in
-            guard let self else { return }
-            defer {
-                self.queue.async { self.elapsedPollTask = nil }
-            }
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { return }
-
-                let info = self.fetchNowPlaying(now: true)
-                let keepGoing: Bool = await withCheckedContinuation { cont in
-                    self.queue.async {
-                        guard self.current.isPlaying else {
-                            cont.resume(returning: false)
-                            return
-                        }
-                        guard let info else {
-                            cont.resume(returning: true)
-                            return
-                        }
-                        if let now = info["elapsedTimeNow"] as? NSNumber {
-                            self.current.elapsed = now.doubleValue
-                            self.current.elapsedTimestamp = Date()
-                        } else {
-                            self.applyElapsed(from: info)
-                        }
-                        if let pl = info["playing"] as? Bool {
-                            self.current.isPlaying = pl
-                        }
-                        self.onUpdate?(self.current)
-                        cont.resume(returning: self.current.isPlaying)
-                    }
-                }
-                if !keepGoing { return }
             }
         }
     }
@@ -523,15 +500,9 @@ final class NowPlayingStream {
         artworkPollTask = nil
     }
 
-    private func cancelElapsedPolling() {
-        elapsedPollTask?.cancel()
-        elapsedPollTask = nil
-    }
-
     func stop() {
         enrichmentTask?.cancel()
         cancelArtworkPolling()
-        cancelElapsedPolling()
         process?.terminate()
     }
 }

@@ -7,6 +7,33 @@
 
 import SwiftUI
 
+enum ArtworkProcessor {
+    private static let ctx = CIContext(options: [.workingColorSpace: NSNull()])
+    static let maxPixel: CGFloat = 120
+
+    static func thumbnailData(from data: Data) -> Data {
+        guard
+            let img = CIImage(data: data),
+            max(img.extent.width, img.extent.height) > maxPixel
+        else { return data }
+        let scale = maxPixel / max(img.extent.width, img.extent.height)
+        let scaled = img.transformed(
+            by: CGAffineTransform(scaleX: scale, y: scale)
+        )
+        guard let cg = ctx.createCGImage(scaled, from: scaled.extent) else {
+            return data
+        }
+        let rep = NSBitmapImageRep(cgImage: cg)
+        guard
+            let jpeg = rep.representation(
+                using: .jpeg,
+                properties: [.compressionFactor: 0.82]
+            )
+        else { return data }
+        return jpeg
+    }
+}
+
 extension View {
     @ViewBuilder
     fileprivate func applyMatchedGeometry(
@@ -24,7 +51,18 @@ extension View {
 enum AlbumColor {
     private static let ctx = CIContext(options: [.workingColorSpace: NSNull()])
     static func accent(from data: Data?) -> Color {
-        guard let data, let img = CIImage(data: data), img.extent.width > 0,
+        guard let data else { return Color.white.opacity(0.5) }
+        guard var img = CIImage(data: data), img.extent.width > 0 else {
+            return Color.white.opacity(0.5)
+        }
+        let maxSide = max(img.extent.width, img.extent.height)
+        if maxSide > 32 {
+            let scale = 32 / maxSide
+            img = img.transformed(
+                by: CGAffineTransform(scaleX: scale, y: scale)
+            )
+        }
+        guard
             let f = CIFilter(
                 name: "CIAreaAverage",
                 parameters: [
@@ -69,7 +107,7 @@ enum AlbumColor {
 private actor ArtworkImageStore {
     static let shared = ArtworkImageStore()
     private var cache: [Int: NSImage] = [:]
-    private let maxEntries = 24
+    private let maxEntries = 4
 
     func image(for data: Data) async -> NSImage? {
         let key = data.hashValue
