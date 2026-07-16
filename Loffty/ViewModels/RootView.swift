@@ -16,23 +16,28 @@ struct NotchMetrics {
     var extended: Bool
     var hudActive: Bool
     var sideAnnouncement: Bool = false
+    var airDrop: Bool = false
+    var airDropTransfer: Bool = false
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
     let barsW: CGFloat = 18
     let hudExtra: CGFloat = 38
     var topRadius: CGFloat {
+        if airDrop { return 16 }
         if expanded, idle { return 10 }
         if expanded { return 20 }
         if hudActive { return 16 }
         return 10
     }
     var bottomRadius: CGFloat {
+        if airDrop { return 24 }
         if expanded, idle { return 14 }
         if expanded { return 30 }
         if hudActive { return 26 }
         return 12
     }
     var height: CGFloat {
+        if airDrop { return airDropTransfer ? 128 : 112 }
         if expanded, idle { return notchH + 30 }
         if expanded { return 182 }
         if hudActive { return notchH + hudExtra }
@@ -42,12 +47,12 @@ struct NotchMetrics {
     var gap: CGFloat { extended || sideAnnouncement ? gapExtended : 6 }
     var side: CGFloat {
         if sideAnnouncement {
-            // Balanced wings: icon | notch | On — closer to island Focus style.
             return edgePad + 36 + gap
         }
         return extended ? edgePad + max(artSize, barsW) + gap : 50
     }
     var width: CGFloat {
+        if airDrop { return max(notchW + 160, 380) }
         if expanded, idle { return notchW + 56 }
         if expanded { return 380 }
         if hudActive { return notchW + 2 * topRadius + 36 }
@@ -83,11 +88,15 @@ final class NotchViewModel: ObservableObject {
         response: 0.35,
         dampingFraction: 0.82
     )
-    /// Wider, softer spring for Focus / Bluetooth side announcements.
     static let sideHUDSpring = Animation.spring(
         response: 0.48,
         dampingFraction: 0.78,
         blendDuration: 0.05
+    )
+    static let airDropSpring = Animation.spring(
+        response: 0.42,
+        dampingFraction: 0.8,
+        blendDuration: 0.04
     )
     fileprivate static let notchExpandSpring = Animation.spring(
         response: 0.35,
@@ -424,6 +433,7 @@ final class NotchViewModel: ObservableObject {
     }
 
     func setExpanded(_ v: Bool) {
+        if !v, AirDropController.shared.phase.isActive { return }
         guard v != isExpanded else { return }
         withAnimation(v ? Self.notchExpandSpring : Self.notchCollapseSpring) {
             isExpanded = v
@@ -545,31 +555,48 @@ struct NotchShape: Shape {
 struct NotchRootView: View {
     @EnvironmentObject var vm: NotchViewModel
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var airDrop = AirDropController.shared
     @Namespace private var ns
     @State private var trackPulse: CGFloat = 0
+    @State private var airDropPulse: CGFloat = 0
 
     private var hasTrack: Bool { !vm.isIdle }
-    private var hudVisible: Bool { vm.hudDisplay != nil }
+    private var airDropActive: Bool { airDrop.phase.isActive }
+    private var hudVisible: Bool { vm.hudDisplay != nil && !airDropActive }
     private var verticalHUD: Bool {
-        vm.hudDisplay?.presentsVertically == true
+        !airDropActive && vm.hudDisplay?.presentsVertically == true
     }
     private var sideAnnouncement: Bool {
-        vm.hudDisplay?.presentsOnSides == true && !vm.isExpanded
+        !airDropActive && vm.hudDisplay?.presentsOnSides == true
+            && !vm.isExpanded
     }
-    private var hudIntegrated: Bool { verticalHUD && !vm.isExpanded }
-    private var hudBelowExpanded: Bool { verticalHUD && vm.isExpanded }
+    private var hudIntegrated: Bool {
+        verticalHUD && !vm.isExpanded && !airDropActive
+    }
+    private var hudBelowExpanded: Bool {
+        verticalHUD && vm.isExpanded && !airDropActive
+    }
     private var m: NotchMetrics {
         NotchMetrics(
             notchW: vm.notch.notchRect.width > 0
                 ? vm.notch.notchRect.width : 200,
             notchH: vm.notch.notchRect.height > 0
                 ? vm.notch.notchRect.height + 0.25 : 32,
-            expanded: vm.isExpanded,
-            idle: vm.isExpanded && vm.isIdle,
-            extended: (settings.extendNotch && hasTrack && !verticalHUD)
+            expanded: vm.isExpanded && !airDropActive,
+            idle: vm.isExpanded && vm.isIdle && !airDropActive,
+            extended: (settings.extendNotch && hasTrack && !verticalHUD
+                && !airDropActive)
                 || sideAnnouncement,
             hudActive: hudIntegrated,
-            sideAnnouncement: sideAnnouncement
+            sideAnnouncement: sideAnnouncement,
+            airDrop: airDropActive,
+            airDropTransfer: airDropActive
+                && {
+                    if case .receiving = airDrop.phase { return true }
+                    if case .sent = airDrop.phase { return true }
+                    if case .received = airDrop.phase { return true }
+                    return false
+                }()
         )
     }
     private var hudTailMetrics: NotchMetrics {
@@ -597,29 +624,67 @@ struct NotchRootView: View {
                     .fill(.black)
                     .frame(width: m.width, height: m.height)
                     .overlay {
+                        if airDropActive {
+                            NotchShape(
+                                topRadius: m.topRadius,
+                                bottomRadius: m.bottomRadius
+                            )
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.white.opacity(
+                                            0.05 + 0.03 * airDropPulse
+                                        ),
+                                        .clear,
+                                    ],
+                                    center: UnitPoint(x: 0.5, y: 0.12),
+                                    startRadius: 1,
+                                    endRadius: m.height * 0.9
+                                )
+                            )
+                        }
+                    }
+                    .overlay {
                         NotchShape(
                             topRadius: m.topRadius,
                             bottomRadius: m.bottomRadius
                         )
                         .stroke(
-                            vm.accentColor.opacity(0.55 * trackPulse),
-                            lineWidth: 1.5
+                            airDropActive
+                                ? Color.white.opacity(
+                                    0.08 + 0.05 * airDropPulse
+                                )
+                                : vm.accentColor.opacity(0.55 * trackPulse),
+                            lineWidth: airDropActive ? 1 : 1.5
                         )
-                        .blur(radius: trackPulse * 1.5)
-                        .scaleEffect(1 + trackPulse * 0.018)
+                        .blur(
+                            radius: airDropActive
+                                ? 0.8 : trackPulse * 1.5
+                        )
+                        .scaleEffect(
+                            1
+                                + (airDropActive
+                                    ? airDropPulse * 0.004 : trackPulse * 0.018)
+                        )
                     }
                     .background {
                         NotchShape(
                             topRadius: m.topRadius,
                             bottomRadius: m.bottomRadius
                         )
-                        .fill(vm.accentColor.opacity(0.22 * trackPulse))
-                        .blur(radius: 28)
-                        .scaleEffect(x: 1.12, y: 1.18)
+                        .fill(
+                            airDropActive
+                                ? Color.white.opacity(0.045)
+                                : vm.accentColor.opacity(0.22 * trackPulse)
+                        )
+                        .blur(radius: airDropActive ? 18 : 28)
+                        .scaleEffect(x: 1.06, y: 1.1)
                         .opacity(
-                            (vm.isExpanded && !vm.isIdle || hudVisible
-                                ? 0.55 : 0)
-                                + trackPulse * 0.35
+                            airDropActive
+                                ? 0.55
+                                : ((vm.isExpanded && !vm.isIdle || hudVisible
+                                    ? 0.55 : 0)
+                                    + trackPulse * 0.35)
                         )
                         .frame(width: m.width, height: m.height)
                     }
@@ -632,12 +697,20 @@ struct NotchRootView: View {
                         .blur(radius: 28)
                         .scaleEffect(x: 1.12, y: 1.18)
                         .opacity(
-                            vm.isExpanded && !vm.isIdle || hudVisible ? 0.55 : 0
+                            airDropActive || vm.isExpanded && !vm.isIdle
+                                || hudVisible ? 0.55 : 0
                         )
                         .frame(width: m.width, height: m.height)
                     }
 
-                    if vm.isExpanded {
+                    if airDropActive {
+                        AirDropNotchContent(airDrop: airDrop)
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .top
+                            )
+                    } else if vm.isExpanded {
                         ExpandedContent(ns: ns, m: m)
                             .frame(
                                 maxWidth: .infinity,
@@ -712,6 +785,13 @@ struct NotchRootView: View {
         .animation(NotchViewModel.notchExpandSpring, value: vm.isIdle)
         .animation(NotchViewModel.sideHUDSpring, value: vm.hud)
         .animation(NotchViewModel.sideHUDSpring, value: vm.hudDisplay)
+        .animation(NotchViewModel.airDropSpring, value: airDrop.phase)
+        .animation(
+            NotchViewModel.airDropSpring,
+            value: airDrop.systemChooserPresented
+        )
+        .animation(NotchViewModel.notchExpandSpring, value: m.height)
+        .animation(NotchViewModel.notchExpandSpring, value: m.width)
         .onChange(of: vm.trackChangeToken) { _, token in
             guard token > 0, !vm.isRapidSkipping else { return }
             withAnimation(.easeOut(duration: 0.16)) { trackPulse = 1 }
@@ -719,6 +799,17 @@ struct NotchRootView: View {
                 .spring(response: 0.55, dampingFraction: 0.78).delay(0.06)
             ) {
                 trackPulse = 0
+            }
+        }
+        .onChange(of: airDropActive) { _, active in
+            if active {
+                withAnimation(
+                    .easeInOut(duration: 1.8).repeatForever(autoreverses: true)
+                ) {
+                    airDropPulse = 1
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.28)) { airDropPulse = 0 }
             }
         }
     }

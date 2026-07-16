@@ -116,6 +116,7 @@ func detectNotch(on screen: NSScreen) -> NotchInfo {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NotchWindow!
+    private var airDropCatch: NSPanel!
     private var statusItem: NSStatusItem!
     private let vm = NotchViewModel()
     private var lockWidget: LockScreenWidget!
@@ -123,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mouseButtonDown = false
     private var triggerZone = CGRect.zero
     private var expandedZone = CGRect.zero
+    private var airDropZone = CGRect.zero
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_: Notification) {
@@ -146,14 +148,117 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         window.ignoresMouseEvents = true
         window.orderFrontRegardless()
+        setupAirDropCatch(notch: info.notchRect, screen: screen)
         setupStatusItem()
         installHoverMonitor(screen: screen, notch: info.notchRect)
         vm.start()
         lockWidget = LockScreenWidget(vm: vm)
         lockWidget.start()
+        MainActor.assumeIsolated {
+            syncAirDropHUD(enabled: AppSettings.shared.airDropHUD)
+        }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(800))
             SettingsOpener.shared.prewarm()
+        }
+    }
+
+    private func setupAirDropCatch(notch: CGRect, screen: NSScreen) {
+        let pad: CGFloat = 12
+        airDropZone = CGRect(
+            x: notch.minX - pad,
+            y: notch.minY - 8,
+            width: notch.width + pad * 2,
+            height: notch.height + 16
+        )
+        let panel = NSPanel(
+            contentRect: airDropZone,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isFloatingPanel = true
+        panel.level = NSWindow.Level(
+            rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 8
+        )
+        panel.collectionBehavior = [
+            .canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle,
+        ]
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.hidesOnDeactivate = false
+        panel.ignoresMouseEvents = false
+
+        let catchView = AirDropCatchView(frame: .zero)
+        catchView.autoresizingMask = [.width, .height]
+        catchView.isEnabled = { AppSettings.shared.airDropHUD }
+        catchView.onDragEnter = { [weak self] urls in
+            Task { @MainActor in
+                guard let self, AppSettings.shared.airDropHUD else { return }
+                self.expandAirDropCatch(on: screen)
+                AirDropController.shared.offer(urls: urls)
+                self.airDropCatch.orderFrontRegardless()
+            }
+        }
+        catchView.onDropURLs = { [weak self] urls in
+            Task { @MainActor in
+                guard let self, AppSettings.shared.airDropHUD else { return }
+                AirDropController.shared.offer(urls: urls)
+                self.setAirDropInteractive(true)
+                self.airDropCatch.orderFrontRegardless()
+            }
+        }
+        catchView.onDragExit = { [weak self] in
+            Task { @MainActor in
+                if !AirDropController.shared.phase.isActive {
+                    self?.resetAirDropCatch()
+                }
+            }
+        }
+        panel.contentView = catchView
+        panel.orderFrontRegardless()
+        airDropCatch = panel
+    }
+
+    private func expandAirDropCatch(on screen: NSScreen) {
+        let w: CGFloat = 420
+        let h: CGFloat = 150
+        let frame = NSRect(
+            x: screen.frame.midX - w / 2,
+            y: screen.frame.maxY - h,
+            width: w,
+            height: h
+        )
+        airDropCatch.setFrame(frame, display: true)
+    }
+
+    private func resetAirDropCatch() {
+        airDropCatch.setFrame(airDropZone, display: true)
+    }
+
+    private func setAirDropInteractive(_ active: Bool) {
+        if active {
+            window.ignoresMouseEvents = false
+            window.acceptsInteraction = true
+            window.orderFrontRegardless()
+            resetAirDropCatch()
+            airDropCatch.orderFrontRegardless()
+        } else if !hoverExpanded {
+            window.ignoresMouseEvents = true
+            window.acceptsInteraction = false
+            resetAirDropCatch()
+        }
+    }
+
+    private func syncAirDropHUD(enabled: Bool) {
+        airDropCatch?.orderFrontRegardless()
+        if enabled {
+            AirDropController.shared.startReceiveMonitoring()
+        } else {
+            AirDropController.shared.stopReceiveMonitoring()
+            AirDropController.shared.cancel()
+            setAirDropInteractive(false)
         }
     }
 
@@ -183,6 +288,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .receive(on: RunLoop.main)
                 .sink { [weak self] hidden in
                     self?.statusItem.isVisible = !hidden
+                }
+                .store(in: &cancellables)
+
+            AppSettings.shared.$airDropHUD
+                .receive(on: RunLoop.main)
+                .sink { [weak self] enabled in
+                    self?.syncAirDropHUD(enabled: enabled)
+                }
+                .store(in: &cancellables)
+
+            AirDropController.shared.$phase
+                .receive(on: RunLoop.main)
+                .sink { [weak self] phase in
+                    guard let self else { return }
+                    if phase.isActive {
+                        self.setAirDropInteractive(true)
+                    } else {
+                        self.resetAirDropCatch()
+                        if !self.hoverExpanded {
+                            self.window.ignoresMouseEvents = true
+                            self.window.acceptsInteraction = false
+                        }
+                    }
                 }
                 .store(in: &cancellables)
         }
@@ -240,6 +368,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateHoverState() {
+        if AirDropController.shared.phase.isActive { return }
+
         if hoverExpanded {
             guard !expandedZone.contains(NSEvent.mouseLocation) else { return }
             guard !mouseButtonDown else { return }
@@ -254,8 +384,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setHoverExpanded(_ expanded: Bool) {
         guard hoverExpanded != expanded else { return }
         hoverExpanded = expanded
-        window.ignoresMouseEvents = !expanded
-        window.acceptsInteraction = expanded
+        if AirDropController.shared.phase.isActive {
+            window.ignoresMouseEvents = false
+            window.acceptsInteraction = true
+        } else {
+            window.ignoresMouseEvents = !expanded
+            window.acceptsInteraction = expanded
+        }
         if expanded { window.makeKey() }
         Task { @MainActor in vm.setExpanded(expanded) }
     }

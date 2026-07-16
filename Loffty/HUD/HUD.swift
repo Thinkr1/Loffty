@@ -264,7 +264,6 @@ final class SystemBrightnessWatcher {
         suppressUntil = Date.distantPast
     }
 
-    /// Ignore brightness deltas for a bit (e.g. AC plug auto-brightness).
     func suppress(for interval: TimeInterval = 2.8) {
         suppressUntil = Date().addingTimeInterval(interval)
         if let level = DisplayServicesBridge.currentBrightness() {

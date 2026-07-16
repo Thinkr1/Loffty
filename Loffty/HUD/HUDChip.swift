@@ -72,7 +72,6 @@ enum FocusPalette {
         if key.contains("reading") {
             return Color(red: 1.0, green: 0.62, blue: 0.05)
         }
-        // Do Not Disturb / default Focus
         return Color(red: 0.56, green: 0.42, blue: 0.98)
     }
 

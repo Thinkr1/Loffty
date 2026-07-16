@@ -6,5 +6,12 @@
 	<string>Loffty intercepts volume and brightness keys to replace system HUD for these settings</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Loffty receives new bluetooth connections to display them in the notch</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Loffty discovers nearby AirDrop devices to send files from the notch.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_airdrop._tcp</string>
+		<string>_airdropsecure._tcp</string>
+	</array>
 </dict>
 </plist>
