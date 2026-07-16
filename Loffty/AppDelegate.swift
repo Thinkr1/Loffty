@@ -44,25 +44,41 @@ final class SettingsOpener {
     static let shared = SettingsOpener()
     private var window: NSWindow?
 
+    func prewarm() {
+        ensureWindow()
+        guard let window, let content = window.contentView else { return }
+        content.frame = NSRect(x: 0, y: 0, width: 400, height: 420)
+        content.layoutSubtreeIfNeeded()
+        window.layoutIfNeeded()
+    }
+
     func open() {
-        if window == nil {
-            let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 400, height: 420),
-                styleMask: [.titled, .closable],
-                backing: .buffered,
-                defer: false
-            )
-            w.title = "Loffty Settings"
-            w.contentView = NSHostingView(rootView: SettingsView())
-            w.isReleasedWhenClosed = false
-            w.level = .floating
-            w.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-            w.center()
-            window = w
-        }
+        ensureWindow()
+        guard let window else { return }
+        window.center()
         NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
-        window?.orderFrontRegardless()
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+
+    private func ensureWindow() {
+        guard window == nil else { return }
+        let w = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 420),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        w.title = "Loffty Settings"
+        let hosting = NSHostingView(rootView: SettingsView())
+        hosting.frame = NSRect(x: 0, y: 0, width: 400, height: 420)
+        w.contentView = hosting
+        w.isReleasedWhenClosed = false
+        w.level = .floating
+        w.animationBehavior = .none
+        w.isRestorable = false
+        w.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window = w
     }
 }
 
@@ -136,6 +152,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         vm.start()
         lockWidget = LockScreenWidget(vm: vm)
         lockWidget.start()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
+            SettingsOpener.shared.prewarm()
+        }
     }
 
     private func setupStatusItem() {

@@ -45,7 +45,6 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 - Support other system HUD overrides (bt device connection, AirDrop?, battery)
 - Auto-expand on track change?
 - media-control skip Spotify ads
-- Settings perf
 
 ## License
 
