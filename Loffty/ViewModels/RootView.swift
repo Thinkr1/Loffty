@@ -12,6 +12,7 @@ struct NotchMetrics {
     var notchW: CGFloat
     var notchH: CGFloat
     var expanded: Bool
+    var idle: Bool
     var extended: Bool
     var hudActive: Bool
     let gapExtended: CGFloat = 12
@@ -19,16 +20,19 @@ struct NotchMetrics {
     let barsW: CGFloat = 18
     let hudExtra: CGFloat = 38
     var topRadius: CGFloat {
+        if expanded, idle { return 10 }
         if expanded { return 20 }
         if hudActive { return 16 }
         return 10
     }
     var bottomRadius: CGFloat {
+        if expanded, idle { return 14 }
         if expanded { return 30 }
         if hudActive { return 26 }
         return 12
     }
     var height: CGFloat {
+        if expanded, idle { return notchH + 30 }
         if expanded { return 182 }
         if hudActive { return notchH + hudExtra }
         return notchH
@@ -37,10 +41,12 @@ struct NotchMetrics {
     var gap: CGFloat { extended ? gapExtended : 6 }
     var side: CGFloat { extended ? edgePad + max(artSize, barsW) + gap : 50 }
     var width: CGFloat {
+        if expanded, idle { return notchW + 56 }
         if expanded { return 380 }
         if hudActive { return notchW + 2 * topRadius + 36 }
         return notchW + 2 * (extended ? side : 0) + 2 * topRadius
     }
+    var idleLipHeight: CGFloat { max(0, height - notchH) }
 }
 
 @MainActor
@@ -53,7 +59,7 @@ final class NotchViewModel: ObservableObject {
     @Published var isExpanded = false
     @Published var nowPlaying = NowPlaying()
     @Published private(set) var trackChangeToken: UInt = 0
-    @Published var accentColor: Color = .white.opacity(0.5)
+    @Published var accentColor: Color = NotchViewModel.defaultAccent
     @Published var isLocked = false
     @Published var hud: HUDKind? = nil
     @Published var hudDisplay: HUDKind? = nil
@@ -82,6 +88,13 @@ final class NotchViewModel: ObservableObject {
     private var lastTrackChangeAt = Date.distantPast
     @Published private(set) var isRapidSkipping = false
     private let media = MediaController()
+
+    var isIdle: Bool {
+        nowPlaying.title.isEmpty && nowPlaying.artwork == nil
+    }
+
+    static let defaultAccent = Color.white.opacity(0.5)
+
     private let volume = SystemVolumeWatcher()
     private let brightness = SystemBrightnessWatcher()
     private let keyInterceptor = SystemKeyInterceptor()
@@ -130,10 +143,27 @@ final class NotchViewModel: ObservableObject {
     }
 
     private func scheduleApply(_ np: NowPlaying) {
-        pendingUpdate = np
+        let immediate =
+            np.trackKey != nowPlaying.trackKey
+            || np.title != nowPlaying.title
+            || np.artist != nowPlaying.artist
+            || np.album != nowPlaying.album
+            || np.artworkUnavailable != nowPlaying.artworkUnavailable
+            || (np.artwork == nil) != (nowPlaying.artwork == nil)
+            || np.isPlaying != nowPlaying.isPlaying
+            || np.isLive != nowPlaying.isLive
+            || np.duration != nowPlaying.duration
+
         applyDebounceTask?.cancel()
+        if immediate {
+            pendingUpdate = nil
+            apply(np)
+            return
+        }
+
+        pendingUpdate = np
         applyDebounceTask = Task {
-            try? await Task.sleep(for: .milliseconds(75))
+            try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled, let pending = pendingUpdate else { return }
             pendingUpdate = nil
             apply(pending)
@@ -148,6 +178,16 @@ final class NotchViewModel: ObservableObject {
             pendingSeekAt = nil
         }
         var incoming = np
+        if incoming.title.isEmpty {
+            incoming.artwork = nil
+            incoming.artworkUnavailable = true
+            incoming.artist = ""
+            incoming.album = ""
+            incoming.trackKey = ""
+            incoming.duration = 0
+            incoming.elapsed = 0
+            incoming.isLive = false
+        }
         if let target = pendingSeekTime, let at = pendingSeekAt,
             Date().timeIntervalSince(at) < 4
         {
@@ -161,8 +201,18 @@ final class NotchViewModel: ObservableObject {
             }
         }
 
-        let artChanged = incoming.artwork != nowPlaying.artwork
+        let artChanged =
+            (incoming.artwork == nil) != (nowPlaying.artwork == nil)
+            || incoming.artwork?.count != nowPlaying.artwork?.count
+        let wasIdle = isIdle
         nowPlaying = incoming
+        let nowIdle = isIdle
+        if nowIdle, !wasIdle {
+            accentTask?.cancel()
+            withAnimation(.easeOut(duration: 0.45)) {
+                accentColor = Self.defaultAccent
+            }
+        }
         if trackChanged {
             let now = Date()
             isRapidSkipping = now.timeIntervalSince(lastTrackChangeAt) < 0.25
@@ -180,8 +230,9 @@ final class NotchViewModel: ObservableObject {
             elapsedAt = Date()
         }
         if artChanged {
-            let data = np.artwork
+            let data = incoming.artwork
             let trackKey = incoming.trackKey
+            accentTask?.cancel()
             accentTask = Task.detached(priority: .utility) {
                 let c = await AlbumColor.accent(from: data)
                 await MainActor.run {
@@ -271,8 +322,16 @@ final class NotchViewModel: ObservableObject {
     }
 
     func playPause() { media.command(.togglePlayPause) }
-    func next() { media.command(.next) }
-    func prev() { media.command(.prev) }
+    func next() {
+        applyDebounceTask?.cancel()
+        pendingUpdate = nil
+        media.command(.next)
+    }
+    func prev() {
+        applyDebounceTask?.cancel()
+        pendingUpdate = nil
+        media.command(.prev)
+    }
 
     func seek(by delta: Double) {
         seek(to: currentTime(at: Date()) + delta)
@@ -351,9 +410,7 @@ struct NotchRootView: View {
     @Namespace private var ns
     @State private var trackPulse: CGFloat = 0
 
-    private var hasTrack: Bool {
-        vm.nowPlaying.artwork != nil || !vm.nowPlaying.title.isEmpty
-    }
+    private var hasTrack: Bool { !vm.isIdle }
     private var hudVisible: Bool { vm.hudDisplay != nil }
     private var hudIntegrated: Bool { hudVisible && !vm.isExpanded }
     private var hudBelowExpanded: Bool { hudVisible && vm.isExpanded }
@@ -364,6 +421,7 @@ struct NotchRootView: View {
             notchH: vm.notch.notchRect.height > 0
                 ? vm.notch.notchRect.height + 0.25 : 32,
             expanded: vm.isExpanded,
+            idle: vm.isExpanded && vm.isIdle,
             extended: settings.extendNotch && hasTrack && !hudVisible,
             hudActive: hudIntegrated
         )
@@ -375,6 +433,7 @@ struct NotchRootView: View {
             notchH: vm.notch.notchRect.height > 0
                 ? vm.notch.notchRect.height + 0.25 : 32,
             expanded: false,
+            idle: false,
             extended: false,
             hudActive: true
         )
@@ -411,7 +470,8 @@ struct NotchRootView: View {
                         .blur(radius: 28)
                         .scaleEffect(x: 1.12, y: 1.18)
                         .opacity(
-                            (vm.isExpanded || hudVisible ? 0.55 : 0)
+                            (vm.isExpanded && !vm.isIdle || hudVisible
+                                ? 0.55 : 0)
                                 + trackPulse * 0.35
                         )
                         .frame(width: m.width, height: m.height)
@@ -424,12 +484,14 @@ struct NotchRootView: View {
                         .fill(Color.black.opacity(0.95))
                         .blur(radius: 28)
                         .scaleEffect(x: 1.12, y: 1.18)
-                        .opacity(vm.isExpanded || hudVisible ? 0.55 : 0)
+                        .opacity(
+                            vm.isExpanded && !vm.isIdle || hudVisible ? 0.55 : 0
+                        )
                         .frame(width: m.width, height: m.height)
                     }
 
                     if vm.isExpanded {
-                        ExpandedContent(ns: ns)
+                        ExpandedContent(ns: ns, m: m)
                             .frame(
                                 maxWidth: .infinity,
                                 maxHeight: .infinity,
@@ -500,6 +562,7 @@ struct NotchRootView: View {
                 : NotchViewModel.notchCollapseSpring,
             value: m.extended
         )
+        .animation(NotchViewModel.notchExpandSpring, value: vm.isIdle)
         .animation(NotchViewModel.hudSpring, value: vm.hud)
         .onChange(of: vm.trackChangeToken) { _, token in
             guard token > 0, !vm.isRapidSkipping else { return }

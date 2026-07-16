@@ -98,6 +98,7 @@ final class NowPlayingStream {
     private var enrichmentTask: Task<Void, Never>?
     private var artworkPollTask: Task<Void, Never>?
     private var elapsedPollTask: Task<Void, Never>?
+    private let queue = DispatchQueue(label: "Loffty.NowPlayingStream")
     private let tsFormatter = ISO8601DateFormatter()
     private let pth = "/opt/homebrew/bin/media-control"
     func start() {
@@ -109,15 +110,17 @@ final class NowPlayingStream {
         pipe.fileHandleForReading.readabilityHandler = { [weak self] h in
             let data = h.availableData
             guard !data.isEmpty, let self else { return }
-            self.buf.append(data)
-            while let nl = self.buf.firstIndex(of: 0x0A) {
-                let line = self.buf[self.buf.startIndex..<nl]
-                self.buf.removeSubrange(self.buf.startIndex...nl)
-                guard !line.isEmpty,
-                    let obj = try? JSONSerialization.jsonObject(with: line)
-                        as? [String: Any]
-                else { continue }
-                self.ingest(obj)
+            self.queue.async {
+                self.buf.append(data)
+                while let nl = self.buf.firstIndex(of: 0x0A) {
+                    let line = self.buf[self.buf.startIndex..<nl]
+                    self.buf.removeSubrange(self.buf.startIndex...nl)
+                    guard !line.isEmpty,
+                        let obj = try? JSONSerialization.jsonObject(with: line)
+                            as? [String: Any]
+                    else { continue }
+                    self.ingest(obj)
+                }
             }
         }
         try? p.run()
@@ -355,7 +358,8 @@ final class NowPlayingStream {
             guard ArtistEnrichmentMode.current.allowsNetworkFetch else {
                 return
             }
-            await MainActor.run {
+            self.queue.async {
+                guard !Task.isCancelled else { return }
                 guard self.lastEnrichedTrackID != trackID else { return }
                 self.lastEnrichedTrackID = trackID
                 guard self.current.artist != artists else { return }
@@ -366,17 +370,20 @@ final class NowPlayingStream {
     }
 
     func refreshArtistEnrichment() {
-        lastSpotifyEnrichmentKey = nil
-        lastEnrichedTrackID = nil
-        enrichmentTask?.cancel()
-        guard let info = lastSpotifyInfo else { return }
-        if ArtistEnrichmentMode.current.allowsNetworkFetch {
-            enrichSpotifyArtistsIfNeeded(from: info)
-        } else {
-            let artist = parseArtist(from: info) ?? ""
-            if current.artist != artist {
-                current.artist = artist
-                onUpdate?(current)
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.lastSpotifyEnrichmentKey = nil
+            self.lastEnrichedTrackID = nil
+            self.enrichmentTask?.cancel()
+            guard let info = self.lastSpotifyInfo else { return }
+            if ArtistEnrichmentMode.current.allowsNetworkFetch {
+                self.enrichSpotifyArtistsIfNeeded(from: info)
+            } else {
+                let artist = self.parseArtist(from: info) ?? ""
+                if self.current.artist != artist {
+                    self.current.artist = artist
+                    self.onUpdate?(self.current)
+                }
             }
         }
     }
@@ -392,29 +399,48 @@ final class NowPlayingStream {
 
         artworkPollTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.artworkPollTask = nil }
+            defer {
+                self.queue.async { self.artworkPollTask = nil }
+            }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(0.5))
                 guard !Task.isCancelled else { return }
-                guard self.lastTrackKey == trackKeyAtStart else { return }
-                guard self.current.artwork == nil,
-                    !self.current.artworkUnavailable
-                else { return }
 
-                guard let info = self.fetchNowPlaying() else { continue }
-                guard
-                    self.trackKey(from: info, isDiff: false) == trackKeyAtStart
-                else { return }
-
-                if info["artworkData"] is NSNull { continue }
-                if let b64 = info["artworkData"] as? String, !b64.isEmpty,
-                    let data = Data(base64Encoded: b64)
-                {
-                    self.current.artwork = data
-                    self.current.artworkUnavailable = false
-                    self.onUpdate?(self.current)
-                    return
+                let info = self.fetchNowPlaying()
+                let applied: Bool = await withCheckedContinuation { cont in
+                    self.queue.async {
+                        guard self.lastTrackKey == trackKeyAtStart,
+                            self.current.artwork == nil,
+                            !self.current.artworkUnavailable
+                        else {
+                            cont.resume(returning: true)
+                            return
+                        }
+                        guard let info,
+                            self.trackKey(from: info, isDiff: false)
+                                == trackKeyAtStart
+                        else {
+                            cont.resume(returning: true)
+                            return
+                        }
+                        if info["artworkData"] is NSNull {
+                            cont.resume(returning: false)
+                            return
+                        }
+                        if let b64 = info["artworkData"] as? String,
+                            !b64.isEmpty,
+                            let data = Data(base64Encoded: b64)
+                        {
+                            self.current.artwork = data
+                            self.current.artworkUnavailable = false
+                            self.onUpdate?(self.current)
+                            cont.resume(returning: true)
+                            return
+                        }
+                        cont.resume(returning: false)
+                    }
                 }
+                if applied { return }
             }
         }
     }
@@ -436,23 +462,38 @@ final class NowPlayingStream {
 
         elapsedPollTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.elapsedPollTask = nil }
+            defer {
+                self.queue.async { self.elapsedPollTask = nil }
+            }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled, self.current.isPlaying else { return }
-                guard let info = self.fetchNowPlaying(now: true) else {
-                    continue
+                guard !Task.isCancelled else { return }
+
+                let info = self.fetchNowPlaying(now: true)
+                let keepGoing: Bool = await withCheckedContinuation { cont in
+                    self.queue.async {
+                        guard self.current.isPlaying else {
+                            cont.resume(returning: false)
+                            return
+                        }
+                        guard let info else {
+                            cont.resume(returning: true)
+                            return
+                        }
+                        if let now = info["elapsedTimeNow"] as? NSNumber {
+                            self.current.elapsed = now.doubleValue
+                            self.current.elapsedTimestamp = Date()
+                        } else {
+                            self.applyElapsed(from: info)
+                        }
+                        if let pl = info["playing"] as? Bool {
+                            self.current.isPlaying = pl
+                        }
+                        self.onUpdate?(self.current)
+                        cont.resume(returning: self.current.isPlaying)
+                    }
                 }
-                if let now = info["elapsedTimeNow"] as? NSNumber {
-                    self.current.elapsed = now.doubleValue
-                    self.current.elapsedTimestamp = Date()
-                } else {
-                    self.applyElapsed(from: info)
-                }
-                if let pl = info["playing"] as? Bool {
-                    self.current.isPlaying = pl
-                }
-                self.onUpdate?(self.current)
+                if !keepGoing { return }
             }
         }
     }
