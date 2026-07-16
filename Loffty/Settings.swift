@@ -68,6 +68,9 @@ final class AppSettings: ObservableObject {
     private static let replaceSystemHUDKey = "replaceSystemHUD"
     private static let hudDurationKey = "hudDuration"
     private static let brightnessHUDKey = "brightnessHUD"
+    private static let batteryHUDKey = "batteryHUD"
+    private static let bluetoothHUDKey = "bluetoothHUD"
+    private static let focusHUDKey = "focusHUD"
     private static let movableWidgetKey = "movableWidget"
 
     @Published var hideMenuBarItem: Bool {
@@ -109,6 +112,27 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var batteryHUD: Bool {
+        didSet {
+            UserDefaults.standard.set(batteryHUD, forKey: Self.batteryHUDKey)
+        }
+    }
+
+    @Published var bluetoothHUD: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                bluetoothHUD,
+                forKey: Self.bluetoothHUDKey
+            )
+        }
+    }
+
+    @Published var focusHUD: Bool {
+        didSet {
+            UserDefaults.standard.set(focusHUD, forKey: Self.focusHUDKey)
+        }
+    }
+
     @Published var artistEnrichment: ArtistEnrichmentMode {
         didSet {
             UserDefaults.standard.set(
@@ -129,6 +153,10 @@ final class AppSettings: ObservableObject {
 
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
+    var anyHUDEnabled: Bool {
+        replaceSystemHUD || batteryHUD || bluetoothHUD || focusHUD
+    }
+
     private init() {
         hideMenuBarItem = UserDefaults.standard.bool(
             forKey: Self.hideMenuBarItemKey
@@ -142,6 +170,15 @@ final class AppSettings: ObservableObject {
             ?? 1.75
         brightnessHUD =
             UserDefaults.standard.object(forKey: Self.brightnessHUDKey) as? Bool
+            ?? true
+        batteryHUD =
+            UserDefaults.standard.object(forKey: Self.batteryHUDKey) as? Bool
+            ?? true
+        bluetoothHUD =
+            UserDefaults.standard.object(forKey: Self.bluetoothHUDKey) as? Bool
+            ?? true
+        focusHUD =
+            UserDefaults.standard.object(forKey: Self.focusHUDKey) as? Bool
             ?? true
         movableWidget = UserDefaults.standard.bool(
             forKey: Self.movableWidgetKey
@@ -206,6 +243,11 @@ struct SettingsView: View {
                 )
                 if settings.replaceSystemHUD {
                     Toggle("Show brightness HUD", isOn: $settings.brightnessHUD)
+                }
+                Toggle("Battery status HUD", isOn: $settings.batteryHUD)
+                Toggle("Bluetooth connection HUD", isOn: $settings.bluetoothHUD)
+                Toggle("Focus HUD", isOn: $settings.focusHUD)
+                if settings.anyHUDEnabled {
                     LabeledContent("HUD duration") {
                         HStack(spacing: 8) {
                             Slider(
@@ -223,11 +265,9 @@ struct SettingsView: View {
             } header: {
                 Text("System HUDs")
             } footer: {
-                if settings.replaceSystemHUD {
-                    Text(
-                        "Requires Accessibility permission. Loffty only intercepts volume and brightness keys."
-                    )
-                }
+                Text(
+                    "Volume and brightness require Accessibility and replace the system HUD. Battery uses the drop-down chip; Bluetooth and Focus take over the notch sides."
+                )
             }
         }
         .formStyle(.grouped)

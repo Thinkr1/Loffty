@@ -5,11 +5,7 @@
 //  Created by Pierre-Louis ML on 11/07/2026.
 //
 
-import AppKit
-import ApplicationServices
 import AudioToolbox
-import CoreAudio
-import CoreGraphics
 import SwiftUI
 
 private enum NXKeyType: Int32 {
@@ -158,6 +154,19 @@ final class SystemVolumeWatcher {
             [weak self] _, _ in
             self?.emit()
         }
+        var muteAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioObjectPropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectAddPropertyListenerBlock(
+            device,
+            &muteAddr,
+            DispatchQueue.main
+        ) {
+            [weak self] _, _ in
+            self?.emit()
+        }
         lastVol = controller.readVolume()
         lastMuted = controller.readMuted()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
@@ -232,8 +241,10 @@ final class SystemBrightnessWatcher {
     private var timer: Timer?
     private var last: Float = -1
     private var armed = false
+    private var suppressUntil = Date.distantPast
 
     func start() {
+        guard timer == nil else { return }
         if let level = DisplayServicesBridge.currentBrightness() {
             last = level
         }
@@ -245,9 +256,28 @@ final class SystemBrightnessWatcher {
             self?.armed = true
         }
     }
-    func stop() { timer?.invalidate() }
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        armed = false
+        last = -1
+        suppressUntil = Date.distantPast
+    }
+
+    /// Ignore brightness deltas for a bit (e.g. AC plug auto-brightness).
+    func suppress(for interval: TimeInterval = 2.8) {
+        suppressUntil = Date().addingTimeInterval(interval)
+        if let level = DisplayServicesBridge.currentBrightness() {
+            last = level
+        }
+    }
+
     private func emit() {
         guard let level = DisplayServicesBridge.currentBrightness() else {
+            return
+        }
+        if Date() < suppressUntil {
+            last = level
             return
         }
         guard abs(level - last) > 0.004 else { return }
@@ -278,7 +308,7 @@ final class SystemKeyInterceptor {
         guard eventTap == nil else { return }
         requestAccessibilityIfNeeded()
 
-        let eventMask: CGEventMask = 1 << 14 //NX_SYSDEFINED
+        let eventMask: CGEventMask = 1 << 14  //NX_SYSDEFINED
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         guard
             let tap = CGEvent.tapCreate(

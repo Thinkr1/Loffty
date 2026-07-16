@@ -4,5 +4,7 @@
 <dict>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Loffty intercepts volume and brightness keys to replace system HUD for these settings</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Loffty receives new bluetooth connections to display them in the notch</string>
 </dict>
 </plist>

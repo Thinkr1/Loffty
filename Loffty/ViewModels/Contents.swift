@@ -102,9 +102,32 @@ struct CollapsedContent: View {
     let ns: Namespace.ID
     let m: NotchMetrics
 
+    private var sideKind: HUDKind? {
+        guard let kind = vm.hudDisplay, kind.presentsOnSides else { return nil }
+        return kind
+    }
+
     var body: some View {
         HStack(spacing: 0) {
-            if !vm.isIdle,
+            leftSlot
+            Color.clear.frame(width: m.notchW, height: m.height)
+            rightSlot
+        }
+        .frame(height: m.height)
+    }
+
+    @ViewBuilder
+    private var leftSlot: some View {
+        Group {
+            if let kind = sideKind {
+                SideHUDIcon(kind: kind)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .transition(
+                        .opacity
+                            .combined(with: .scale(scale: 0.72))
+                            .combined(with: .offset(x: 10))
+                    )
+            } else if !vm.isIdle,
                 vm.nowPlaying.artwork != nil
                     || !vm.nowPlaying.artworkUnavailable
             {
@@ -116,18 +139,36 @@ struct CollapsedContent: View {
                     trackKey: vm.nowPlaying.trackKey,
                     namespace: ns
                 )
-                .frame(width: m.side - m.gap, alignment: .trailing)
-                .padding(.trailing, m.gap)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
-            Color.clear.frame(width: m.notchW, height: m.height)
-            Group {
-                if !vm.isIdle {
-                    WaveBars(isPlaying: vm.nowPlaying.isPlaying)
-                }
-            }
-            .frame(width: m.side - m.gap, alignment: .leading)
-            .padding(.leading, m.gap)
         }
-        .frame(height: m.height)
+        .frame(width: m.side - m.gap, alignment: .trailing)
+        .padding(.trailing, m.gap)
+        .opacity(m.extended || sideKind != nil ? 1 : 0)
+        .animation(NotchViewModel.sideHUDSpring, value: sideKind)
+    }
+
+    @ViewBuilder
+    private var rightSlot: some View {
+        Group {
+            if let kind = sideKind {
+                SideHUDLabel(kind: kind)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .transition(
+                        .opacity
+                            .combined(with: .scale(scale: 0.72))
+                            .combined(with: .offset(x: -10))
+                    )
+            } else if !vm.isIdle {
+                WaveBars(isPlaying: vm.nowPlaying.isPlaying)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+        }
+        .frame(width: m.side - m.gap, alignment: .leading)
+        .padding(.leading, m.gap)
+        .opacity(m.extended || sideKind != nil ? 1 : 0)
+        .animation(NotchViewModel.sideHUDSpring, value: sideKind)
     }
 }

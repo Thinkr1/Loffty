@@ -5,7 +5,6 @@
 //  Created by Pierre-Louis ML on 10/07/2026.
 //
 
-import AppKit
 import Combine
 import SwiftUI
 
@@ -47,7 +46,7 @@ final class SettingsOpener {
     func prewarm() {
         ensureWindow()
         guard let window, let content = window.contentView else { return }
-        content.frame = NSRect(x: 0, y: 0, width: 400, height: 420)
+        content.frame = NSRect(x: 0, y: 0, width: 400, height: 520)
         content.layoutSubtreeIfNeeded()
         window.layoutIfNeeded()
     }
@@ -64,14 +63,14 @@ final class SettingsOpener {
     private func ensureWindow() {
         guard window == nil else { return }
         let w = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 520),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         w.title = "Loffty Settings"
         let hosting = NSHostingView(rootView: SettingsView())
-        hosting.frame = NSRect(x: 0, y: 0, width: 400, height: 420)
+        hosting.frame = NSRect(x: 0, y: 0, width: 400, height: 520)
         w.contentView = hosting
         w.isReleasedWhenClosed = false
         w.level = .floating

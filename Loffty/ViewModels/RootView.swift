@@ -15,6 +15,7 @@ struct NotchMetrics {
     var idle: Bool
     var extended: Bool
     var hudActive: Bool
+    var sideAnnouncement: Bool = false
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
     let barsW: CGFloat = 18
@@ -38,13 +39,25 @@ struct NotchMetrics {
         return notchH
     }
     var artSize: CGFloat { notchH - 8 }
-    var gap: CGFloat { extended ? gapExtended : 6 }
-    var side: CGFloat { extended ? edgePad + max(artSize, barsW) + gap : 50 }
+    var gap: CGFloat { extended || sideAnnouncement ? gapExtended : 6 }
+    var side: CGFloat {
+        if sideAnnouncement {
+            // Balanced wings: icon | notch | On — closer to island Focus style.
+            return edgePad + 36 + gap
+        }
+        return extended ? edgePad + max(artSize, barsW) + gap : 50
+    }
     var width: CGFloat {
         if expanded, idle { return notchW + 56 }
         if expanded { return 380 }
         if hudActive { return notchW + 2 * topRadius + 36 }
-        return notchW + 2 * (extended ? side : 0) + 2 * topRadius
+        if sideAnnouncement {
+            return notchW + 2 * side + 2 * topRadius + 28
+        }
+        if extended {
+            return notchW + 2 * side + 2 * topRadius
+        }
+        return notchW + 2 * topRadius
     }
     var idleLipHeight: CGFloat { max(0, height - notchH) }
 }
@@ -66,9 +79,15 @@ final class NotchViewModel: ObservableObject {
     @Published var hudLevel: Float = 0
     @Published var hudMuted: Bool = false
     private var hudHideTask: Task<Void, Never>?
-    fileprivate static let hudSpring = Animation.spring(
+    static let hudSpring = Animation.spring(
         response: 0.35,
         dampingFraction: 0.82
+    )
+    /// Wider, softer spring for Focus / Bluetooth side announcements.
+    static let sideHUDSpring = Animation.spring(
+        response: 0.48,
+        dampingFraction: 0.78,
+        blendDuration: 0.05
     )
     fileprivate static let notchExpandSpring = Animation.spring(
         response: 0.35,
@@ -97,6 +116,9 @@ final class NotchViewModel: ObservableObject {
 
     private let volume = SystemVolumeWatcher()
     private let brightness = SystemBrightnessWatcher()
+    private let battery = BatteryHUDWatcher()
+    private let bluetooth = BluetoothHUDWatcher()
+    private let focus = FocusHUDWatcher()
     private let keyInterceptor = SystemKeyInterceptor()
     private var cancellables = Set<AnyCancellable>()
 
@@ -118,6 +140,14 @@ final class NotchViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] enabled in
                 self?.keyInterceptor.setEnabled(enabled)
+                self?.syncBrightnessWatcher()
+            }
+            .store(in: &cancellables)
+
+        AppSettings.shared.$brightnessHUD
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncBrightnessWatcher()
             }
             .store(in: &cancellables)
 
@@ -137,8 +167,92 @@ final class NotchViewModel: ObservableObject {
                 self?.showHUD(.brightness, lvl: level)
             }
         }
-        if AppSettings.shared.brightnessHUD {
+        syncBrightnessWatcher()
+
+        battery.onChange = {
+            [weak self] percent, charging, powerSourceChanged in
+            Task { @MainActor in
+                guard let self else { return }
+                if powerSourceChanged {
+                    self.brightness.suppress(for: 3.0)
+                }
+                guard AppSettings.shared.batteryHUD else { return }
+                self.showHUD(
+                    .battery(percent: percent, charging: charging),
+                    lvl: Float(percent) / 100
+                )
+            }
+        }
+        bluetooth.onChange = { [weak self] name, connected in
+            Task { @MainActor in
+                guard AppSettings.shared.bluetoothHUD else { return }
+                self?.showHUD(
+                    .bluetooth(name: name, connected: connected),
+                    lvl: connected ? 1 : 0
+                )
+            }
+        }
+        focus.onChange = { [weak self] enabled, name in
+            Task { @MainActor in
+                guard AppSettings.shared.focusHUD else { return }
+                self?.showHUD(
+                    .focus(enabled: enabled, name: name),
+                    lvl: enabled ? 1 : 0
+                )
+            }
+        }
+
+        AppSettings.shared.$batteryHUD
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncBatteryWatcher()
+            }
+            .store(in: &cancellables)
+        AppSettings.shared.$bluetoothHUD
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                if enabled {
+                    self.bluetooth.start()
+                } else {
+                    self.bluetooth.stop()
+                }
+            }
+            .store(in: &cancellables)
+        AppSettings.shared.$focusHUD
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                if enabled { self.focus.start() } else { self.focus.stop() }
+            }
+            .store(in: &cancellables)
+
+        syncBatteryWatcher()
+        if AppSettings.shared.bluetoothHUD { bluetooth.start() }
+        if AppSettings.shared.focusHUD { focus.start() }
+    }
+
+    private func syncBrightnessWatcher() {
+        let enabled =
+            AppSettings.shared.replaceSystemHUD
+            && AppSettings.shared.brightnessHUD
+        if enabled {
             brightness.start()
+        } else {
+            brightness.stop()
+        }
+        syncBatteryWatcher()
+    }
+
+    private func syncBatteryWatcher() {
+        let needPowerWatch =
+            AppSettings.shared.batteryHUD
+            || (AppSettings.shared.replaceSystemHUD
+                && AppSettings.shared.brightnessHUD)
+        if needPowerWatch {
+            battery.start()
+        } else {
+            battery.stop()
         }
     }
 
@@ -319,21 +433,27 @@ final class NotchViewModel: ObservableObject {
     func showHUD(_ kind: HUDKind, lvl: Float, muted: Bool = false) {
         hudHideTask?.cancel()
 
-        withAnimation(Self.hudSpring) {
+        let animation =
+            kind.presentsOnSides ? Self.sideHUDSpring : Self.hudSpring
+
+        withAnimation(animation) {
             hud = kind
             hudDisplay = kind
             hudLevel = max(0, min(1, lvl))
             hudMuted = muted
         }
 
-        let duration = AppSettings.shared.hudDuration
+        let duration =
+            kind.presentsOnSides
+            ? max(AppSettings.shared.hudDuration, 1.9)
+            : AppSettings.shared.hudDuration
         hudHideTask = Task {
             try? await Task.sleep(for: .seconds(duration))
             guard !Task.isCancelled else { return }
-            withAnimation(Self.hudSpring) {
+            withAnimation(animation) {
                 hud = nil
             }
-            try? await Task.sleep(for: .seconds(0.42))
+            try? await Task.sleep(for: .seconds(0.48))
             guard !Task.isCancelled else { return }
             hudDisplay = nil
         }
@@ -430,8 +550,14 @@ struct NotchRootView: View {
 
     private var hasTrack: Bool { !vm.isIdle }
     private var hudVisible: Bool { vm.hudDisplay != nil }
-    private var hudIntegrated: Bool { hudVisible && !vm.isExpanded }
-    private var hudBelowExpanded: Bool { hudVisible && vm.isExpanded }
+    private var verticalHUD: Bool {
+        vm.hudDisplay?.presentsVertically == true
+    }
+    private var sideAnnouncement: Bool {
+        vm.hudDisplay?.presentsOnSides == true && !vm.isExpanded
+    }
+    private var hudIntegrated: Bool { verticalHUD && !vm.isExpanded }
+    private var hudBelowExpanded: Bool { verticalHUD && vm.isExpanded }
     private var m: NotchMetrics {
         NotchMetrics(
             notchW: vm.notch.notchRect.width > 0
@@ -440,8 +566,10 @@ struct NotchRootView: View {
                 ? vm.notch.notchRect.height + 0.25 : 32,
             expanded: vm.isExpanded,
             idle: vm.isExpanded && vm.isIdle,
-            extended: settings.extendNotch && hasTrack && !hudVisible,
-            hudActive: hudIntegrated
+            extended: (settings.extendNotch && hasTrack && !verticalHUD)
+                || sideAnnouncement,
+            hudActive: hudIntegrated,
+            sideAnnouncement: sideAnnouncement
         )
     }
     private var hudTailMetrics: NotchMetrics {
@@ -453,7 +581,8 @@ struct NotchRootView: View {
             expanded: false,
             idle: false,
             extended: false,
-            hudActive: true
+            hudActive: true,
+            sideAnnouncement: false
         )
     }
 
@@ -518,7 +647,7 @@ struct NotchRootView: View {
                     } else {
                         ZStack(alignment: .top) {
                             CollapsedContent(ns: ns, m: m)
-                                .opacity(vm.hudDisplay == nil ? 1 : 0)
+                                .opacity(hudIntegrated ? 0 : 1)
 
                             if hudIntegrated, let kind = vm.hudDisplay {
                                 VStack(spacing: 0) {
@@ -565,7 +694,7 @@ struct NotchRootView: View {
                         )
                     )
                 }
-            }  //.shadow(color: (!vm.isExpanded && NSScreen.screens.contains { $0.visibleFrame.equalTo($0.frame) }) ? vm.accentColor : .clear, radius: 1, y: 0)
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .animation(
@@ -581,7 +710,8 @@ struct NotchRootView: View {
             value: m.extended
         )
         .animation(NotchViewModel.notchExpandSpring, value: vm.isIdle)
-        .animation(NotchViewModel.hudSpring, value: vm.hud)
+        .animation(NotchViewModel.sideHUDSpring, value: vm.hud)
+        .animation(NotchViewModel.sideHUDSpring, value: vm.hudDisplay)
         .onChange(of: vm.trackChangeToken) { _, token in
             guard token > 0, !vm.isRapidSkipping else { return }
             withAnimation(.easeOut(duration: 0.16)) { trackPulse = 1 }
