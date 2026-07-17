@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ExpandedContent: View {
     @EnvironmentObject var vm: NotchViewModel
+    @ObservedObject private var settings = AppSettings.shared
     let ns: Namespace.ID
     let m: NotchMetrics
 
@@ -71,7 +72,9 @@ struct ExpandedContent: View {
                         size: 52,
                         cornerRadius: 12,
                         trackKey: vm.nowPlaying.trackKey,
-                        namespace: ns
+                        namespace: ns,
+                        bundleIdentifier: vm.nowPlaying.bundleIdentifier,
+                        showPlayerBadge: settings.playerBadgeExpanded
                     )
                 }
 
@@ -105,13 +108,14 @@ struct ExpandedContent: View {
             MediaTransportControls()
         }
         .padding(.horizontal, 42)
-        .padding(.top, 30)
+        .padding(.top, 32)
         .padding(.bottom, 16)
     }
 }
 
 struct CollapsedContent: View {
     @EnvironmentObject var vm: NotchViewModel
+    @ObservedObject private var settings = AppSettings.shared
     let ns: Namespace.ID
     let m: NotchMetrics
 
@@ -150,7 +154,9 @@ struct CollapsedContent: View {
                     size: m.artSize,
                     cornerRadius: 4,
                     trackKey: vm.nowPlaying.trackKey,
-                    namespace: ns
+                    namespace: ns,
+                    bundleIdentifier: vm.nowPlaying.bundleIdentifier,
+                    showPlayerBadge: settings.playerBadgeCollapsed
                 )
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))

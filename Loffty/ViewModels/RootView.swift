@@ -71,15 +71,13 @@ struct NotchMetrics {
         }
         return notchW + 2 * topRadius
     }
-    var idleLipHeight: CGFloat { max(0, height - notchH) }
 }
 
 @MainActor
 final class NotchViewModel: ObservableObject {
     @Published var notch = NotchInfo(
         screen: NSScreen.main!,
-        notchRect: .zero,
-        hasNotch: false
+        notchRect: .zero
     )
     @Published var isExpanded = false
     @Published var nowPlaying = NowPlaying()
@@ -309,6 +307,7 @@ final class NotchViewModel: ObservableObject {
             && np.title == nowPlaying.title
             && np.artist == nowPlaying.artist
             && np.album == nowPlaying.album
+            && np.bundleIdentifier == nowPlaying.bundleIdentifier
             && np.artworkUnavailable == nowPlaying.artworkUnavailable
             && (np.artwork == nil) == (nowPlaying.artwork == nil)
             && np.artwork?.count == nowPlaying.artwork?.count
@@ -332,6 +331,7 @@ final class NotchViewModel: ObservableObject {
             incoming.artist = ""
             incoming.album = ""
             incoming.trackKey = ""
+            incoming.bundleIdentifier = ""
             incoming.duration = 0
             incoming.elapsed = 0
             incoming.isLive = false

@@ -84,7 +84,6 @@ final class SettingsOpener {
 struct NotchInfo {
     let screen: NSScreen
     let notchRect: CGRect
-    let hasNotch: Bool
 }
 
 func detectNotch(on screen: NSScreen) -> NotchInfo {
@@ -99,8 +98,7 @@ func detectNotch(on screen: NSScreen) -> NotchInfo {
         let y = frame.maxY - height
         return NotchInfo(
             screen: screen,
-            notchRect: CGRect(x: x, y: y, width: width, height: height),
-            hasNotch: true
+            notchRect: CGRect(x: x, y: y, width: width, height: height)
         )
     }
     let w: CGFloat = 220
@@ -111,7 +109,7 @@ func detectNotch(on screen: NSScreen) -> NotchInfo {
         width: w,
         height: h
     )
-    return NotchInfo(screen: screen, notchRect: rect, hasNotch: false)
+    return NotchInfo(screen: screen, notchRect: rect)
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {

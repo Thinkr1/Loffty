@@ -278,7 +278,9 @@ struct LockCardView: View {
                             unavailable: vm.nowPlaying.artworkUnavailable,
                             size: 58,
                             cornerRadius: 14,
-                            trackKey: vm.nowPlaying.trackKey
+                            trackKey: vm.nowPlaying.trackKey,
+                            bundleIdentifier: vm.nowPlaying.bundleIdentifier,
+                            showPlayerBadge: settings.playerBadgeLockScreen
                         )
                         .shadow(
                             color: .black.opacity(0.28),

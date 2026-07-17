@@ -84,6 +84,7 @@ struct NowPlaying: Equatable {
     var trackKey: String = ""
     var artwork: Data? = nil
     var artworkUnavailable: Bool = true
+    var bundleIdentifier: String = ""
 }
 
 final class NowPlayingStream {
@@ -275,6 +276,22 @@ final class NowPlayingStream {
         trackChanged: Bool
     ) {
         if let t = info["title"] as? String { current.title = t }
+
+        if let bundle = info["bundleIdentifier"] as? String, !bundle.isEmpty {
+            current.bundleIdentifier = bundle
+        } else if info["bundleIdentifier"] is NSNull {
+            current.bundleIdentifier = ""
+        } else if !isDiff {
+            current.bundleIdentifier = ""
+        }
+
+        if current.bundleIdentifier.isEmpty,
+            let key = lastTrackKey,
+            let pipe = key.firstIndex(of: "|")
+        {
+            let fromKey = String(key[..<pipe])
+            if !fromKey.isEmpty { current.bundleIdentifier = fromKey }
+        }
 
         if isDiff {
             if info["artist"] is NSNull || info["artists"] is NSNull {
@@ -541,8 +558,6 @@ final class MediaCommands {
     }
 
     enum Command: Int {
-        case play = 0
-        case pause = 1
         case togglePlayPause = 2
         case next = 4
         case prev = 5

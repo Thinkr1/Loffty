@@ -5,6 +5,8 @@
 //  Created by Pierre-Louis ML on 15/07/2026.
 //
 
+import AppKit
+import CoreServices
 import SwiftUI
 
 enum ArtworkProcessor {
@@ -141,16 +143,43 @@ struct ArtworkThumbnail: View {
     var cornerRadius: CGFloat = 12
     var trackKey: String = ""
     var namespace: Namespace.ID? = nil
+    var bundleIdentifier: String = ""
+    var showPlayerBadge: Bool = false
+
+    private var resolvedBundleID: String {
+        if !bundleIdentifier.isEmpty { return bundleIdentifier }
+        if let pipe = trackKey.firstIndex(of: "|") {
+            let prefix = String(trackKey[..<pipe])
+            if !prefix.isEmpty { return prefix }
+        }
+        return ""
+    }
+
+    private var badgeSize: CGFloat {
+        max(12, min(20, size * 0.34))
+    }
 
     var body: some View {
-        ArtworkCrossfade(
-            artwork: artwork,
-            unavailable: unavailable,
-            trackKey: trackKey,
-            size: size,
-            cornerRadius: cornerRadius,
-            namespace: namespace
-        )
+        ZStack(alignment: .bottomTrailing) {
+            ArtworkCrossfade(
+                artwork: artwork,
+                unavailable: unavailable,
+                trackKey: trackKey,
+                size: size,
+                cornerRadius: cornerRadius
+            )
+
+            if showPlayerBadge {
+                PlayerAppBadge(
+                    bundleIdentifier: resolvedBundleID,
+                    size: badgeSize
+                )
+                .offset(x: badgeSize * 0.2, y: badgeSize * 0.2)
+                .allowsHitTesting(false)
+            }
+        }
+        .frame(width: size, height: size)
+        .applyMatchedGeometry(id: "artwork", in: namespace)
     }
 }
 
@@ -161,7 +190,6 @@ private struct ArtworkCrossfade: View {
     let trackKey: String
     let size: CGFloat
     let cornerRadius: CGFloat
-    let namespace: Namespace.ID?
 
     @State private var front: Data?
     @State private var back: Data?
@@ -197,11 +225,17 @@ private struct ArtworkCrossfade: View {
             }
             .frame(width: size, height: size)
             .clipShape(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                RoundedRectangle(
+                    cornerRadius: cornerRadius,
+                    style: .continuous
+                )
             )
             .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
+                RoundedRectangle(
+                    cornerRadius: cornerRadius,
+                    style: .continuous
+                )
+                .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
             }
             .shadow(
                 color: vm.accentColor.opacity(0.28 + pop * 0.22),
@@ -211,7 +245,6 @@ private struct ArtworkCrossfade: View {
             .shadow(color: .black.opacity(0.45), radius: 6, y: 3)
             .scaleEffect(1 + pop * 0.045)
             .opacity(loadingNewArt ? 0.82 : 1)
-            .applyMatchedGeometry(id: "artwork", in: namespace)
             .animation(.easeInOut(duration: 0.22), value: loadingNewArt)
             .onAppear { syncArtwork(animated: false) }
             .onChange(of: artwork) { _, _ in syncArtwork(animated: true) }
@@ -320,5 +353,83 @@ private struct ArtworkCrossfade: View {
                 backImage = nil
             }
         }
+    }
+}
+
+private enum PlayerAppIconStore {
+    private static var cache: [String: NSImage] = [:]
+
+    static func icon(forBundleIdentifier id: String) -> NSImage? {
+        guard !id.isEmpty else { return nil }
+        if let cached = cache[id] { return cached }
+
+        if let running = NSWorkspace.shared.runningApplications.first(where: {
+            $0.bundleIdentifier == id
+        }), let icon = running.icon {
+            cache[id] = icon
+            return icon
+        }
+
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: id
+        ) {
+            let icon = NSWorkspace.shared.icon(forFile: url.path)
+            cache[id] = icon
+            return icon
+        }
+
+        let urls =
+            LSCopyApplicationURLsForBundleIdentifier(id as CFString, nil)?
+            .takeRetainedValue() as? [URL]
+        if let path = urls?.first?.path {
+            let icon = NSWorkspace.shared.icon(forFile: path)
+            cache[id] = icon
+            return icon
+        }
+
+        return nil
+    }
+}
+
+private struct PlayerAppBadge: View {
+    let bundleIdentifier: String
+    let size: CGFloat
+
+    @State private var icon: NSImage?
+
+    private var cornerRadius: CGFloat { size * 0.28 }
+
+    var body: some View {
+        Group {
+            if let icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    Color.black.opacity(0.35)
+                    Image(systemName: "music.note")
+                        .font(.system(size: size * 0.42, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        )
+        .onAppear(perform: loadIcon)
+        .onChange(of: bundleIdentifier) { _, _ in loadIcon() }
+        .task(id: bundleIdentifier) {
+            if icon == nil {
+                try? await Task.sleep(for: .milliseconds(250))
+                loadIcon()
+            }
+        }
+    }
+
+    private func loadIcon() {
+        icon = PlayerAppIconStore.icon(forBundleIdentifier: bundleIdentifier)
     }
 }

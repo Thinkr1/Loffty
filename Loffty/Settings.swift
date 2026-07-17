@@ -76,6 +76,9 @@ final class AppSettings: ObservableObject {
     private static let lockScreenWaveformsKey = "lockScreenWaveforms"
     private static let lockScreenWaveformsAccentKey =
         "lockScreenWaveformsAccent"
+    private static let playerBadgeExpandedKey = "playerBadgeExpanded.v2"
+    private static let playerBadgeCollapsedKey = "playerBadgeCollapsed.v2"
+    private static let playerBadgeLockScreenKey = "playerBadgeLockScreen.v2"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -179,6 +182,33 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var playerBadgeExpanded: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                playerBadgeExpanded,
+                forKey: Self.playerBadgeExpandedKey
+            )
+        }
+    }
+
+    @Published var playerBadgeCollapsed: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                playerBadgeCollapsed,
+                forKey: Self.playerBadgeCollapsedKey
+            )
+        }
+    }
+
+    @Published var playerBadgeLockScreen: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                playerBadgeLockScreen,
+                forKey: Self.playerBadgeLockScreenKey
+            )
+        }
+    }
+
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
@@ -221,6 +251,15 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.lockScreenWaveformsAccentKey
             ) as? Bool ?? false
+        playerBadgeExpanded =
+            UserDefaults.standard.object(forKey: Self.playerBadgeExpandedKey)
+            as? Bool ?? true
+        playerBadgeCollapsed =
+            UserDefaults.standard.object(forKey: Self.playerBadgeCollapsedKey)
+            as? Bool ?? true
+        playerBadgeLockScreen =
+            UserDefaults.standard.object(forKey: Self.playerBadgeLockScreenKey)
+            as? Bool ?? true
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
@@ -247,10 +286,6 @@ struct SettingsView: View {
 
             Section {
                 Toggle(
-                    "Allow moving lock screen widget",
-                    isOn: $settings.movableWidget
-                )
-                Toggle(
                     "Show soundwaves",
                     isOn: $settings.lockScreenWaveforms
                 )
@@ -260,6 +295,10 @@ struct SettingsView: View {
                         isOn: $settings.lockScreenWaveformsAccent
                     )
                 }
+                Toggle(
+                    "Allow moving lock screen widget",
+                    isOn: $settings.movableWidget
+                )
                 Button("Reset widget position") {
                     settings.resetWidgetPosition()
                 }
@@ -276,11 +315,23 @@ struct SettingsView: View {
                         Text(mode.title).tag(mode)
                     }
                 }
+                Toggle(
+                    "Player badge in expanded notch",
+                    isOn: $settings.playerBadgeExpanded
+                )
+                Toggle(
+                    "Player badge in collapsed notch",
+                    isOn: $settings.playerBadgeCollapsed
+                )
+                Toggle(
+                    "Player badge on lock screen",
+                    isOn: $settings.playerBadgeLockScreen
+                )
             } header: {
                 Text("Media")
             } footer: {
                 Text(
-                    "Spotify only reports the first artist to macOS. Loffty can look up the full list over the network."
+                    "Spotify only reports the first artist to macOS. Loffty can look up the full list over the network. The player badge shows the current app’s icon on the album cover."
                 )
             }
 
