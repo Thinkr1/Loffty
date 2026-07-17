@@ -42,11 +42,12 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 - Current player indicator badge?
 - Lock screen lyrics
 - Improve lock screen widget
-- Quit button in idle mode
+- Mute (F10) button reflect in volume HUD
+- Appropriate bluetooth (AirPods, etc) sf symbol in volume HUD
 - Remove system focus HUD
-- AirDrop notch HUD
 - Auto-expand on track change?
 - media-control skip Spotify ads
+- Golden Gate update
 
 ## License
 
