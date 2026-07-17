@@ -93,14 +93,16 @@ struct ExpandedContent: View {
                         text: vm.nowPlaying.title,
                         font: .system(size: 15),
                         color: .white,
-                        height: 18
+                        height: 18,
+                        scrolling: settings.marqueeEnabled
                     )
                     if !vm.nowPlaying.artist.isEmpty {
                         MarqueeText(
                             text: vm.nowPlaying.artist,
                             font: .system(size: 13),
                             color: .white.opacity(0.45),
-                            height: 16
+                            height: 16,
+                            scrolling: settings.marqueeEnabled
                         )
                     }
                 }

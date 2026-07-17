@@ -359,14 +359,16 @@ struct LockCardView: View {
                             text: title,
                             font: .system(size: 15, weight: .semibold),
                             color: .white.opacity(0.96),
-                            height: 18
+                            height: 18,
+                            scrolling: settings.marqueeEnabled
                         )
                         if !vm.nowPlaying.artist.isEmpty {
                             MarqueeText(
                                 text: vm.nowPlaying.artist,
                                 font: .system(size: 13, weight: .medium),
                                 color: .white.opacity(0.52),
-                                height: 16
+                                height: 16,
+                                scrolling: settings.marqueeEnabled
                             )
                         }
                     }

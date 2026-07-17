@@ -21,11 +21,30 @@ struct MarqueeText: View {
     let height: CGFloat
     var speed: CGFloat = 26
     var gap: CGFloat = 32
+    var scrolling: Bool = true
 
     @State private var textWidth: CGFloat = 0
     @State private var paused = false
 
     var body: some View {
+        Group {
+            if scrolling {
+                scrollingBody
+            } else {
+                Text(text)
+                    .font(font)
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentTransition(.numericText())
+                    .animation(.smooth(duration: 0.18), value: text)
+            }
+        }
+        .frame(height: height)
+    }
+
+    private var scrollingBody: some View {
         GeometryReader { geo in
             let overflows = textWidth > geo.size.width + 1
 
@@ -63,7 +82,6 @@ struct MarqueeText: View {
             .clipped()
             .onHover { paused = overflows && $0 }
         }
-        .frame(height: height)
         .onPreferenceChange(MarqueeWidthKey.self) { textWidth = $0 }
         .onChange(of: text) { _, _ in textWidth = 0 }
     }

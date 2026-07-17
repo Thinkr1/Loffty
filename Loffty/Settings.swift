@@ -83,6 +83,7 @@ final class AppSettings: ObservableObject {
     private static let playerBadgeLockScreenKey = "playerBadgeLockScreen.v2"
     private static let collapsedWaveformsAccentKey =
         "collapsedWaveformsAccent"
+    private static let marqueeEnabledKey = "marqueeEnabled"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -240,6 +241,15 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var marqueeEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                marqueeEnabled,
+                forKey: Self.marqueeEnabledKey
+            )
+        }
+    }
+
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
@@ -301,6 +311,9 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.collapsedWaveformsAccentKey
             ) as? Bool ?? false
+        marqueeEnabled =
+            UserDefaults.standard.object(forKey: Self.marqueeEnabledKey)
+            as? Bool ?? true
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
@@ -386,11 +399,15 @@ struct SettingsView: View {
                     "Color collapsed soundwaves with album accent",
                     isOn: $settings.collapsedWaveformsAccent
                 )
+                Toggle(
+                    "Scroll long titles and artists",
+                    isOn: $settings.marqueeEnabled
+                )
             } header: {
                 Text("Media")
             } footer: {
                 Text(
-                    "Spotify only reports the first artist to macOS. Loffty can look up the full list over the network. The player badge shows the current app’s icon on the album cover."
+                    "Spotify only reports the first artist to macOS. Loffty can look up the full list over the network. The player badge shows the current app’s icon on the album cover. When scrolling is off, long titles and artists truncate with an ellipsis."
                 )
             }
 
