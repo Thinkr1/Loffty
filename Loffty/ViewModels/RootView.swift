@@ -31,33 +31,40 @@ struct NotchMetrics {
     }
     var bottomRadius: CGFloat {
         if airDrop { return 24 }
-        if expanded, idle { return 14 }
+        if expanded, idle { return 12 }
         if expanded { return 30 }
         if hudActive { return 26 }
         return 12
     }
     var height: CGFloat {
         if airDrop { return airDropTransfer ? 128 : 112 }
-        if expanded, idle { return notchH + 30 }
+        if expanded, idle { return notchH }
         if expanded { return 182 }
         if hudActive { return notchH + hudExtra }
         return notchH
     }
     var artSize: CGFloat { notchH - 8 }
-    var gap: CGFloat { extended || sideAnnouncement ? gapExtended : 6 }
+    var gap: CGFloat {
+        extended || sideAnnouncement || (expanded && idle) ? gapExtended : 6
+    }
     var side: CGFloat {
+        if expanded, idle {
+            return edgePad + 22 + gap
+        }
         if sideAnnouncement {
-            return edgePad + 36 + gap
+            return edgePad + 26 + gap
         }
         return extended ? edgePad + max(artSize, barsW) + gap : 50
     }
     var width: CGFloat {
         if airDrop { return max(notchW + 160, 380) }
-        if expanded, idle { return notchW + 56 }
+        if expanded, idle {
+            return notchW + 2 * side + 2 * topRadius
+        }
         if expanded { return 380 }
         if hudActive { return notchW + 2 * topRadius + 36 }
         if sideAnnouncement {
-            return notchW + 2 * side + 2 * topRadius + 28
+            return notchW + 2 * side + 2 * topRadius + 10
         }
         if extended {
             return notchW + 2 * side + 2 * topRadius

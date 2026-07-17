@@ -18,33 +18,45 @@ struct ExpandedContent: View {
                 idleContent
             } else {
                 activeContent
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            if !vm.isIdle {
-                ControlButton(
-                    systemName: "gearshape.fill",
-                    size: 13,
-                    tint: .white.opacity(0.45),
-                    hitSize: 40
-                ) {
-                    Task { @MainActor in SettingsOpener.shared.open() }
-                }
-                .padding(.trailing, 26)
+                    .overlay(alignment: .topTrailing) {
+                        ControlButton(
+                            systemName: "gearshape.fill",
+                            size: 13,
+                            tint: .white.opacity(0.45),
+                            hitSize: 40
+                        ) {
+                            Task { @MainActor in SettingsOpener.shared.open() }
+                        }
+                        .padding(.trailing, 26)
+                    }
             }
         }
         .animation(.easeInOut(duration: 0.22), value: vm.isIdle)
     }
 
     private var idleContent: some View {
-        VStack(spacing: 0) {
-            Color.clear.frame(height: m.notchH)
-            Label("Nothing playing", systemImage: "play.slash")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.38))
-                .frame(maxWidth: .infinity)
-                .frame(height: m.idleLipHeight)
+        HStack(spacing: 0) {
+            Image(systemName: "play.slash.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.42))
+                .frame(width: m.side - m.gap, height: m.height)
+                .padding(.trailing, m.gap)
+
+            Color.clear
+                .frame(width: m.notchW, height: m.height)
+
+            ControlButton(
+                systemName: "gearshape.fill",
+                size: 12,
+                tint: .white.opacity(0.45),
+                hitSize: max(m.side - m.gap, 28)
+            ) {
+                Task { @MainActor in SettingsOpener.shared.open() }
+            }
+            .frame(width: m.side - m.gap, height: m.height)
+            .padding(.leading, m.gap)
         }
+        .frame(width: m.width, height: m.height)
     }
 
     private var activeContent: some View {
