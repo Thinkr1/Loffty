@@ -191,9 +191,14 @@ struct CollapsedContent: View {
                             .combined(with: .offset(x: -10))
                     )
             } else if !vm.isIdle {
-                WaveBars(isPlaying: vm.nowPlaying.isPlaying)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                WaveBars(
+                    isPlaying: vm.nowPlaying.isPlaying,
+                    tint: settings.collapsedWaveformsAccent
+                        ? vm.accentColor
+                        : nil
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
         }
         .frame(width: m.side - m.gap, alignment: .leading)

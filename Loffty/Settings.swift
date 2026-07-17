@@ -81,6 +81,8 @@ final class AppSettings: ObservableObject {
     private static let playerBadgeExpandedKey = "playerBadgeExpanded.v2"
     private static let playerBadgeCollapsedKey = "playerBadgeCollapsed.v2"
     private static let playerBadgeLockScreenKey = "playerBadgeLockScreen.v2"
+    private static let collapsedWaveformsAccentKey =
+        "collapsedWaveformsAccent"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -229,6 +231,15 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var collapsedWaveformsAccent: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                collapsedWaveformsAccent,
+                forKey: Self.collapsedWaveformsAccentKey
+            )
+        }
+    }
+
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
@@ -286,6 +297,10 @@ final class AppSettings: ObservableObject {
         playerBadgeLockScreen =
             UserDefaults.standard.object(forKey: Self.playerBadgeLockScreenKey)
             as? Bool ?? true
+        collapsedWaveformsAccent =
+            UserDefaults.standard.object(
+                forKey: Self.collapsedWaveformsAccentKey
+            ) as? Bool ?? false
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
@@ -366,6 +381,10 @@ struct SettingsView: View {
                 Toggle(
                     "Player badge on lock screen",
                     isOn: $settings.playerBadgeLockScreen
+                )
+                Toggle(
+                    "Color collapsed soundwaves with album accent",
+                    isOn: $settings.collapsedWaveformsAccent
                 )
             } header: {
                 Text("Media")
