@@ -18,6 +18,7 @@ struct NotchMetrics {
     var sideAnnouncement: Bool = false
     var airDrop: Bool = false
     var airDropTransfer: Bool = false
+    var showAlbum: Bool = false
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
     let barsW: CGFloat = 18
@@ -39,7 +40,7 @@ struct NotchMetrics {
     var height: CGFloat {
         if airDrop { return airDropTransfer ? 128 : 112 }
         if expanded, idle { return notchH }
-        if expanded { return 182 }
+        if expanded { return showAlbum ? 180 : 170 }
         if hudActive { return notchH + hudExtra }
         return notchH
     }
@@ -618,7 +619,10 @@ struct NotchRootView: View {
                     if case .sent = airDrop.phase { return true }
                     if case .received = airDrop.phase { return true }
                     return false
-                }()
+                }(),
+            showAlbum: settings.showAlbum
+                && !vm.nowPlaying.album.isEmpty
+                && !vm.isIdle
         )
     }
     private var hudTailMetrics: NotchMetrics {

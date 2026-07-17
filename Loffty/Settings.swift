@@ -84,6 +84,7 @@ final class AppSettings: ObservableObject {
     private static let collapsedWaveformsAccentKey =
         "collapsedWaveformsAccent"
     private static let marqueeEnabledKey = "marqueeEnabled"
+    private static let showAlbumKey = "showAlbum"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -250,6 +251,12 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var showAlbum: Bool {
+        didSet {
+            UserDefaults.standard.set(showAlbum, forKey: Self.showAlbumKey)
+        }
+    }
+
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
@@ -314,6 +321,9 @@ final class AppSettings: ObservableObject {
         marqueeEnabled =
             UserDefaults.standard.object(forKey: Self.marqueeEnabledKey)
             as? Bool ?? true
+        showAlbum =
+            UserDefaults.standard.object(forKey: Self.showAlbumKey) as? Bool
+            ?? false
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
@@ -403,6 +413,7 @@ struct SettingsView: View {
                     "Scroll long titles and artists",
                     isOn: $settings.marqueeEnabled
                 )
+                Toggle("Show album name", isOn: $settings.showAlbum)
             } header: {
                 Text("Media")
             } footer: {

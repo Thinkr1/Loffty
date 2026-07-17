@@ -362,6 +362,18 @@ struct LockCardView: View {
                             height: 18,
                             scrolling: settings.marqueeEnabled
                         )
+                        if settings.showAlbum, !vm.nowPlaying.album.isEmpty {
+                            MarqueeText(
+                                text: vm.nowPlaying.album,
+                                font: .system(size: 12, weight: .medium),
+                                color: .white.opacity(0.38),
+                                height: 14,
+                                scrolling: settings.marqueeEnabled
+                            )
+                            .transition(
+                                .opacity.combined(with: .move(edge: .top))
+                            )
+                        }
                         if !vm.nowPlaying.artist.isEmpty {
                             MarqueeText(
                                 text: vm.nowPlaying.artist,
@@ -374,6 +386,10 @@ struct LockCardView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .layoutPriority(1)
+                    .animation(
+                        .spring(response: 0.36, dampingFraction: 0.86),
+                        value: settings.showAlbum
+                    )
 
                     if settings.lockScreenWaveforms {
                         WaveBars(

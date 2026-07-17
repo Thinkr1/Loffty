@@ -70,16 +70,26 @@ struct ExpandedContent: View {
         .frame(width: m.width, height: m.height)
     }
 
+    private var showingAlbum: Bool {
+        settings.showAlbum && !vm.nowPlaying.album.isEmpty
+    }
+
     private var activeContent: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 14) {
+        let artSize: CGFloat = 46
+        let titleBlockHeight: CGFloat =
+            18 + (vm.nowPlaying.artist.isEmpty ? 0 : 2 + 16)
+        let textTopInset =
+            showingAlbum ? max(0, (artSize - titleBlockHeight) / 2) : 0
+
+        return VStack(spacing: 12) {
+            HStack(alignment: showingAlbum ? .top : .center, spacing: 14) {
                 if vm.nowPlaying.artwork != nil
                     || !vm.nowPlaying.artworkUnavailable
                 {
                     ArtworkThumbnail(
                         artwork: vm.nowPlaying.artwork,
                         unavailable: vm.nowPlaying.artworkUnavailable,
-                        size: 52,
+                        size: artSize,
                         cornerRadius: 12,
                         trackKey: vm.nowPlaying.trackKey,
                         namespace: ns,
@@ -96,6 +106,18 @@ struct ExpandedContent: View {
                         height: 18,
                         scrolling: settings.marqueeEnabled
                     )
+                    if showingAlbum {
+                        MarqueeText(
+                            text: vm.nowPlaying.album,
+                            font: .system(size: 12),
+                            color: .white.opacity(0.32),
+                            height: 14,
+                            scrolling: settings.marqueeEnabled
+                        )
+                        .transition(
+                            .opacity.combined(with: .move(edge: .top))
+                        )
+                    }
                     if !vm.nowPlaying.artist.isEmpty {
                         MarqueeText(
                             text: vm.nowPlaying.artist,
@@ -106,7 +128,12 @@ struct ExpandedContent: View {
                         )
                     }
                 }
+                .padding(.top, textTopInset)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(
+                    .spring(response: 0.36, dampingFraction: 0.86),
+                    value: showingAlbum
+                )
 
                 WaveBars(
                     isPlaying: vm.nowPlaying.isPlaying,
@@ -114,13 +141,14 @@ struct ExpandedContent: View {
                     maxHeight: 16
                 )
                 .foregroundStyle(.white.opacity(0.7))
+                .padding(.top, showingAlbum ? textTopInset + 1 : 0)
             }
             MediaProgressRow(accent: vm.accentColor)
                 .frame(maxWidth: 310).padding(.bottom, -5)
-            MediaTransportControls()
+            MediaTransportControls().opacity(0.85)
         }
         .padding(.horizontal, 42)
-        .padding(.top, 32)
+        .padding(.top, m.notchH + 1)
         .padding(.bottom, 16)
     }
 }
