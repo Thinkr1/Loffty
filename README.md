@@ -36,18 +36,23 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 
 ## TODOs
 
-- Add queue?
-- Add more controls (shuffle, repeat, etc)
-- Actual soundwaves
-- Current player indicator badge?
-- Lock screen lyrics
-- Improve lock screen widget
-- Mute (F10) button reflect in volume HUD
-- Appropriate bluetooth (AirPods, etc) sf symbol in volume HUD
-- Remove system focus HUD
-- Auto-expand on track change?
-- media-control skip Spotify ads
-- Golden Gate update
+- Features/improvements
+  - Add queue?
+  - Add more controls (shuffle, repeat, etc)
+  - Actual soundwaves
+  - Current player indicator badge?
+  - Lock screen lyrics
+  - Improve lock screen widget
+  - Allow actions in lock screen
+  - Auto-expand on track change?
+  - media-control skip Spotify ads
+  - Golden Gate update
+- Fixes
+  - Prevent stealing focus when expanding
+  - Mute (F10) button reflect in volume HUD
+  - Appropriate bluetooth (AirPods, etc) sf symbol in volume HUD
+  - Remove system focus HUD
+  - Album match geometry crosses below physical notch thereby making it visible
 
 ## License
 
