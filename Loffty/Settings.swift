@@ -73,6 +73,9 @@ final class AppSettings: ObservableObject {
     private static let focusHUDKey = "focusHUD"
     private static let airDropHUDKey = "airDropHUD"
     private static let movableWidgetKey = "movableWidget"
+    private static let lockScreenWaveformsKey = "lockScreenWaveforms"
+    private static let lockScreenWaveformsAccentKey =
+        "lockScreenWaveformsAccent"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -158,6 +161,24 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var lockScreenWaveforms: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWaveforms,
+                forKey: Self.lockScreenWaveformsKey
+            )
+        }
+    }
+
+    @Published var lockScreenWaveformsAccent: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWaveformsAccent,
+                forKey: Self.lockScreenWaveformsAccentKey
+            )
+        }
+    }
+
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
@@ -193,6 +214,13 @@ final class AppSettings: ObservableObject {
         movableWidget = UserDefaults.standard.bool(
             forKey: Self.movableWidgetKey
         )
+        lockScreenWaveforms =
+            UserDefaults.standard.object(forKey: Self.lockScreenWaveformsKey)
+            as? Bool ?? true
+        lockScreenWaveformsAccent =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWaveformsAccentKey
+            ) as? Bool ?? false
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
@@ -222,6 +250,16 @@ struct SettingsView: View {
                     "Allow moving lock screen widget",
                     isOn: $settings.movableWidget
                 )
+                Toggle(
+                    "Show soundwaves",
+                    isOn: $settings.lockScreenWaveforms
+                )
+                if settings.lockScreenWaveforms {
+                    Toggle(
+                        "Color soundwaves with album accent",
+                        isOn: $settings.lockScreenWaveformsAccent
+                    )
+                }
                 Button("Reset widget position") {
                     settings.resetWidgetPosition()
                 }

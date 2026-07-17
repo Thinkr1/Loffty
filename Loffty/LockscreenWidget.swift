@@ -221,10 +221,10 @@ final class LockScreenWidget {
     }
 
     private static func defaultCardFrame(for screen: NSScreen) -> NSRect {
-        let size = NSSize(width: 350, height: 250)
+        let size = NSSize(width: 356, height: 174)
         return NSRect(
             x: screen.frame.midX - size.width / 2,
-            y: screen.frame.minY + screen.frame.height * 0.15,
+            y: screen.frame.minY + screen.frame.height * 0.19,
             width: size.width,
             height: size.height
         )
@@ -234,6 +234,7 @@ final class LockScreenWidget {
         let movable = AppSettings.shared.movableWidget
         let frame = Self.defaultCardFrame(for: targetScreen())
         let win = SkyPanel(frame: frame, movableByBackground: movable)
+        win.hasShadow = false
         let controller = MovableHostingController(
             rootView: LockCardRootView(vm: vm),
             allowsWindowDrag: movable
@@ -254,52 +255,123 @@ private struct LockCardRootView: View {
 
 struct LockCardView: View {
     @EnvironmentObject var vm: NotchViewModel
+    @ObservedObject private var settings = AppSettings.shared
+
+    private let cardShape = RoundedRectangle(
+        cornerRadius: 38,
+        style: .continuous
+    )
+
     private var title: String {
         vm.nowPlaying.title.isEmpty ? "Not playing" : vm.nowPlaying.title
     }
 
     var body: some View {
         GlassEffectContainer {
-            VStack {
-                HStack(spacing: 12) {
+            VStack(spacing: 14) {
+                HStack(alignment: .center, spacing: 14) {
                     if vm.nowPlaying.artwork != nil
                         || !vm.nowPlaying.artworkUnavailable
                     {
                         ArtworkThumbnail(
                             artwork: vm.nowPlaying.artwork,
                             unavailable: vm.nowPlaying.artworkUnavailable,
-                            size: 56,
-                            cornerRadius: 12,
+                            size: 58,
+                            cornerRadius: 14,
                             trackKey: vm.nowPlaying.trackKey
                         )
+                        .shadow(
+                            color: .black.opacity(0.28),
+                            radius: 10,
+                            y: 4
+                        )
                     }
+
                     VStack(alignment: .leading, spacing: 3) {
                         MarqueeText(
                             text: title,
-                            font: .system(size: 14, weight: .semibold),
-                            color: .white,
-                            height: 17
+                            font: .system(size: 15, weight: .semibold),
+                            color: .white.opacity(0.96),
+                            height: 18
                         )
                         if !vm.nowPlaying.artist.isEmpty {
                             MarqueeText(
                                 text: vm.nowPlaying.artist,
-                                font: .system(size: 12),
-                                color: .white.opacity(0.6),
-                                height: 15
+                                font: .system(size: 13, weight: .medium),
+                                color: .white.opacity(0.52),
+                                height: 16
                             )
                         }
                     }
-                    Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
+
+                    if settings.lockScreenWaveforms {
+                        WaveBars(
+                            isPlaying: vm.nowPlaying.isPlaying,
+                            barCount: 5,
+                            maxHeight: 16,
+                            tint: settings.lockScreenWaveformsAccent
+                                ? vm.accentColor
+                                : .white.opacity(0.72)
+                        )
+                        .padding(.trailing, 14)
+                        .frame(width: 22)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .transition(
+                            .opacity.combined(with: .scale(scale: 0.85))
+                        )
+                    }
                 }
-                .padding(12)
-                MediaProgressRow(accent: vm.accentColor).padding(.horizontal)
-                MediaTransportControls().padding([.horizontal, .bottom])
+                .animation(
+                    .spring(response: 0.36, dampingFraction: 0.86),
+                    value: settings.lockScreenWaveforms
+                )
+                MediaProgressRow(accent: vm.accentColor).frame(maxWidth: 310)
+                    .padding(.bottom, -5)
+                MediaTransportControls()
             }
-            .glassEffect(
-                .clear,
-                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-            )
+            .padding(.horizontal, 18)
+            .padding(.top, 16)
+            .padding(.bottom, 14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .glassEffect(.clear, in: cardShape)
+            .overlay {
+                cardShape
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.38),
+                                .white.opacity(0.10),
+                                .white.opacity(0.18),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.75
+                    )
+            }
+            .overlay {
+                cardShape
+                    .strokeBorder(
+                        .white.opacity(0.06),
+                        lineWidth: 6
+                    )
+                    .blur(radius: 8)
+                    .clipShape(cardShape)
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
+            .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
         }
-        .frame(width: 350, height: 250)
+        .frame(width: 356, height: 174)
+        .animation(
+            .spring(response: 0.42, dampingFraction: 0.86),
+            value: vm.nowPlaying.trackKey
+        )
+        .animation(
+            .easeInOut(duration: 0.28),
+            value: vm.nowPlaying.isPlaying
+        )
     }
 }

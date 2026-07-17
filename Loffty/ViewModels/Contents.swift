@@ -89,6 +89,7 @@ struct ExpandedContent: View {
                 .foregroundStyle(.white.opacity(0.7))
             }
             MediaProgressRow(accent: vm.accentColor)
+                .frame(maxWidth: 310).padding(.bottom, -5)
             MediaTransportControls()
         }
         .padding(.horizontal, 42)

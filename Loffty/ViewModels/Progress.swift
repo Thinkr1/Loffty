@@ -78,7 +78,7 @@ struct Progress: View {
                 Text(dur > 0 ? "-\(fmtTime(remaining))" : fmtTime(displayTime))
                     .contentTransition(.numericText())
             }
-            .font(.system(size: 12, weight: .medium))
+            .font(.system(size: 12, weight: .regular))
             .foregroundStyle(.white.opacity(0.5))
             .monospacedDigit()
             .animation(.smooth(duration: 0.18), value: displayTime)
@@ -96,8 +96,8 @@ struct Progress: View {
     ) -> some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let barH: CGFloat = active ? 8 : 5
-            let knobSize: CGFloat = active ? 11 : 8
+            let barH: CGFloat = active ? 10 : 7
+            let knobSize: CGFloat = active ? 13 : 10
             let clamped = min(1, max(0, fraction))
             let fillW = max(0, width * clamped)
             let knobX = fillW

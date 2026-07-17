@@ -7,14 +7,25 @@
 
 import SwiftUI
 
-struct WaveBars: View {  // TODO: actual soundwaves
+struct WaveBars: View {
     @EnvironmentObject var vm: NotchViewModel
     var isPlaying: Bool
     var barCount: Int = 4
     var maxHeight: CGFloat = 14
+    var tint: Color? = nil
     private let minHeight: CGFloat = 3
     private let phases: [Double] = [0.0, 0.9, 1.8, 2.7, 3.6, 4.5]
     @State private var burst: CGFloat = 0
+
+    private var barColor: Color {
+        if let tint { return tint }
+        return vm.isExpanded ? vm.accentColor : .primary
+    }
+
+    private var barBlend: BlendMode {
+        if tint != nil { return .normal }
+        return vm.isExpanded ? .normal : .difference
+    }
 
     var body: some View {
         TimelineView(
@@ -24,8 +35,8 @@ struct WaveBars: View {  // TODO: actual soundwaves
             HStack(alignment: .center, spacing: 2.5) {
                 ForEach(0..<barCount, id: \.self) { i in
                     Capsule()
-                        .fill(vm.isExpanded ? vm.accentColor : .primary)
-                        .blendMode(vm.isExpanded ? .normal : .difference)
+                        .fill(barColor)
+                        .blendMode(barBlend)
                         .frame(width: 2.5, height: height(i, t))
                 }
             }
