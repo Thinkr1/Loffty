@@ -147,16 +147,20 @@ private final class MovableHostingController<Content: View>:
 @MainActor
 final class LockScreenWidget {
     private let vm: NotchViewModel
+    private weak var sourceNotchWindow: NotchWindow?
     private let lock = LockWatcher()
 
-    private var notchWindow: SkyPanel?
+    private var lockNotchWindow: SkyPanel?
     private var cardWindow: SkyPanel?
     private var cardController: MovableHostingController<LockCardRootView>?
-    private var notchDelegated = false
+    private var lockNotchDelegated = false
     private var cardDelegated = false
     private var cancellables = Set<AnyCancellable>()
 
-    init(vm: NotchViewModel) { self.vm = vm }
+    init(vm: NotchViewModel, notchWindow: NotchWindow) {
+        self.vm = vm
+        self.sourceNotchWindow = notchWindow
+    }
 
     func start() {
         AppSettings.shared.$movableWidget
@@ -174,17 +178,51 @@ final class LockScreenWidget {
             }
             .store(in: &cancellables)
 
+        AppSettings.shared.$lockScreenNotch
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self, self.vm.isLocked else { return }
+                if enabled {
+                    self.showLockNotch()
+                } else {
+                    self.hideLockNotch()
+                    self.vm.setExpanded(false)
+                }
+            }
+            .store(in: &cancellables)
+
+        AppSettings.shared.$lockScreenExpandNotch
+            .receive(on: RunLoop.main)
+            .sink { [weak self] allowed in
+                guard let self, self.vm.isLocked else { return }
+                if !allowed {
+                    self.vm.setExpanded(false)
+                    self.setNotchInteractive(false)
+                }
+            }
+            .store(in: &cancellables)
+
         lock.onChange = { [weak self] locked in
             guard let self else { return }
             if locked {
-                self.showCard()
+                self.vm.setExpanded(false)
                 self.vm.setLocked(true)
+                if AppSettings.shared.lockScreenNotch {
+                    self.showLockNotch()
+                }
+                self.showCard()
             } else {
                 self.vm.setLocked(false)
-                self.hideWindows()
+                self.setNotchInteractive(false)
+                self.hideLockNotch()
+                self.hideCard()
             }
         }
         lock.start()
+    }
+
+    func setNotchInteractive(_ interactive: Bool) {
+        lockNotchWindow?.ignoresMouseEvents = !interactive
     }
 
     private func targetScreen() -> NSScreen {
@@ -196,9 +234,25 @@ final class LockScreenWidget {
         cardController?.allowsWindowDrag = movable
     }
 
-    private func hideWindows() {
-        notchWindow?.orderOut(nil)
+    private func hideCard() {
         cardWindow?.orderOut(nil)
+    }
+
+    private func hideLockNotch() {
+        lockNotchWindow?.orderOut(nil)
+    }
+
+    private func showLockNotch() {
+        let win = lockNotchWindow ?? makeLockNotchWindow()
+        lockNotchWindow = win
+        if let source = sourceNotchWindow {
+            win.setFrame(source.frame, display: true)
+        }
+        win.orderFrontRegardless()
+        if !lockNotchDelegated {
+            LockScreenSpace.shared.add(win)
+            lockNotchDelegated = true
+        }
     }
 
     private func showCard() {
@@ -228,6 +282,17 @@ final class LockScreenWidget {
             width: size.width,
             height: size.height
         )
+    }
+
+    private func makeLockNotchWindow() -> SkyPanel {
+        let frame = sourceNotchWindow?.frame ?? .zero
+        let win = SkyPanel(frame: frame)
+        win.hasShadow = false
+        win.ignoresMouseEvents = true
+        win.contentView = NSHostingView(
+            rootView: NotchRootView().environmentObject(vm)
+        )
+        return win
     }
 
     private func makeCardWindow() -> SkyPanel {

@@ -43,7 +43,7 @@ struct NotchMetrics {
         if hudActive { return notchH + hudExtra }
         return notchH
     }
-    var artSize: CGFloat { notchH - 8 }
+    var artSize: CGFloat { notchH - 11 }
     var gap: CGFloat {
         extended || sideAnnouncement || (expanded && idle) ? gapExtended : 6
     }

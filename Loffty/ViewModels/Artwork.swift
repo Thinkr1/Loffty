@@ -145,6 +145,7 @@ struct ArtworkThumbnail: View {
     var namespace: Namespace.ID? = nil
     var bundleIdentifier: String = ""
     var showPlayerBadge: Bool = false
+    var showsShadow: Bool = true
 
     private var resolvedBundleID: String {
         if !bundleIdentifier.isEmpty { return bundleIdentifier }
@@ -166,7 +167,8 @@ struct ArtworkThumbnail: View {
                 unavailable: unavailable,
                 trackKey: trackKey,
                 size: size,
-                cornerRadius: cornerRadius
+                cornerRadius: cornerRadius,
+                showsShadow: showsShadow
             )
 
             if showPlayerBadge {
@@ -190,6 +192,7 @@ private struct ArtworkCrossfade: View {
     let trackKey: String
     let size: CGFloat
     let cornerRadius: CGFloat
+    let showsShadow: Bool
 
     @State private var front: Data?
     @State private var back: Data?
@@ -238,11 +241,16 @@ private struct ArtworkCrossfade: View {
                 .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
             }
             .shadow(
-                color: vm.accentColor.opacity(0.28 + pop * 0.22),
+                color: showsShadow
+                    ? vm.accentColor.opacity(0.28 + pop * 0.22) : .clear,
                 radius: 8 + pop * 8,
                 y: 3
             )
-            .shadow(color: .black.opacity(0.45), radius: 6, y: 3)
+            .shadow(
+                color: showsShadow ? .black.opacity(0.45) : .clear,
+                radius: 6,
+                y: 3
+            )
             .scaleEffect(1 + pop * 0.045)
             .opacity(loadingNewArt ? 0.82 : 1)
             .animation(.easeInOut(duration: 0.22), value: loadingNewArt)

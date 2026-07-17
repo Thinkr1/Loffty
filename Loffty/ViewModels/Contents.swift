@@ -20,15 +20,19 @@ struct ExpandedContent: View {
             } else {
                 activeContent
                     .overlay(alignment: .topTrailing) {
-                        ControlButton(
-                            systemName: "gearshape.fill",
-                            size: 13,
-                            tint: .white.opacity(0.45),
-                            hitSize: 40
-                        ) {
-                            Task { @MainActor in SettingsOpener.shared.open() }
+                        if !vm.isLocked {
+                            ControlButton(
+                                systemName: "gearshape.fill",
+                                size: 13,
+                                tint: .white.opacity(0.45),
+                                hitSize: 40
+                            ) {
+                                Task { @MainActor in
+                                    SettingsOpener.shared.open()
+                                }
+                            }
+                            .padding(.trailing, 26)
                         }
-                        .padding(.trailing, 26)
                     }
             }
         }
@@ -46,16 +50,22 @@ struct ExpandedContent: View {
             Color.clear
                 .frame(width: m.notchW, height: m.height)
 
-            ControlButton(
-                systemName: "gearshape.fill",
-                size: 12,
-                tint: .white.opacity(0.45),
-                hitSize: max(m.side - m.gap, 28)
-            ) {
-                Task { @MainActor in SettingsOpener.shared.open() }
+            if vm.isLocked {
+                Color.clear
+                    .frame(width: m.side - m.gap, height: m.height)
+                    .padding(.leading, m.gap)
+            } else {
+                ControlButton(
+                    systemName: "gearshape.fill",
+                    size: 12,
+                    tint: .white.opacity(0.45),
+                    hitSize: max(m.side - m.gap, 28)
+                ) {
+                    Task { @MainActor in SettingsOpener.shared.open() }
+                }
+                .frame(width: m.side - m.gap, height: m.height)
+                .padding(.leading, m.gap)
             }
-            .frame(width: m.side - m.gap, height: m.height)
-            .padding(.leading, m.gap)
         }
         .frame(width: m.width, height: m.height)
     }
@@ -156,7 +166,8 @@ struct CollapsedContent: View {
                     trackKey: vm.nowPlaying.trackKey,
                     namespace: ns,
                     bundleIdentifier: vm.nowPlaying.bundleIdentifier,
-                    showPlayerBadge: settings.playerBadgeCollapsed
+                    showPlayerBadge: settings.playerBadgeCollapsed,
+                    showsShadow: false
                 )
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))

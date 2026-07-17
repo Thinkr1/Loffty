@@ -150,10 +150,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         installHoverMonitor(screen: screen, notch: info.notchRect)
         vm.start()
-        lockWidget = LockScreenWidget(vm: vm)
+        lockWidget = LockScreenWidget(vm: vm, notchWindow: window)
         lockWidget.start()
         MainActor.assumeIsolated {
             syncAirDropHUD(enabled: AppSettings.shared.airDropHUD)
+            vm.$isLocked
+                .receive(on: RunLoop.main)
+                .sink { [weak self] locked in
+                    guard let self, locked else { return }
+                    self.setHoverExpanded(false)
+                }
+                .store(in: &cancellables)
+
+            AppSettings.shared.$lockScreenExpandNotch
+                .receive(on: RunLoop.main)
+                .sink { [weak self] allowed in
+                    guard let self, self.vm.isLocked, !allowed else { return }
+                    self.setHoverExpanded(false)
+                }
+                .store(in: &cancellables)
+
+            AppSettings.shared.$lockScreenNotch
+                .receive(on: RunLoop.main)
+                .sink { [weak self] enabled in
+                    guard let self, self.vm.isLocked, !enabled else { return }
+                    self.setHoverExpanded(false)
+                }
+                .store(in: &cancellables)
         }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(800))
@@ -367,6 +390,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateHoverState() {
         if AirDropController.shared.phase.isActive { return }
+        if vm.isLocked, !Self.lockScreenExpandAllowed { return }
 
         if hoverExpanded {
             guard !expandedZone.contains(NSEvent.mouseLocation) else { return }
@@ -379,17 +403,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setHoverExpanded(true)
     }
 
+    private static var lockScreenExpandAllowed: Bool {
+        AppSettings.shared.lockScreenNotch
+            && AppSettings.shared.lockScreenExpandNotch
+    }
+
     private func setHoverExpanded(_ expanded: Bool) {
         guard hoverExpanded != expanded else { return }
+        if expanded, vm.isLocked, !Self.lockScreenExpandAllowed { return }
         hoverExpanded = expanded
-        if AirDropController.shared.phase.isActive {
+
+        if vm.isLocked {
+            window.ignoresMouseEvents = true
+            window.acceptsInteraction = false
+            lockWidget.setNotchInteractive(expanded)
+        } else if AirDropController.shared.phase.isActive {
             window.ignoresMouseEvents = false
             window.acceptsInteraction = true
         } else {
             window.ignoresMouseEvents = !expanded
             window.acceptsInteraction = expanded
+            if expanded { window.makeKey() }
         }
-        if expanded { window.makeKey() }
         Task { @MainActor in vm.setExpanded(expanded) }
     }
 }

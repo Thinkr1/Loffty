@@ -73,6 +73,8 @@ final class AppSettings: ObservableObject {
     private static let focusHUDKey = "focusHUD"
     private static let airDropHUDKey = "airDropHUD"
     private static let movableWidgetKey = "movableWidget"
+    private static let lockScreenNotchKey = "lockScreenNotch"
+    private static let lockScreenExpandNotchKey = "lockScreenExpandNotch"
     private static let lockScreenWaveformsKey = "lockScreenWaveforms"
     private static let lockScreenWaveformsAccentKey =
         "lockScreenWaveformsAccent"
@@ -164,6 +166,24 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var lockScreenNotch: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenNotch,
+                forKey: Self.lockScreenNotchKey
+            )
+        }
+    }
+
+    @Published var lockScreenExpandNotch: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenExpandNotch,
+                forKey: Self.lockScreenExpandNotchKey
+            )
+        }
+    }
+
     @Published var lockScreenWaveforms: Bool {
         didSet {
             UserDefaults.standard.set(
@@ -244,6 +264,12 @@ final class AppSettings: ObservableObject {
         movableWidget = UserDefaults.standard.bool(
             forKey: Self.movableWidgetKey
         )
+        lockScreenNotch =
+            UserDefaults.standard.object(forKey: Self.lockScreenNotchKey)
+            as? Bool ?? true
+        lockScreenExpandNotch =
+            UserDefaults.standard.object(forKey: Self.lockScreenExpandNotchKey)
+            as? Bool ?? true
         lockScreenWaveforms =
             UserDefaults.standard.object(forKey: Self.lockScreenWaveformsKey)
             as? Bool ?? true
@@ -286,6 +312,16 @@ struct SettingsView: View {
 
             Section {
                 Toggle(
+                    "Show notch on lock screen",
+                    isOn: $settings.lockScreenNotch
+                )
+                if settings.lockScreenNotch {
+                    Toggle(
+                        "Allow expanding notch on lock screen",
+                        isOn: $settings.lockScreenExpandNotch
+                    )
+                }
+                Toggle(
                     "Show soundwaves",
                     isOn: $settings.lockScreenWaveforms
                 )
@@ -304,6 +340,10 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("Lock Screen")
+            } footer: {
+                Text(
+                    "The notch HUD and the lock screen widget can both appear above the lock screen. Expanding on the lock screen never steals focus from the password field."
+                )
             }
 
             Section {
