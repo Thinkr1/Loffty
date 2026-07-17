@@ -42,6 +42,8 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 - Current player indicator badge?
 - Lock screen lyrics
 - Improve lock screen widget
+- Prevent stealing focus when expanding
+- Allow actions in lock screen
 - Mute (F10) button reflect in volume HUD
 - Appropriate bluetooth (AirPods, etc) sf symbol in volume HUD
 - Remove system focus HUD
