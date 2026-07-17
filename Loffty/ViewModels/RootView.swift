@@ -271,7 +271,8 @@ final class NotchViewModel: ObservableObject {
     }
 
     private func scheduleApply(_ np: NowPlaying) {
-        if isDisplayMetadataEqual(np), pendingSeekTime == nil {
+        let elapsedJump = hasSignificantElapsedJump(np)
+        if isDisplayMetadataEqual(np), pendingSeekTime == nil, !elapsedJump {
             return
         }
 
@@ -285,6 +286,7 @@ final class NotchViewModel: ObservableObject {
             || np.isPlaying != nowPlaying.isPlaying
             || np.isLive != nowPlaying.isLive
             || np.duration != nowPlaying.duration
+            || elapsedJump
 
         applyDebounceTask?.cancel()
         if immediate {
@@ -300,6 +302,13 @@ final class NotchViewModel: ObservableObject {
             pendingUpdate = nil
             apply(pending)
         }
+    }
+
+    private func hasSignificantElapsedJump(_ np: NowPlaying) -> Bool {
+        let now = Date()
+        let currentT = Self.interpolatedElapsed(from: nowPlaying, at: now)
+        let incomingT = Self.interpolatedElapsed(from: np, at: now)
+        return abs(currentT - incomingT) >= 1.35
     }
 
     private func isDisplayMetadataEqual(_ np: NowPlaying) -> Bool {
@@ -340,9 +349,15 @@ final class NotchViewModel: ObservableObject {
             Date().timeIntervalSince(at) < 4
         {
             let reported = Self.interpolatedElapsed(from: np, at: Date())
+            let age = Date().timeIntervalSince(at)
             if abs(reported - target) > 1.5 {
-                incoming.elapsed = target
-                incoming.elapsedTimestamp = Date()
+                if age > 0.85, abs(reported - target) > 2.5 {
+                    pendingSeekTime = nil
+                    pendingSeekAt = nil
+                } else {
+                    incoming.elapsed = target
+                    incoming.elapsedTimestamp = Date()
+                }
             } else {
                 pendingSeekTime = nil
                 pendingSeekAt = nil

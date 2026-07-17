@@ -102,6 +102,11 @@ final class NowPlayingStream {
     private static let elapsedOnlyKeys: Set<String> = [
         "elapsedTime", "timestamp", "playbackRate", "elapsedTimeNow",
     ]
+    private var publishedElapsed: Double = 0
+    private var publishedElapsedTimestamp: Date?
+    private var publishedPlaybackRate: Double = 1
+    private var publishedIsPlaying = false
+    private static let seekJumpThreshold: Double = 1.35
     private let tsFormatter = ISO8601DateFormatter()
     private let pth = "/opt/homebrew/bin/media-control"
     func start() {
@@ -173,10 +178,18 @@ final class NowPlayingStream {
             trackChanged: trackChanged,
             playStateChanged: playStateChanged
         ) {
+            rememberPublishedPlaybackClock()
             onUpdate?(current)
         }
         enrichSpotifyArtistsIfNeeded(from: info)
         scheduleArtworkPollingIfNeeded()
+    }
+
+    private func rememberPublishedPlaybackClock() {
+        publishedElapsed = current.elapsed
+        publishedElapsedTimestamp = current.elapsedTimestamp
+        publishedPlaybackRate = current.playbackRate
+        publishedIsPlaying = current.isPlaying
     }
 
     private func shouldPublish(
@@ -188,10 +201,40 @@ final class NowPlayingStream {
         if trackChanged || playStateChanged { return true }
         if !isDiff { return true }
         let keys = Set(info.keys.map { String($0) })
-        if keys.isSubset(of: Self.elapsedOnlyKeys), current.isPlaying {
-            return false
+        if keys.isSubset(of: Self.elapsedOnlyKeys) {
+            if info.keys.contains("playbackRate"),
+                abs(current.playbackRate - publishedPlaybackRate) > 0.01
+            {
+                return true
+            }
+            if current.isPlaying {
+                return hasSignificantElapsedDiscontinuity()
+            }
         }
         return true
+    }
+
+    private func hasSignificantElapsedDiscontinuity() -> Bool {
+        let now = Date()
+        let expectedRate =
+            publishedIsPlaying ? max(0, publishedPlaybackRate) : 0
+        let expected: Double
+        if let ts = publishedElapsedTimestamp {
+            expected =
+                publishedElapsed + now.timeIntervalSince(ts) * expectedRate
+        } else {
+            expected = publishedElapsed
+        }
+
+        let actualRate = current.isPlaying ? max(0, current.playbackRate) : 0
+        let actual: Double
+        if let ts = current.elapsedTimestamp {
+            actual = current.elapsed + now.timeIntervalSince(ts) * actualRate
+        } else {
+            actual = current.elapsed
+        }
+
+        return abs(actual - expected) >= Self.seekJumpThreshold
     }
 
     private func applyLiveState(
