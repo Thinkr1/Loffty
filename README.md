@@ -40,7 +40,6 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
   - Add queue?
   - Add more controls (shuffle, repeat, etc)
   - Actual soundwaves
-  - Current player indicator badge?
   - Lock screen lyrics
   - Improve lock screen widget
   - Allow actions in lock screen
