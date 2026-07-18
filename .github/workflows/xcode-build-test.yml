@@ -20,11 +20,9 @@ jobs:
   test:
     name: Build & Test
     runs-on: macos-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     permissions:
       contents: read
-      checks: write
-      pull-requests: write
 
     steps:
       - name: Checkout
@@ -46,9 +44,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-spm-
 
-      - name: Install xcbeautify
-        run: brew install xcbeautify
-
       - name: Build & Test
         run: |
           set -o pipefail
@@ -62,8 +57,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="-" \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            | xcbeautify --report junit --report-path TestResults
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Test summary
+        if: always()
+        run: |
+          xcrun xcresulttool get test-results summary \
+            --path TestResults/Loffty.xcresult || true
 
       - name: Upload xcresult
         if: always()
@@ -72,20 +72,3 @@ jobs:
           name: xcresult
           path: TestResults/Loffty.xcresult
           if-no-files-found: ignore
-
-      - name: Upload JUnit report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: junit
-          path: TestResults/**/*.xml
-          if-no-files-found: ignore
-
-      - name: Publish test report
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: LofftyTests
-          path: TestResults/**/*.xml
-          reporter: java-junit
-          fail-on-error: false
