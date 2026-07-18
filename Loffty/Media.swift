@@ -7,6 +7,143 @@
 
 import SwiftUI
 
+enum MediaParsing {
+    static func parseArtistNames(from html: String) -> String? {
+        guard let start = html.range(of: "\"artists\":[") else { return nil }
+        var slice = html[start.upperBound...]
+        guard let end = slice.firstIndex(of: "]") else { return nil }
+        slice = slice[..<end]
+        var names: [String] = []
+        var rest = Substring(slice)
+        while let marker = rest.range(of: "\"name\":\"") {
+            let after = rest[marker.upperBound...]
+            guard let endQuote = after.firstIndex(of: "\"") else { break }
+            let name = String(after[..<endQuote])
+            if !name.isEmpty { names.append(name) }
+            rest = after[endQuote...].dropFirst()
+        }
+        return names.isEmpty ? nil : names.joined(separator: ", ")
+    }
+
+    static func parseArtist(from info: [String: Any]) -> String? {
+        if let artists = info["artists"] as? [String], !artists.isEmpty {
+            return artists.joined(separator: ", ")
+        }
+        if let artists = info["artists"] as? [[String: Any]] {
+            let names = artists.compactMap { $0["name"] as? String }
+                .filter { !$0.isEmpty }
+            if !names.isEmpty { return names.joined(separator: ", ") }
+        }
+        if let artist = info["artist"] as? String, !artist.isEmpty {
+            return artist
+        }
+        if let artists = info["artist"] as? [String], !artists.isEmpty {
+            return artists.joined(separator: ", ")
+        }
+        return nil
+    }
+
+    static func parseIsLive(
+        from info: [String: Any],
+        currentDuration: Double = 0,
+        currentTitle: String = ""
+    ) -> Bool {
+        if let station = info["radioStationIdentifier"], !(station is NSNull) {
+            return true
+        }
+        if let hash = info["radioStationHash"], !(hash is NSNull) {
+            return true
+        }
+        if let mt = info["mediaType"] as? String,
+            mt.localizedCaseInsensitiveContains("radio")
+        {
+            return true
+        }
+        let duration =
+            (info["duration"] as? NSNumber)?.doubleValue ?? currentDuration
+        let title = (info["title"] as? String) ?? currentTitle
+        if duration <= 0, !title.isEmpty {
+            return true
+        }
+        return false
+    }
+
+    static func isIdlePayload(_ info: [String: Any], isDiff: Bool) -> Bool {
+        if isDiff {
+            return info["title"] is NSNull
+        }
+        if let title = info["title"] as? String { return title.isEmpty }
+        if info.isEmpty { return true }
+        if info["artworkData"] != nil || info["bundleIdentifier"] != nil
+            || info["playing"] != nil
+        {
+            return false
+        }
+        return true
+    }
+
+    static let elapsedOnlyKeys: Set<String> = [
+        "elapsedTime", "timestamp", "playbackRate", "elapsedTimeNow",
+    ]
+
+    static func isElapsedOnlyDiff(_ info: [String: Any]) -> Bool {
+        Set(info.keys.map { String($0) }).isSubset(of: elapsedOnlyKeys)
+    }
+
+    static let seekJumpThreshold: Double = 1.35
+
+    static func trackKey(
+        title: String?,
+        bundle: String,
+        currentTitle: String,
+        lastKey: String?,
+        isDiff: Bool
+    ) -> String? {
+        guard title != nil || !bundle.isEmpty else {
+            return isDiff ? nil : lastKey
+        }
+        let resolvedTitle = title ?? currentTitle
+        guard !resolvedTitle.isEmpty || !bundle.isEmpty else {
+            return isDiff ? nil : lastKey
+        }
+        return "\(bundle)|\(resolvedTitle)"
+    }
+
+    static func parseTimestamp(_ value: Any?) -> Date? {
+        if let d = value as? Date { return d }
+        guard let raw = value as? String else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [
+            .withInternetDateTime, .withFractionalSeconds,
+        ]
+        if let d = formatter.date(from: raw) { return d }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: raw)
+    }
+
+    static func expectedElapsed(
+        publishedElapsed: Double,
+        publishedTimestamp: Date?,
+        publishedRate: Double,
+        publishedIsPlaying: Bool,
+        at date: Date
+    ) -> Double {
+        let rate = publishedIsPlaying ? max(0, publishedRate) : 0
+        if let ts = publishedTimestamp {
+            return publishedElapsed + date.timeIntervalSince(ts) * rate
+        }
+        return publishedElapsed
+    }
+
+    static func hasSignificantElapsedDiscontinuity(
+        expected: Double,
+        actual: Double,
+        threshold: Double = seekJumpThreshold
+    ) -> Bool {
+        abs(actual - expected) >= threshold
+    }
+}
+
 private enum SpotifyMetadata {
     static func currentTrackID() -> String? {
         let proc = Process()
@@ -48,24 +185,7 @@ private enum SpotifyMetadata {
             http.statusCode == 200,
             let html = String(data: data, encoding: .utf8)
         else { return nil }
-        return parseArtistNames(from: html)
-    }
-
-    private static func parseArtistNames(from html: String) -> String? {
-        guard let start = html.range(of: "\"artists\":[") else { return nil }
-        var slice = html[start.upperBound...]
-        guard let end = slice.firstIndex(of: "]") else { return nil }
-        slice = slice[..<end]
-        var names: [String] = []
-        var rest = Substring(slice)
-        while let marker = rest.range(of: "\"name\":\"") {
-            let after = rest[marker.upperBound...]
-            guard let endQuote = after.firstIndex(of: "\"") else { break }
-            let name = String(after[..<endQuote])
-            if !name.isEmpty { names.append(name) }
-            rest = after[endQuote...].dropFirst()
-        }
-        return names.isEmpty ? nil : names.joined(separator: ", ")
+        return MediaParsing.parseArtistNames(from: html)
     }
 }
 
@@ -101,37 +221,35 @@ final class NowPlayingStream {
     private var idleClearGeneration: UInt = 0
     private var suppressStaleStream = false
     private let queue = DispatchQueue(label: "Loffty.NowPlayingStream")
-    private static let elapsedOnlyKeys: Set<String> = [
-        "elapsedTime", "timestamp", "playbackRate", "elapsedTimeNow",
-    ]
     private var publishedElapsed: Double = 0
     private var publishedElapsedTimestamp: Date?
     private var publishedPlaybackRate: Double = 1
     private var publishedIsPlaying = false
-    private static let seekJumpThreshold: Double = 1.35
     private static let pausedIdlePollInterval: Duration = .seconds(2)
-    private let tsFormatter = ISO8601DateFormatter()
-    
+
     private struct AdapterLaunch {
         let executable: URL
         let baseArguments: [String]
     }
-    
+
     private func adapterLaunch() -> AdapterLaunch? {
         let bundle = Bundle.main
-        if let script = bundle.url(forResource: "mediaremote-adapter", withExtension: "pl"),
-           let framework = bundle.url(
-            forResource: "MediaRemoteAdapter",
-            withExtension: "framework"
-           )
+        if let script = bundle.url(
+            forResource: "mediaremote-adapter",
+            withExtension: "pl"
+        ),
+            let framework = bundle.url(
+                forResource: "MediaRemoteAdapter",
+                withExtension: "framework"
+            )
         {
             return AdapterLaunch(
                 executable: URL(fileURLWithPath: "/usr/bin/perl"),
                 baseArguments: [script.path, framework.path]
             )
         }
-        
-        let brew = URL(fileURLWithPath: "/opt/homebrew/bin/media-control") //fallback if bundle resources missing
+
+        let brew = URL(fileURLWithPath: "/opt/homebrew/bin/media-control")  //fallback if bundle resources missing
         if FileManager.default.isExecutableFile(atPath: brew.path) {
             return AdapterLaunch(executable: brew, baseArguments: [])
         }
@@ -143,10 +261,10 @@ final class NowPlayingStream {
     }
 
     func start() {
-        guard let launch=adapterLaunch() else {return}
-        let p=Process()
+        guard let launch = adapterLaunch() else { return }
+        let p = Process()
         p.executableURL = launch.executable
-        p.arguments=launch.baseArguments+["stream"]
+        p.arguments = launch.baseArguments + ["stream"]
         let pipe = Pipe()
         p.standardOutput = pipe
         pipe.fileHandleForReading.readabilityHandler = { [weak self] h in
@@ -174,13 +292,13 @@ final class NowPlayingStream {
         let isDiff = obj["diff"] as? Bool ?? false
         let info = (obj["payload"] as? [String: Any]) ?? obj
 
-        if isIdlePayload(info, isDiff: isDiff) {
+        if MediaParsing.isIdlePayload(info, isDiff: isDiff) {
             if !suppressStaleStream { scheduleIdleClear() }
             return
         }
 
         if suppressStaleStream {
-            if !isIdlePayload(info, isDiff: isDiff) {
+            if !MediaParsing.isIdlePayload(info, isDiff: isDiff) {
                 confirmSuppressionLift(with: obj)
             }
             return
@@ -238,18 +356,18 @@ final class NowPlayingStream {
             verifyPausedStillPresent()
         }
     }
-    
+
     private func fetchNowPlaying(
         now: Bool = false,
         artwork: Bool = false
     ) -> [String: Any]? {
-        guard let launch=adapterLaunch() else {return nil}
-        var args=launch.baseArguments+["get"]
-        if !artwork {args.append("--no-artwork")}
-        if now {args.append("--now")}
-        let proc=Process()
-        proc.executableURL=launch.executable
-        proc.arguments=args
+        guard let launch = adapterLaunch() else { return nil }
+        var args = launch.baseArguments + ["get"]
+        if !artwork { args.append("--no-artwork") }
+        if now { args.append("--now") }
+        let proc = Process()
+        proc.executableURL = launch.executable
+        proc.arguments = args
         let pipe = Pipe()
         proc.standardOutput = pipe
         proc.standardError = Pipe()
@@ -262,20 +380,6 @@ final class NowPlayingStream {
         }
         if obj is NSNull { return nil }
         return obj as? [String: Any]
-    }
-
-    private func isIdlePayload(_ info: [String: Any], isDiff: Bool) -> Bool {
-        if isDiff {
-            return info["title"] is NSNull
-        }
-        if let title = info["title"] as? String { return title.isEmpty }
-        if info.isEmpty { return true }
-        if info["artworkData"] != nil || info["bundleIdentifier"] != nil
-            || info["playing"] != nil
-        {
-            return false
-        }
-        return true
     }
 
     private func rememberPublishedPlaybackClock() {
@@ -293,8 +397,7 @@ final class NowPlayingStream {
     ) -> Bool {
         if trackChanged || playStateChanged { return true }
         if !isDiff { return true }
-        let keys = Set(info.keys.map { String($0) })
-        if keys.isSubset(of: Self.elapsedOnlyKeys) {
+        if MediaParsing.isElapsedOnlyDiff(info) {
             if info.keys.contains("playbackRate"),
                 abs(current.playbackRate - publishedPlaybackRate) > 0.01
             {
@@ -309,25 +412,24 @@ final class NowPlayingStream {
 
     private func hasSignificantElapsedDiscontinuity() -> Bool {
         let now = Date()
-        let expectedRate =
-            publishedIsPlaying ? max(0, publishedPlaybackRate) : 0
-        let expected: Double
-        if let ts = publishedElapsedTimestamp {
-            expected =
-                publishedElapsed + now.timeIntervalSince(ts) * expectedRate
-        } else {
-            expected = publishedElapsed
-        }
-
-        let actualRate = current.isPlaying ? max(0, current.playbackRate) : 0
-        let actual: Double
-        if let ts = current.elapsedTimestamp {
-            actual = current.elapsed + now.timeIntervalSince(ts) * actualRate
-        } else {
-            actual = current.elapsed
-        }
-
-        return abs(actual - expected) >= Self.seekJumpThreshold
+        let expected = MediaParsing.expectedElapsed(
+            publishedElapsed: publishedElapsed,
+            publishedTimestamp: publishedElapsedTimestamp,
+            publishedRate: publishedPlaybackRate,
+            publishedIsPlaying: publishedIsPlaying,
+            at: now
+        )
+        let actual = MediaParsing.expectedElapsed(
+            publishedElapsed: current.elapsed,
+            publishedTimestamp: current.elapsedTimestamp,
+            publishedRate: current.playbackRate,
+            publishedIsPlaying: current.isPlaying,
+            at: now
+        )
+        return MediaParsing.hasSignificantElapsedDiscontinuity(
+            expected: expected,
+            actual: actual
+        )
     }
 
     private func applyLiveState(
@@ -344,28 +446,11 @@ final class NowPlayingStream {
         {
             return
         }
-        current.isLive = parseIsLive(from: info)
-    }
-
-    private func parseIsLive(from info: [String: Any]) -> Bool {
-        if let station = info["radioStationIdentifier"], !(station is NSNull) {
-            return true
-        }
-        if let hash = info["radioStationHash"], !(hash is NSNull) {
-            return true
-        }
-        if let mt = info["mediaType"] as? String,
-            mt.localizedCaseInsensitiveContains("radio")
-        {
-            return true
-        }
-        let duration =
-            (info["duration"] as? NSNumber)?.doubleValue ?? current.duration
-        let title = (info["title"] as? String) ?? current.title
-        if duration <= 0, !title.isEmpty {
-            return true
-        }
-        return false
+        current.isLive = MediaParsing.parseIsLive(
+            from: info,
+            currentDuration: current.duration,
+            currentTitle: current.title
+        )
     }
 
     private func applyElapsed(from info: [String: Any]) {
@@ -374,7 +459,7 @@ final class NowPlayingStream {
         }
         if let e = info["elapsedTime"] as? NSNumber {
             current.elapsed = e.doubleValue
-            if let ts = parseTimestamp(info["timestamp"]) {
+            if let ts = MediaParsing.parseTimestamp(info["timestamp"]) {
                 current.elapsedTimestamp = ts
             } else if info.keys.contains("elapsedTime") {
                 current.elapsedTimestamp = Date()
@@ -382,28 +467,14 @@ final class NowPlayingStream {
         }
     }
 
-    private func parseTimestamp(_ value: Any?) -> Date? {
-        if let d = value as? Date { return d }
-        guard let raw = value as? String else { return nil }
-        tsFormatter.formatOptions = [
-            .withInternetDateTime, .withFractionalSeconds,
-        ]
-        if let d = tsFormatter.date(from: raw) { return d }
-        tsFormatter.formatOptions = [.withInternetDateTime]
-        return tsFormatter.date(from: raw)
-    }
-
     private func trackKey(from info: [String: Any], isDiff: Bool) -> String? {
-        let title = info["title"] as? String
-        let bundle = info["bundleIdentifier"] as? String ?? ""
-        guard title != nil || !bundle.isEmpty else {
-            return isDiff ? nil : lastTrackKey
-        }
-        let resolvedTitle = title ?? current.title
-        guard !resolvedTitle.isEmpty || !bundle.isEmpty else {
-            return isDiff ? nil : lastTrackKey
-        }
-        return "\(bundle)|\(resolvedTitle)"
+        MediaParsing.trackKey(
+            title: info["title"] as? String,
+            bundle: info["bundleIdentifier"] as? String ?? "",
+            currentTitle: current.title,
+            lastKey: lastTrackKey,
+            isDiff: isDiff
+        )
     }
 
     private func applyTrackFields(
@@ -435,12 +506,12 @@ final class NowPlayingStream {
             } else if info.keys.contains("artist")
                 || info.keys.contains("artists")
             {
-                current.artist = parseArtist(from: info) ?? ""
+                current.artist = MediaParsing.parseArtist(from: info) ?? ""
             } else if trackChanged {
                 current.artist = ""
             }
         } else {
-            current.artist = parseArtist(from: info) ?? ""
+            current.artist = MediaParsing.parseArtist(from: info) ?? ""
         }
 
         if trackChanged {
@@ -461,24 +532,6 @@ final class NowPlayingStream {
         } else {
             current.album = ""
         }
-    }
-
-    private func parseArtist(from info: [String: Any]) -> String? {
-        if let artists = info["artists"] as? [String], !artists.isEmpty {
-            return artists.joined(separator: ", ")
-        }
-        if let artists = info["artists"] as? [[String: Any]] {
-            let names = artists.compactMap { $0["name"] as? String }
-                .filter { !$0.isEmpty }
-            if !names.isEmpty { return names.joined(separator: ", ") }
-        }
-        if let artist = info["artist"] as? String, !artist.isEmpty {
-            return artist
-        }
-        if let artists = info["artist"] as? [String], !artists.isEmpty {
-            return artists.joined(separator: ", ")
-        }
-        return nil
     }
 
     private func applyArtwork(from info: [String: Any], trackChanged: Bool) {
@@ -554,7 +607,7 @@ final class NowPlayingStream {
             if ArtistEnrichmentMode.current.allowsNetworkFetch {
                 self.enrichSpotifyArtistsIfNeeded(from: info)
             } else {
-                let artist = self.parseArtist(from: info) ?? ""
+                let artist = MediaParsing.parseArtist(from: info) ?? ""
                 if self.current.artist != artist {
                     self.current.artist = artist
                     self.onUpdate?(self.current)

@@ -135,28 +135,32 @@ struct HUDChip: View {
             connected
                 ? "antenna.radiowaves.left.and.right"
                 : "antenna.radiowaves.left.and.right.slash"
-        case .battery(_, let charging):
-            charging ? "battery.100.bolt" : batterySymbol
+        case .battery(let percent, let charging):
+            BatteryIcon.symbol(percent: percent, charging: charging)
         case .focus(let enabled, let name):
             FocusPalette.symbol(for: name, enabled: enabled)
         }
     }
+}
 
-    private var batterySymbol: String {
-        switch kind {
-        case .battery(let percent, _) where percent >= 90:
-            "battery.100"
-        case .battery(let percent, _) where percent >= 65:
-            "battery.75"
-        case .battery(let percent, _) where percent >= 40:
-            "battery.50"
-        case .battery(let percent, _) where percent >= 15:
-            "battery.25"
-        case .battery:
-            "battery.0"
-        default:
-            "battery.100"
+enum BatteryIcon {
+    static func symbol(percent: Int, charging: Bool) -> String {
+        if charging { return "battery.100.bolt" }
+        switch percent {
+        case 90...: return "battery.100"
+        case 65..<90: return "battery.75"
+        case 40..<65: return "battery.50"
+        case 15..<40: return "battery.25"
+        default: return "battery.0"
         }
+    }
+}
+
+enum HUDText {
+    static func shortBluetoothName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count <= 12 { return trimmed }
+        return String(trimmed.prefix(11)) + "..."
     }
 }
 
@@ -201,17 +205,11 @@ struct SideHUDLabel: View {
     private var title: String {
         switch kind {
         case .bluetooth(let name, let connected):
-            connected ? shortBluetoothName(name) : "Off"
+            connected ? HUDText.shortBluetoothName(name) : "Off"
         case .focus(let enabled, _):
             enabled ? "On" : "Off"
         default:
             ""
         }
-    }
-
-    private func shortBluetoothName(_ name: String) -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.count <= 12 { return trimmed }
-        return String(trimmed.prefix(11)) + "..."
     }
 }

@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		DB85A2FD300C19E300931919 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DB74036C3000F63500879106 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DB7403733000F63500879106;
+			remoteInfo = Loffty;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		DB7403743000F63500879106 /* Loffty.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Loffty.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DB85A2F9300C19E300931919 /* LofftyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LofftyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -42,10 +53,22 @@
 			path = Loffty;
 			sourceTree = "<group>";
 		};
+		DB85A2FA300C19E300931919 /* LofftyTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LofftyTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		DB7403713000F63500879106 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DB85A2F6300C19E300931919 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -59,6 +82,7 @@
 			isa = PBXGroup;
 			children = (
 				DB7403763000F63500879106 /* Loffty */,
+				DB85A2FA300C19E300931919 /* LofftyTests */,
 				DB7403753000F63500879106 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -67,6 +91,7 @@
 			isa = PBXGroup;
 			children = (
 				DB7403743000F63500879106 /* Loffty.app */,
+				DB85A2F9300C19E300931919 /* LofftyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -96,6 +121,29 @@
 			productReference = DB7403743000F63500879106 /* Loffty.app */;
 			productType = "com.apple.product-type.application";
 		};
+		DB85A2F8300C19E300931919 /* LofftyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DB85A2FF300C19E300931919 /* Build configuration list for PBXNativeTarget "LofftyTests" */;
+			buildPhases = (
+				DB85A2F5300C19E300931919 /* Sources */,
+				DB85A2F6300C19E300931919 /* Frameworks */,
+				DB85A2F7300C19E300931919 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DB85A2FE300C19E300931919 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DB85A2FA300C19E300931919 /* LofftyTests */,
+			);
+			name = LofftyTests;
+			packageProductDependencies = (
+			);
+			productName = LofftyTests;
+			productReference = DB85A2F9300C19E300931919 /* LofftyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -108,6 +156,10 @@
 				TargetAttributes = {
 					DB7403733000F63500879106 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					DB85A2F8300C19E300931919 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = DB7403733000F63500879106;
 					};
 				};
 			};
@@ -126,12 +178,20 @@
 			projectRoot = "";
 			targets = (
 				DB7403733000F63500879106 /* Loffty */,
+				DB85A2F8300C19E300931919 /* LofftyTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		DB7403723000F63500879106 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DB85A2F7300C19E300931919 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -148,7 +208,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DB85A2F5300C19E300931919 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DB85A2FE300C19E300931919 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DB7403733000F63500879106 /* Loffty */;
+			targetProxy = DB85A2FD300C19E300931919 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		DB74037D3000F63800879106 /* Debug */ = {
@@ -349,6 +424,50 @@
 			};
 			name = Release;
 		};
+		DB85A300300C19E300931919 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BML64T9T2X;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.plmls-team.LofftyTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Loffty.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Loffty";
+			};
+			name = Debug;
+		};
+		DB85A301300C19E300931919 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BML64T9T2X;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.plmls-team.LofftyTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Loffty.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Loffty";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -366,6 +485,15 @@
 			buildConfigurations = (
 				DB7403803000F63800879106 /* Debug */,
 				DB7403813000F63800879106 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DB85A2FF300C19E300931919 /* Build configuration list for PBXNativeTarget "LofftyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DB85A300300C19E300931919 /* Debug */,
+				DB85A301300C19E300931919 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

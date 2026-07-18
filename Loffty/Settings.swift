@@ -270,6 +270,22 @@ final class AppSettings: ObservableObject {
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
+        Self.anyHUDEnabled(
+            replaceSystemHUD: replaceSystemHUD,
+            batteryHUD: batteryHUD,
+            bluetoothHUD: bluetoothHUD,
+            focusHUD: focusHUD,
+            airDropHUD: airDropHUD
+        )
+    }
+
+    static func anyHUDEnabled(
+        replaceSystemHUD: Bool,
+        batteryHUD: Bool,
+        bluetoothHUD: Bool,
+        focusHUD: Bool,
+        airDropHUD: Bool
+    ) -> Bool {
         replaceSystemHUD || batteryHUD || bluetoothHUD || focusHUD || airDropHUD
     }
 

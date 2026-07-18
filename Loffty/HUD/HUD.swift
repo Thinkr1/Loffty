@@ -23,24 +23,30 @@ enum OutputDeviceIcon {
     static func currentSymbol() -> String {
         let device = defaultOutputDevice()
         guard device != 0 else { return speaker }
-        let name = deviceName(device)?.lowercased() ?? ""
-        let transport = transportType(device)
+        return symbol(
+            name: deviceName(device) ?? "",
+            transport: transportType(device)
+        )
+    }
 
-        if name.contains("airpods max") { return "airpods.max" }
-        if name.contains("airpods pro") { return "airpods.pro" }
-        if name.contains("airpods") { return "airpods" }
-        if name.contains("beats studio") || name.contains("studiobuds") {
+    static func symbol(name: String, transport: UInt32) -> String {
+        let key = name.lowercased()
+
+        if key.contains("airpods max") { return "airpods.max" }
+        if key.contains("airpods pro") { return "airpods.pro" }
+        if key.contains("airpods") { return "airpods" }
+        if key.contains("beats studio") || key.contains("studiobuds") {
             return "beats.studiobuds"
         }
-        if name.contains("powerbeats") { return "beats.powerbeats" }
-        if name.contains("beats fit") || name.contains("beatsx")
-            || name.contains("urbeats") || name.contains("beats ear")
+        if key.contains("powerbeats") { return "beats.powerbeats" }
+        if key.contains("beats fit") || key.contains("beatsx")
+            || key.contains("urbeats") || key.contains("beats ear")
         {
             return "beats.earphones"
         }
-        if name.contains("beats") { return "beats.headphones" }
-        if name.contains("homepod") { return "homepod.fill" }
-        if name.contains("apple tv") || name.contains("appletv") {
+        if key.contains("beats") { return "beats.headphones" }
+        if key.contains("homepod") { return "homepod.fill" }
+        if key.contains("apple tv") || key.contains("appletv") {
             return "appletv.fill"
         }
 
@@ -53,7 +59,7 @@ enum OutputDeviceIcon {
         case kAudioDeviceTransportTypeBuiltIn:
             return speaker
         default:
-            if name.contains("headphone") || name.contains("headset") {
+            if key.contains("headphone") || key.contains("headset") {
                 return "headphones"
             }
             return speaker
@@ -400,8 +406,8 @@ final class SystemKeyInterceptor {
     private var wakeObserver: NSObjectProtocol?
     private(set) var isEnabled = false
 
-    private static let normalStep: Float = 1.0 / 16.0
-    private static let fineStep: Float = 1.0 / 64.0
+    static let normalStep: Float = 1.0 / 16.0
+    static let fineStep: Float = 1.0 / 64.0
     private static let replaceKey = "replaceSystemHUD"
     private static let brightnessHUDKey = "brightnessHUD"
 
@@ -483,12 +489,16 @@ final class SystemKeyInterceptor {
         CGEvent.tapEnable(tap: tap, enable: true)
     }
 
+    static func adjustmentStep(optionAndShift: Bool) -> Float {
+        optionAndShift ? fineStep : normalStep
+    }
+
     private static func adjustmentStep(for event: CGEvent) -> Float {
         let flags = event.flags.union(CGEventSource.flagsState(.hidSystemState))
-        if flags.contains(.maskAlternate), flags.contains(.maskShift) {
-            return fineStep
-        }
-        return normalStep
+        return adjustmentStep(
+            optionAndShift: flags.contains(.maskAlternate)
+                && flags.contains(.maskShift)
+        )
     }
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<

@@ -21,9 +21,10 @@ final class FocusFilterBridge {
         active: Bool,
         name: String? = nil,
         source: Source = .notification,
-        forceAnnounce: Bool = false
+        forceAnnounce: Bool = false,
+        now: Date = Date()
     ) {
-        if source == .log, active, Date() < ignoreLogActivateUntil {
+        if source == .log, active, now < ignoreLogActivateUntil {
             return
         }
 
@@ -34,7 +35,7 @@ final class FocusFilterBridge {
         let activeChanged = active != isFocused
 
         if !active {
-            ignoreLogActivateUntil = Date().addingTimeInterval(1.25)
+            ignoreLogActivateUntil = now.addingTimeInterval(1.25)
         }
 
         isFocused = active
@@ -49,6 +50,15 @@ final class FocusFilterBridge {
         }
         onChange?(active, modeName)
     }
+
+    #if DEBUG
+        func resetForTesting() {
+            isFocused = false
+            modeName = nil
+            ignoreLogActivateUntil = .distantPast
+            onChange = nil
+        }
+    #endif
 
     enum Source {
         case notification
@@ -244,9 +254,52 @@ final class FocusHUDWatcher {
     }
 }
 
-enum FocusLogEvent {
+enum FocusLogEvent: Equatable {
     case cleared
     case active(identifier: String?, name: String?)
+}
+
+enum FocusLogParsing {
+    static func event(from line: String) -> FocusLogEvent? {
+        let lower = line.lowercased()
+        if lower.contains("active mode assertion: (null)")
+            || lower.contains("activemodeidentifier: (null)")
+            || lower.contains("semanticmodeidentifier: (null)")
+            || lower.contains("starting: 0")
+            || lower.contains("cleared mode assertion")
+        {
+            return .cleared
+        }
+
+        let looksActive =
+            lower.contains("active mode assertion:")
+            || lower.contains("starting: 1")
+            || lower.contains("asserted mode")
+            || (lower.contains("semanticmodeidentifier:")
+                && !lower.contains("(null)"))
+
+        guard looksActive else { return nil }
+
+        let identifier =
+            extract(after: "semanticModeIdentifier:", in: line)
+            ?? extract(after: "modeIdentifier:", in: line)
+            ?? extract(after: "activeModeIdentifier:", in: line)
+        let name = extract(after: "name:", in: line)
+        guard identifier != nil || name != nil else { return nil }
+        return .active(identifier: identifier, name: name)
+    }
+
+    static func extract(after key: String, in line: String) -> String? {
+        guard let range = line.range(of: key, options: .caseInsensitive)
+        else { return nil }
+        var suffix = String(line[range.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let end = suffix.firstIndex(where: { ";,)".contains($0) }) {
+            suffix = String(suffix[..<end])
+        }
+        suffix = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+        return suffix.isEmpty || suffix == "(null)" ? nil : suffix
+    }
 }
 
 final class FocusLogStream {
@@ -353,44 +406,7 @@ final class FocusLogStream {
     }
 
     private func processLine(_ line: String) {
-        let lower = line.lowercased()
-        if lower.contains("active mode assertion: (null)")
-            || lower.contains("activemodeidentifier: (null)")
-            || lower.contains("semanticmodeidentifier: (null)")
-            || lower.contains("starting: 0")
-            || lower.contains("cleared mode assertion")
-        {
-            onUpdate?(.cleared)
-            return
-        }
-
-        let looksActive =
-            lower.contains("active mode assertion:")
-            || lower.contains("starting: 1")
-            || lower.contains("asserted mode")
-            || (lower.contains("semanticmodeidentifier:")
-                && !lower.contains("(null)"))
-
-        guard looksActive else { return }
-
-        let identifier =
-            extract(after: "semanticModeIdentifier:", in: line)
-            ?? extract(after: "modeIdentifier:", in: line)
-            ?? extract(after: "activeModeIdentifier:", in: line)
-        let name = extract(after: "name:", in: line)
-        guard identifier != nil || name != nil else { return }
-        onUpdate?(.active(identifier: identifier, name: name))
-    }
-
-    private func extract(after key: String, in line: String) -> String? {
-        guard let range = line.range(of: key, options: .caseInsensitive)
-        else { return nil }
-        var suffix = String(line[range.upperBound...])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let end = suffix.firstIndex(where: { ";,)".contains($0) }) {
-            suffix = String(suffix[..<end])
-        }
-        suffix = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
-        return suffix.isEmpty || suffix == "(null)" ? nil : suffix
+        guard let event = FocusLogParsing.event(from: line) else { return }
+        onUpdate?(event)
     }
 }

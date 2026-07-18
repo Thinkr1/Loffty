@@ -86,30 +86,53 @@ struct NotchInfo {
     let notchRect: CGRect
 }
 
-func detectNotch(on screen: NSScreen) -> NotchInfo {
-    let frame = screen.frame
-    let topInset = screen.safeAreaInsets.top
-    if topInset > 0, let left = screen.auxiliaryTopLeftArea,
-        let right = screen.auxiliaryTopRightArea
-    {
-        let width = frame.width - left.width - right.width
-        let height = topInset
-        let x = frame.minX + left.width
-        let y = frame.maxY - height
-        return NotchInfo(
-            screen: screen,
-            notchRect: CGRect(x: x, y: y, width: width, height: height)
+enum LockScreenPolicy {
+    static func expandAllowed(
+        lockScreenNotch: Bool,
+        lockScreenExpandNotch: Bool
+    ) -> Bool {
+        lockScreenNotch && lockScreenExpandNotch
+    }
+}
+
+func notchRect(
+    screenFrame: CGRect,
+    topInset: CGFloat,
+    leftAuxWidth: CGFloat?,
+    rightAuxWidth: CGFloat?
+) -> CGRect {
+    if topInset > 0, let left = leftAuxWidth, let right = rightAuxWidth {
+        return CGRect(
+            x: screenFrame.minX + left,
+            y: screenFrame.maxY - topInset,
+            width: screenFrame.width - left - right,
+            height: topInset
         )
     }
     let w: CGFloat = 220
     let h: CGFloat = 32
-    let rect = CGRect(
-        x: frame.midX - w / 2,
-        y: frame.maxY - h,
+    return CGRect(
+        x: screenFrame.midX - w / 2,
+        y: screenFrame.maxY - h,
         width: w,
         height: h
     )
-    return NotchInfo(screen: screen, notchRect: rect)
+}
+
+func detectNotch(on screen: NSScreen) -> NotchInfo {
+    let frame = screen.frame
+    let topInset = screen.safeAreaInsets.top
+    let left = screen.auxiliaryTopLeftArea.map(\.width)
+    let right = screen.auxiliaryTopRightArea.map(\.width)
+    return NotchInfo(
+        screen: screen,
+        notchRect: notchRect(
+            screenFrame: frame,
+            topInset: topInset,
+            leftAuxWidth: left,
+            rightAuxWidth: right
+        )
+    )
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -416,8 +439,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private static var lockScreenExpandAllowed: Bool {
-        AppSettings.shared.lockScreenNotch
-            && AppSettings.shared.lockScreenExpandNotch
+        LockScreenPolicy.expandAllowed(
+            lockScreenNotch: AppSettings.shared.lockScreenNotch,
+            lockScreenExpandNotch: AppSettings.shared.lockScreenExpandNotch
+        )
     }
 
     private func setHoverExpanded(_ expanded: Bool) {

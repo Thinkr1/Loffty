@@ -10,6 +10,12 @@ import IOBluetooth
 import IOKit.ps
 import SwiftUI
 
+enum BatteryThreshold {
+    static func crossed(from old: Int, to new: Int, at mark: Int) -> Bool {
+        old > mark && new <= mark
+    }
+}
+
 final class BatteryHUDWatcher {
     var onChange: ((Int, Bool, Bool) -> Void)?
     private var source: CFRunLoopSource?
@@ -74,8 +80,16 @@ final class BatteryHUDWatcher {
         let acChanged = lastOnAC.map { $0 != info.onAC } ?? false
         let chargeChanged = lastCharging.map { $0 != info.charging } ?? false
         let crossedLow =
-            crossedThreshold(from: lastPercent, to: info.percent, at: 20)
-            || crossedThreshold(from: lastPercent, to: info.percent, at: 10)
+            BatteryThreshold.crossed(
+                from: lastPercent,
+                to: info.percent,
+                at: 20
+            )
+            || BatteryThreshold.crossed(
+                from: lastPercent,
+                to: info.percent,
+                at: 10
+            )
 
         lastPercent = info.percent
         lastCharging = info.charging
@@ -83,12 +97,6 @@ final class BatteryHUDWatcher {
 
         guard acChanged || chargeChanged || crossedLow else { return }
         onChange?(info.percent, info.charging || info.onAC, acChanged)
-    }
-
-    private func crossedThreshold(from old: Int, to new: Int, at mark: Int)
-        -> Bool
-    {
-        old > mark && new <= mark
     }
 
     private func currentBattery() -> (

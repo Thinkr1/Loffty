@@ -25,6 +25,52 @@ enum AirDropPhase: Equatable {
     }
 }
 
+enum AirDropTransferAction: Equatable {
+    case cancel
+    case succeed(outgoing: Bool)
+    case continueOutgoing
+    case continueReceiving
+}
+
+enum AirDropLogic {
+    static func fileSummary(for files: [URL]) -> String {
+        if files.isEmpty { return "AirDrop" }
+        if files.count == 1 { return files[0].lastPathComponent }
+        return "\(files.count) items"
+    }
+
+    static func isOutgoing(
+        phase: AirDropPhase,
+        filesNonEmpty: Bool,
+        awaitingDelivery: Bool
+    ) -> Bool {
+        switch phase {
+        case .sent: true
+        case .receiving, .received: false
+        case .picking, .idle: filesNonEmpty || awaitingDelivery
+        }
+    }
+
+    static func decide(
+        state: Int,
+        progress: Double,
+        sawMeaningfulProgress: Bool,
+        isOutgoing: Bool
+    ) -> AirDropTransferAction {
+        if [2, 3, 4].contains(state) { return .cancel }
+
+        let succeeded = progress >= 0.99 || state >= 5
+        if succeeded {
+            guard sawMeaningfulProgress || progress >= 0.99 else {
+                return .cancel
+            }
+            return .succeed(outgoing: isOutgoing)
+        }
+
+        return isOutgoing ? .continueOutgoing : .continueReceiving
+    }
+}
+
 @MainActor
 final class AirDropController: ObservableObject {
     static let shared = AirDropController()
@@ -210,47 +256,38 @@ final class AirDropController: ObservableObject {
             (transfer.value(forKey: "transferProgress") as? NSNumber)?
             .doubleValue ?? 0
 
-        let isOutgoing: Bool = {
-            switch phase {
-            case .sent: return true
-            case .receiving, .received: return false
-            case .picking, .idle: return !files.isEmpty || awaitingDelivery
-            }
-        }()
+        let outgoing = AirDropLogic.isOutgoing(
+            phase: phase,
+            filesNonEmpty: !files.isEmpty,
+            awaitingDelivery: awaitingDelivery
+        )
 
         chooserWatchTask?.cancel()
-
-        if [2, 3, 4].contains(state) {
-            cancel()
-            return
-        }
-
         if prog > 0.12 { sawMeaningfulProgress = true }
 
-        let succeeded = prog >= 0.99 || state >= 5
-        if succeeded {
-            guard sawMeaningfulProgress || prog >= 0.99 else {
-                cancel()
-                return
-            }
+        switch AirDropLogic.decide(
+            state: state,
+            progress: prog,
+            sawMeaningfulProgress: sawMeaningfulProgress,
+            isOutgoing: outgoing
+        ) {
+        case .cancel:
+            cancel()
+        case .succeed(let isOutgoing):
             finishSuccessfully(outgoing: isOutgoing, title: title)
-            return
-        }
-
-        if isOutgoing {
+        case .continueOutgoing:
             dismissTask?.cancel()
             awaitingDelivery = true
             withAnimation(NotchViewModel.airDropSpring) {
                 systemChooserPresented = false
             }
-            return
-        }
-
-        dismissTask?.cancel()
-        withAnimation(NotchViewModel.airDropSpring) {
-            progress = max(0.06, min(prog > 0 ? prog : progress, 0.99))
-            systemChooserPresented = false
-            phase = .receiving(from: peer, title: title)
+        case .continueReceiving:
+            dismissTask?.cancel()
+            withAnimation(NotchViewModel.airDropSpring) {
+                progress = max(0.06, min(prog > 0 ? prog : progress, 0.99))
+                systemChooserPresented = false
+                phase = .receiving(from: peer, title: title)
+            }
         }
     }
 
@@ -328,10 +365,14 @@ final class AirDropController: ObservableObject {
     }
 
     private var fileSummary: String {
-        if files.isEmpty { return "AirDrop" }
-        if files.count == 1 { return files[0].lastPathComponent }
-        return "\(files.count) items"
+        AirDropLogic.fileSummary(for: files)
     }
+
+    #if DEBUG
+        func setPhaseForTesting(_ value: AirDropPhase) {
+            phase = value
+        }
+    #endif
 
     private func scheduleDismiss(after seconds: Double) {
         dismissTask?.cancel()
@@ -382,7 +423,7 @@ final class AirDropController: ObservableObject {
         return NSClassFromString("SFAirDropTransferObserver") != nil
     }
 
-    private static func dedupe(_ urls: [URL]) -> [URL] {
+    static func dedupe(_ urls: [URL]) -> [URL] {
         var seen = Set<String>()
         return urls.filter { seen.insert($0.path).inserted }
     }

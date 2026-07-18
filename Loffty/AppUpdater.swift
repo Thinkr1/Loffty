@@ -166,6 +166,63 @@ private struct GitHubAsset: Decodable {
     }
 }
 
+enum UpdateReleaseParser {
+    static func parse(_ data: Data) throws -> UpdateRelease {
+        let decoded = try JSONDecoder().decode(GitHubRelease.self, from: data)
+        let version = AppUpdater.normalizeVersion(decoded.tagName)
+
+        guard
+            let zip = decoded.assets.first(where: {
+                $0.name.lowercased() == "loffty.zip"
+            })
+        else { throw UpdateError.noZipAsset }
+        guard
+            let sha = decoded.assets.first(where: {
+                $0.name.lowercased() == "loffty.zip.sha256"
+            })
+        else { throw UpdateError.noChecksumAsset }
+        guard
+            let sig = decoded.assets.first(where: {
+                $0.name.lowercased() == "loffty.zip.sig"
+            })
+        else { throw UpdateError.noSignatureAsset }
+
+        guard let zipURL = URL(string: zip.browserDownloadURL),
+            let shaURL = URL(string: sha.browserDownloadURL),
+            let sigURL = URL(string: sig.browserDownloadURL)
+        else { throw UpdateError.invalidResponse }
+
+        return UpdateRelease(
+            version: version,
+            tagName: decoded.tagName,
+            notes: decoded.body ?? "",
+            htmlURL: URL(string: decoded.htmlURL)
+                ?? URL(string: "https://github.com/Thinkr1/Loffty/releases")!,
+            zipURL: zipURL,
+            sha256URL: shaURL,
+            signatureURL: sigURL
+        )
+    }
+
+    static func findAppBundle(in root: URL) throws -> URL {
+        var fallback: URL?
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else { throw UpdateError.noAppInArchive }
+
+        for case let url as URL in enumerator where url.pathExtension == "app" {
+            if url.lastPathComponent == "Loffty.app" { return url }
+            fallback = url
+        }
+        guard let fallback else { throw UpdateError.noAppInArchive }
+        return fallback
+    }
+}
+
 @MainActor
 final class AppUpdater: ObservableObject {
     static let shared = AppUpdater()
@@ -288,7 +345,7 @@ final class AppUpdater: ObservableObject {
                 withIntermediateDirectories: true
             )
             try extractZip(zipURL, to: extractDir)
-            let newApp = try findAppBundle(in: extractDir)
+            let newApp = try UpdateReleaseParser.findAppBundle(in: extractDir)
 
             let destination = Bundle.main.bundleURL
             let parent = destination.deletingLastPathComponent()
@@ -333,40 +390,7 @@ final class AppUpdater: ObservableObject {
             throw UpdateError.invalidResponse
         }
 
-        let decoded = try JSONDecoder().decode(GitHubRelease.self, from: data)
-        let version = Self.normalizeVersion(decoded.tagName)
-
-        guard
-            let zip = decoded.assets.first(where: {
-                $0.name.lowercased() == "loffty.zip"
-            })
-        else { throw UpdateError.noZipAsset }
-        guard
-            let sha = decoded.assets.first(where: {
-                $0.name.lowercased() == "loffty.zip.sha256"
-            })
-        else { throw UpdateError.noChecksumAsset }
-        guard
-            let sig = decoded.assets.first(where: {
-                $0.name.lowercased() == "loffty.zip.sig"
-            })
-        else { throw UpdateError.noSignatureAsset }
-
-        guard let zipURL = URL(string: zip.browserDownloadURL),
-            let shaURL = URL(string: sha.browserDownloadURL),
-            let sigURL = URL(string: sig.browserDownloadURL)
-        else { throw UpdateError.invalidResponse }
-
-        return UpdateRelease(
-            version: version,
-            tagName: decoded.tagName,
-            notes: decoded.body ?? "",
-            htmlURL: URL(string: decoded.htmlURL)
-                ?? URL(string: "https://github.com/Thinkr1/Loffty/releases")!,
-            zipURL: zipURL,
-            sha256URL: shaURL,
-            signatureURL: sigURL
-        )
+        return try UpdateReleaseParser.parse(data)
     }
 
     private func presentAvailableAlert(for release: UpdateRelease) {
@@ -430,24 +454,6 @@ final class AppUpdater: ObservableObject {
                 "Could not unpack the update archive."
             )
         }
-    }
-
-    private func findAppBundle(in root: URL) throws -> URL {
-        var fallback: URL?
-        guard
-            let enumerator = FileManager.default.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            )
-        else { throw UpdateError.noAppInArchive }
-
-        for case let url as URL in enumerator where url.pathExtension == "app" {
-            if url.lastPathComponent == "Loffty.app" { return url }
-            fallback = url
-        }
-        guard let fallback else { throw UpdateError.noAppInArchive }
-        return fallback
     }
 
     private func launchReplacement(
