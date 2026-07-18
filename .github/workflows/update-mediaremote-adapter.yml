@@ -1,0 +1,113 @@
+name: Update MediaRemote Adapter
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-pr:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Loffty
+        uses: actions/checkout@v4
+
+      - name: Resolve upstream latest release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=$(gh api repos/ungive/mediaremote-adapter/releases/latest --jq .tag_name)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Latest upstream tag: $TAG"
+
+      - name: Read pinned version
+        id: pinned
+        run: |
+          set -euo pipefail
+          NOTICE="Loffty/Dependencies/MediaRemoteAdapter/NOTICE"
+          PINNED=$(sed -n 's/^Pinned version: //p' "$NOTICE" | head -1 | tr -d '[:space:]')
+          echo "tag=$PINNED" >> "$GITHUB_OUTPUT"
+          echo "Pinned tag: $PINNED"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.pinned.outputs.tag }}" = "${{ steps.upstream.outputs.tag }}" ]; then
+            echo "update=false" >> "$GITHUB_OUTPUT"
+            echo "Already on ${{ steps.upstream.outputs.tag }}"
+          else
+            echo "update=true" >> "$GITHUB_OUTPUT"
+            echo "Update: ${{ steps.pinned.outputs.tag }} -> ${{ steps.upstream.outputs.tag }}"
+          fi
+
+      - name: Install CMake
+        if: steps.compare.outputs.update == 'true'
+        run: brew install cmake
+
+      - name: Build and vendor upstream
+        if: steps.compare.outputs.update == 'true'
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.upstream.outputs.tag }}"
+          DEST="Loffty/Dependencies/MediaRemoteAdapter"
+          WORK="${RUNNER_TEMP}/mediaremote-adapter"
+
+          git clone --depth 1 --branch "$TAG" \
+            https://github.com/ungive/mediaremote-adapter.git "$WORK"
+          COMMIT=$(git -C "$WORK" rev-parse HEAD)
+
+          cmake -S "$WORK" -B "$WORK/build"
+          cmake --build "$WORK/build"
+
+          rm -rf "$DEST/MediaRemoteAdapter.framework"
+          cp -R "$WORK/build/MediaRemoteAdapter.framework" "$DEST/"
+          cp "$WORK/build/MediaRemoteAdapterTestClient" "$DEST/"
+          cp "$WORK/bin/mediaremote-adapter.pl" "$DEST/"
+          cp "$WORK/LICENSE" "$DEST/LICENSE"
+          chmod +x "$DEST/mediaremote-adapter.pl" "$DEST/MediaRemoteAdapterTestClient"
+
+          # NOTICE must stay flush-left (no leading spaces)
+          cat > "$DEST/NOTICE" <<EOF
+          MediaRemote Adapter
+          https://github.com/ungive/mediaremote-adapter
+
+          Pinned version: $TAG
+          Pinned commit: $COMMIT
+
+          Copyright (c) 2025, Jonas van den Berg and contributors
+
+          This directory contains a redistribution of MediaRemote Adapter
+          (Perl script, framework, and optional test client).
+
+          Licensed under the BSD 3-Clause License.
+          See the LICENSE file in this directory for the full license text.
+
+          This software is provided independently of Loffty.
+          Use of the names of the copyright holders does not imply endorsement.
+          EOF
+
+          # Strip accidental indentation from the heredoc body
+          sed -i '' 's/^[[:space:]]*//' "$DEST/NOTICE"
+
+      - name: Create PR
+        if: steps.compare.outputs.update == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: deps/mediaremote-adapter-${{ steps.upstream.outputs.tag }}
+          delete-branch: true
+          title: "deps: bump mediaremote-adapter to ${{ steps.upstream.outputs.tag }}"
+          commit-message: "deps: bump mediaremote-adapter to ${{ steps.upstream.outputs.tag }}"
+          body: |
+            Automated update of bundled [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter).
+
+            - From: `${{ steps.pinned.outputs.tag }}`
+            - To: `${{ steps.upstream.outputs.tag }}`
