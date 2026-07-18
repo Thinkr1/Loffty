@@ -1,4 +1,4 @@
-name: Xcode - Build and Test
+name: Xcode - Build, Analyze, Test
 
 on:
   push:
@@ -75,6 +75,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-deriveddata-
 
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Install xcbeautify
+        run: brew install xcbeautify
+
       - name: Test
         run: |
           set -o pipefail
@@ -97,6 +108,15 @@ jobs:
         with:
           name: xcresult
           path: TestResults/Loffty.xcresult
+          if-no-files-found: ignore
+
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit
+          path: TestResults/**/*.xml
+          if-no-files-found: ignore
 
       - name: Publish test report
         if: always()
@@ -105,3 +125,4 @@ jobs:
           name: LofftyTests
           path: TestResults/**/*.xml
           reporter: java-junit
+          fail-on-error: false
