@@ -54,7 +54,7 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+This project is released under the [BSD-3-Clause license](LICENSE).
 
 ## Acknowledgements
 
