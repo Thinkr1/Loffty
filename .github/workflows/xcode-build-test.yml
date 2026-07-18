@@ -23,6 +23,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      checks: write
+      pull-requests: write
 
     steps:
       - name: Checkout
@@ -65,6 +67,13 @@ jobs:
           xcrun xcresulttool get test-results summary \
             --path TestResults/Loffty.xcresult || true
 
+      - name: Convert xcresult to JUnit
+        if: always()
+        run: |
+          brew install xcresultparser
+          xcresultparser -o junit TestResults/Loffty.xcresult \
+            > TestResults/junit.xml
+
       - name: Upload xcresult
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,3 +81,20 @@ jobs:
           name: xcresult
           path: TestResults/Loffty.xcresult
           if-no-files-found: ignore
+
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit
+          path: TestResults/junit.xml
+          if-no-files-found: ignore
+
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: LofftyTests
+          path: TestResults/junit.xml
+          reporter: java-junit
+          fail-on-error: false
