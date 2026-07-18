@@ -85,6 +85,7 @@ final class AppSettings: ObservableObject {
         "collapsedWaveformsAccent"
     private static let marqueeEnabledKey = "marqueeEnabled"
     private static let showAlbumKey = "showAlbum"
+    private static let automaticUpdatesKey = "automaticUpdates"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -257,6 +258,15 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var automaticUpdates: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                automaticUpdates,
+                forKey: Self.automaticUpdatesKey
+            )
+        }
+    }
+
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
@@ -324,6 +334,9 @@ final class AppSettings: ObservableObject {
         showAlbum =
             UserDefaults.standard.object(forKey: Self.showAlbumKey) as? Bool
             ?? false
+        automaticUpdates =
+            UserDefaults.standard.object(forKey: Self.automaticUpdatesKey)
+            as? Bool ?? false
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
@@ -340,12 +353,36 @@ final class AppSettings: ObservableObject {
 
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var updater = AppUpdater.shared
 
     var body: some View {
         Form {
             Section {
                 Toggle("Hide menu bar icon", isOn: $settings.hideMenuBarItem)
                 Toggle("Extend notch around media", isOn: $settings.extendNotch)
+            }
+
+            Section {
+                Toggle(
+                    "Check for updates automatically",
+                    isOn: $settings.automaticUpdates
+                )
+                HStack {
+                    Button("Check for Updates...") {
+                        updater.checkForUpdatesNow()
+                    }
+                    .disabled(isUpdateBusy)
+                    Spacer()
+                    Text(updateStatusText)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text(
+                    "Uses GitHub Releases (zip, sha-256, ed25519). Because the app is not notarized, macOS may ask you to allow a new build once after an update."
+                )
             }
 
             Section {
@@ -465,6 +502,25 @@ struct SettingsView: View {
                     NSApplication.shared.terminate(nil)
                 }
             }
+        }
+    }
+
+    private var isUpdateBusy: Bool {
+        switch updater.state {
+        case .checking, .downloading, .installing: true
+        default: false
+        }
+    }
+
+    private var updateStatusText: String {
+        switch updater.state {
+        case .idle: "Version \(updater.currentVersion)"
+        case .checking: "Checking..."
+        case .upToDate: "Up to date"
+        case .available(let release): "\(release.version) available"
+        case .downloading: "Downloading..."
+        case .installing: "Installing..."
+        case .failed: "Check failed"
         }
     }
 }

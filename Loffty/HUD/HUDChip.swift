@@ -212,6 +212,6 @@ struct SideHUDLabel: View {
     private func shortBluetoothName(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count <= 12 { return trimmed }
-        return String(trimmed.prefix(11)) + "…"
+        return String(trimmed.prefix(11)) + "..."
     }
 }

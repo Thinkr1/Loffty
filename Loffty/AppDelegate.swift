@@ -46,7 +46,7 @@ final class SettingsOpener {
     func prewarm() {
         ensureWindow()
         guard let window, let content = window.contentView else { return }
-        content.frame = NSRect(x: 0, y: 0, width: 400, height: 520)
+        content.frame = NSRect(x: 0, y: 0, width: 400, height: 580)
         content.layoutSubtreeIfNeeded()
         window.layoutIfNeeded()
     }
@@ -63,14 +63,14 @@ final class SettingsOpener {
     private func ensureWindow() {
         guard window == nil else { return }
         let w = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 580),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         w.title = "Loffty Settings"
         let hosting = NSHostingView(rootView: SettingsView())
-        hosting.frame = NSRect(x: 0, y: 0, width: 400, height: 520)
+        hosting.frame = NSRect(x: 0, y: 0, width: 400, height: 580)
         w.contentView = hosting
         w.isReleasedWhenClosed = false
         w.level = .floating
@@ -181,6 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(800))
             SettingsOpener.shared.prewarm()
+            AppUpdater.shared.checkForUpdatesIfNeeded()
         }
     }
 
@@ -298,6 +299,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ","
         )
         menu.addItem(
+            withTitle: "Check for Updates...",
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        menu.addItem(
             withTitle: "Quit",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
@@ -341,6 +347,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         MainActor.assumeIsolated {
             SettingsOpener.shared.open()
+        }
+    }
+
+    @objc private func checkForUpdates() {
+        MainActor.assumeIsolated {
+            AppUpdater.shared.checkForUpdatesNow()
         }
     }
 
