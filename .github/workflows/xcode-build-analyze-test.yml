@@ -1,0 +1,107 @@
+name: Xcode - Build and Test
+
+on:
+  push:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('**/*.pbxproj', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-
+
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Loffty.xcodeproj \
+            -scheme Loffty \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+  test:
+    name: Test
+    needs: build
+    runs-on: macos-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('**/*.pbxproj', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-
+
+      - name: Test
+        run: |
+          set -o pipefail
+          mkdir -p TestResults
+          xcodebuild test \
+            -project Loffty.xcodeproj \
+            -scheme Loffty \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -resultBundlePath TestResults/Loffty.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | xcbeautify --report junit --report-path TestResults
+
+      - name: Upload xcresult
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult
+          path: TestResults/Loffty.xcresult
+
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: LofftyTests
+          path: TestResults/**/*.xml
+          reporter: java-junit
