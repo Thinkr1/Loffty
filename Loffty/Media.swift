@@ -98,6 +98,10 @@ final class NowPlayingStream {
     private var lastTrackKey: String?
     private var enrichmentTask: Task<Void, Never>?
     private var artworkPollTask: Task<Void, Never>?
+    private var idlePollTask: Task<Void, Never>?
+    private var idleClearTask: Task<Void, Never>?
+    private var idleClearGeneration: UInt = 0
+    private var suppressStaleStream = false
     private let queue = DispatchQueue(label: "Loffty.NowPlayingStream")
     private static let elapsedOnlyKeys: Set<String> = [
         "elapsedTime", "timestamp", "playbackRate", "elapsedTimeNow",
@@ -107,8 +111,14 @@ final class NowPlayingStream {
     private var publishedPlaybackRate: Double = 1
     private var publishedIsPlaying = false
     private static let seekJumpThreshold: Double = 1.35
+    private static let pausedIdlePollInterval: Duration = .seconds(2)
     private let tsFormatter = ISO8601DateFormatter()
     private let pth = "/opt/homebrew/bin/media-control"
+
+    private var hasDisplayableMedia: Bool {
+        !current.title.isEmpty || current.artwork != nil
+    }
+
     func start() {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: pth)
@@ -133,11 +143,27 @@ final class NowPlayingStream {
         }
         try? p.run()
         process = p
+        startIdlePolling()
     }
 
     private func ingest(_ obj: [String: Any]) {
         let isDiff = obj["diff"] as? Bool ?? false
         let info = (obj["payload"] as? [String: Any]) ?? obj
+
+        if isIdlePayload(info, isDiff: isDiff) {
+            if !suppressStaleStream { scheduleIdleClear() }
+            return
+        }
+
+        if suppressStaleStream {
+            if !isIdlePayload(info, isDiff: isDiff) {
+                confirmSuppressionLift(with: obj)
+            }
+            return
+        }
+
+        cancelIdleClear()
+
         var trackChanged = false
 
         if let incomingKey = trackKey(from: info, isDiff: isDiff) {
@@ -183,6 +209,24 @@ final class NowPlayingStream {
         }
         enrichSpotifyArtistsIfNeeded(from: info)
         scheduleArtworkPollingIfNeeded()
+
+        if playStateChanged, !current.isPlaying, hasDisplayableMedia {
+            verifyPausedStillPresent()
+        }
+    }
+
+    private func isIdlePayload(_ info: [String: Any], isDiff: Bool) -> Bool {
+        if isDiff {
+            return info["title"] is NSNull
+        }
+        if let title = info["title"] as? String { return title.isEmpty }
+        if info.isEmpty { return true }
+        if info["artworkData"] != nil || info["bundleIdentifier"] != nil
+            || info["playing"] != nil
+        {
+            return false
+        }
+        return true
     }
 
     private func rememberPublishedPlaybackClock() {
@@ -392,14 +436,16 @@ final class NowPlayingStream {
         if info["artworkData"] is NSNull {
             guard trackChanged else { return }
             current.artwork = nil
-            current.artworkUnavailable = true
-            cancelArtworkPolling()
+            current.artworkUnavailable = false
             return
         }
         guard let b64 = info["artworkData"] as? String, !b64.isEmpty,
             let data = Data(base64Encoded: b64)
         else {
-            if trackChanged { current.artwork = nil }
+            if trackChanged {
+                current.artwork = nil
+                current.artworkUnavailable = false
+            }
             return
         }
         current.artwork = ArtworkProcessor.thumbnailData(from: data)
@@ -493,7 +539,7 @@ final class NowPlayingStream {
                 attempts += 1
                 guard !Task.isCancelled else { return }
 
-                let info = self.fetchNowPlaying()
+                let info = self.fetchNowPlaying(artwork: true)
                 let applied: Bool = await withCheckedContinuation { cont in
                     self.queue.async {
                         guard self.lastTrackKey == trackKeyAtStart,
@@ -535,8 +581,12 @@ final class NowPlayingStream {
         }
     }
 
-    private func fetchNowPlaying(now: Bool = false) -> [String: Any]? {
-        var args = ["get", "--no-artwork"]
+    private func fetchNowPlaying(
+        now: Bool = false,
+        artwork: Bool = false
+    ) -> [String: Any]? {
+        var args = ["get"]
+        if !artwork { args.append("--no-artwork") }
         if now { args.append("--now") }
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: pth)
@@ -560,9 +610,196 @@ final class NowPlayingStream {
         artworkPollTask = nil
     }
 
+    private enum NowPlayingProbe {
+        case active(info: [String: Any])
+        case inactive
+        case unavailable
+    }
+
+    private enum IdlePollMode {
+        case skip
+        case checkStillPresent
+        case liftSuppressionIfActive
+    }
+
+    private func startIdlePolling() {
+        idlePollTask?.cancel()
+        idlePollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.pausedIdlePollInterval)
+                guard let self, !Task.isCancelled else { return }
+
+                let mode = await withCheckedContinuation {
+                    (cont: CheckedContinuation<IdlePollMode, Never>) in
+                    self.queue.async {
+                        if self.suppressStaleStream {
+                            cont.resume(returning: .liftSuppressionIfActive)
+                        } else if self.hasDisplayableMedia,
+                            !self.current.isPlaying
+                        {
+                            cont.resume(returning: .checkStillPresent)
+                        } else {
+                            cont.resume(returning: .skip)
+                        }
+                    }
+                }
+
+                switch mode {
+                case .skip:
+                    continue
+                case .checkStillPresent:
+                    self.verifyPausedStillPresent()
+                case .liftSuppressionIfActive:
+                    switch self.probeNowPlaying() {
+                    case .unavailable, .inactive:
+                        continue
+                    case .active:
+                        guard let info = self.fetchNowPlaying(artwork: true)
+                        else { continue }
+                        self.queue.async {
+                            self.applySuppressionLift(payload: info)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func confirmSuppressionLift(with obj: [String: Any]) {
+        Task { [weak self] in
+            guard let self else { return }
+            let probe = self.probeNowPlaying()
+            self.queue.async {
+                guard self.suppressStaleStream else { return }
+                switch probe {
+                case .unavailable, .inactive:
+                    return
+                case .active:
+                    self.suppressStaleStream = false
+                    self.ingest(obj)
+                }
+            }
+        }
+    }
+
+    private func applySuppressionLift(payload info: [String: Any]) {
+        guard suppressStaleStream else { return }
+        suppressStaleStream = false
+        ingest([
+            "type": "data",
+            "diff": false,
+            "payload": info,
+        ])
+    }
+
+    private func verifyPausedStillPresent() {
+        Task { [weak self] in
+            guard let self else { return }
+            let probe = self.probeNowPlaying()
+            self.queue.async {
+                guard self.hasDisplayableMedia, !self.current.isPlaying else {
+                    return
+                }
+                switch probe {
+                case .unavailable:
+                    return
+                case .inactive:
+                    self.clearNowPlaying(suppressStream: true)
+                case .active(let info):
+                    let key = self.trackKey(from: info, isDiff: false)
+                    if let key, key != self.current.trackKey {
+                        self.ingest([
+                            "type": "data",
+                            "diff": false,
+                            "payload": info,
+                        ])
+                    }
+                }
+            }
+        }
+    }
+
+    private func probeNowPlaying() -> NowPlayingProbe {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: pth)
+        proc.arguments = ["get", "--no-artwork"]
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()
+        do {
+            try proc.run()
+        } catch {
+            return .unavailable
+        }
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else { return .unavailable }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let raw = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            raw == "null"
+        {
+            return .inactive
+        }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) else {
+            return .unavailable
+        }
+        if obj is NSNull { return .inactive }
+        guard let info = obj as? [String: Any] else { return .unavailable }
+        if let title = info["title"] as? String, !title.isEmpty {
+            return .active(info: info)
+        }
+        return .inactive
+    }
+
+    private func scheduleIdleClear() {
+        guard hasDisplayableMedia, !suppressStaleStream else { return }
+        idleClearGeneration &+= 1
+        let generation = idleClearGeneration
+        idleClearTask?.cancel()
+        idleClearTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(800))
+            guard let self, !Task.isCancelled else { return }
+            let probe = self.probeNowPlaying()
+            self.queue.async {
+                guard generation == self.idleClearGeneration else { return }
+                self.idleClearTask = nil
+                guard self.hasDisplayableMedia else { return }
+                if case .inactive = probe {
+                    self.clearNowPlaying(suppressStream: true)
+                }
+            }
+        }
+    }
+
+    private func cancelIdleClear() {
+        idleClearGeneration &+= 1
+        idleClearTask?.cancel()
+        idleClearTask = nil
+    }
+
+    private func clearNowPlaying(suppressStream: Bool) {
+        enrichmentTask?.cancel()
+        cancelArtworkPolling()
+        cancelIdleClear()
+        suppressStaleStream = suppressStream
+        current = NowPlaying()
+        lastTrackKey = nil
+        lastSpotifyInfo = nil
+        lastSpotifyEnrichmentKey = nil
+        lastEnrichedTrackID = nil
+        publishedElapsed = 0
+        publishedElapsedTimestamp = nil
+        publishedIsPlaying = false
+        publishedPlaybackRate = 1
+        onUpdate?(current)
+    }
+
     func stop() {
         enrichmentTask?.cancel()
         cancelArtworkPolling()
+        idlePollTask?.cancel()
+        idlePollTask = nil
+        cancelIdleClear()
         process?.terminate()
     }
 }
