@@ -77,7 +77,7 @@ struct NotchMetrics {
 @MainActor
 final class NotchViewModel: ObservableObject {
     @Published var notch = NotchInfo(
-        screen: NSScreen.main!,
+        screen: NSScreen.main ?? NSScreen.screens[0],
         notchRect: .zero
     )
     @Published var isExpanded = false

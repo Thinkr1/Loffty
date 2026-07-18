@@ -139,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NotchWindow!
     private var airDropCatch: NSPanel!
     private var statusItem: NSStatusItem!
-    private let vm = NotchViewModel()
+    private lazy var vm = NotchViewModel()
     private var lockWidget: LockScreenWidget!
     private var hoverExpanded = false
     private var mouseButtonDown = false
@@ -148,11 +148,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var airDropZone = CGRect.zero
     private var cancellables = Set<AnyCancellable>()
 
+    private static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"]
+            != nil
+    }
+
     func applicationDidFinishLaunching(_: Notification) {
+        guard !Self.isRunningTests else { return }
+
         NSApp.setActivationPolicy(.accessory)
-        let screen =
-            NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen
-            .main!
+        guard
+            let screen =
+                NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 })
+                ?? NSScreen.main
+        else { return }
         let info = detectNotch(on: screen)
         vm.notch = info
         let bandw: CGFloat = 600
