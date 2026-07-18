@@ -169,7 +169,11 @@ final class NotchViewModel: ObservableObject {
         volume.onChange = { [weak self] level, muted in
             Task { @MainActor in
                 guard AppSettings.shared.replaceSystemHUD else { return }
-                self?.showHUD(.volume, lvl: level, muted: muted || level == 0)
+                self?.showHUD(
+                    .volume(symbol: OutputDeviceIcon.currentSymbol()),
+                    lvl: level,
+                    muted: muted || level == 0
+                )
             }
         }
         volume.start()

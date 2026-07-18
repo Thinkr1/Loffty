@@ -16,6 +16,106 @@ private enum NXKeyType: Int32 {
     case mute = 7
 }
 
+enum OutputDeviceIcon {
+    static let speaker = "speaker.wave.2.fill"
+    static let muted = "speaker.slash.fill"
+
+    static func currentSymbol() -> String {
+        let device = defaultOutputDevice()
+        guard device != 0 else { return speaker }
+        let name = deviceName(device)?.lowercased() ?? ""
+        let transport = transportType(device)
+
+        if name.contains("airpods max") { return "airpods.max" }
+        if name.contains("airpods pro") { return "airpods.pro" }
+        if name.contains("airpods") { return "airpods" }
+        if name.contains("beats studio") || name.contains("studiobuds") {
+            return "beats.studiobuds"
+        }
+        if name.contains("powerbeats") { return "beats.powerbeats" }
+        if name.contains("beats fit") || name.contains("beatsx")
+            || name.contains("urbeats") || name.contains("beats ear")
+        {
+            return "beats.earphones"
+        }
+        if name.contains("beats") { return "beats.headphones" }
+        if name.contains("homepod") { return "homepod.fill" }
+        if name.contains("apple tv") || name.contains("appletv") {
+            return "appletv.fill"
+        }
+
+        switch transport {
+        case kAudioDeviceTransportTypeBluetooth,
+            kAudioDeviceTransportTypeBluetoothLE:
+            return "headphones"
+        case kAudioDeviceTransportTypeAirPlay:
+            return "airplayaudio"
+        case kAudioDeviceTransportTypeBuiltIn:
+            return speaker
+        default:
+            if name.contains("headphone") || name.contains("headset") {
+                return "headphones"
+            }
+            return speaker
+        }
+    }
+
+    private static func defaultOutputDevice() -> AudioDeviceID {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var id = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &addr,
+            0,
+            nil,
+            &size,
+            &id
+        )
+        return id
+    }
+
+    private static func deviceName(_ device: AudioDeviceID) -> String? {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioObjectPropertyName,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var name: CFString = "" as CFString
+        var size = UInt32(MemoryLayout<CFString>.size)
+        let status = withUnsafeMutablePointer(to: &name) { ptr in
+            AudioObjectGetPropertyData(device, &addr, 0, nil, &size, ptr)
+        }
+        guard status == noErr else { return nil }
+        return name as String
+    }
+
+    private static func transportType(_ device: AudioDeviceID) -> UInt32 {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var transport: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard
+            AudioObjectGetPropertyData(
+                device,
+                &addr,
+                0,
+                nil,
+                &size,
+                &transport
+            ) == noErr
+        else { return 0 }
+        return transport
+    }
+}
+
 final class SystemVolumeController {
     static let shared = SystemVolumeController()
     private var device = AudioDeviceID(0)
@@ -25,6 +125,7 @@ final class SystemVolumeController {
     }
 
     func readVolume() -> Float {
+        refreshDevice()
         var addr = mainVolumeAddress()
         var vol = Float32(0)
         var size = UInt32(MemoryLayout<Float32>.size)
@@ -36,6 +137,7 @@ final class SystemVolumeController {
     }
 
     func readMuted() -> Bool {
+        refreshDevice()
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyMute,
             mScope: kAudioObjectPropertyScopeOutput,
@@ -61,6 +163,7 @@ final class SystemVolumeController {
     }
 
     private func writeVolume(_ vol: Float) {
+        refreshDevice()
         var value = vol
         var addr = mainVolumeAddress()
         AudioObjectSetPropertyData(
@@ -74,6 +177,7 @@ final class SystemVolumeController {
     }
 
     private func writeMuted(_ muted: Bool) {
+        refreshDevice()
         var value: UInt32 = muted ? 1 : 0
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyMute,
@@ -88,6 +192,10 @@ final class SystemVolumeController {
             UInt32(MemoryLayout<UInt32>.size),
             &value
         )
+    }
+
+    private func refreshDevice() {
+        device = defaultOutputDevice()
     }
 
     private func mainVolumeAddress() -> AudioObjectPropertyAddress {

@@ -8,7 +8,7 @@
 import SwiftUI
 
 enum HUDKind: Equatable {
-    case volume
+    case volume(symbol: String)
     case brightness
     case bluetooth(name: String, connected: Bool)
     case battery(percent: Int, charging: Bool)
@@ -127,8 +127,8 @@ struct HUDChip: View {
 
     private var icon: String {
         switch kind {
-        case .volume:
-            vm.hudMuted ? "speaker.slash.fill" : "speaker.wave.2.fill"
+        case .volume(let symbol):
+            vm.hudMuted ? OutputDeviceIcon.muted : symbol
         case .brightness:
             vm.hudLevel < 0.01 ? "sun.min.fill" : "sun.max.fill"
         case .bluetooth(_, let connected):
