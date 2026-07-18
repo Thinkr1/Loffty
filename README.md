@@ -41,7 +41,6 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
   - Lock screen lyrics
   - Improve lock screen widget
   - Auto-expand on track change?
-  - Auto-update
   - media-control skip Spotify ads
   - Golden Gate update
 - Fixes
