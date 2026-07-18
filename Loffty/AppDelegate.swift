@@ -433,9 +433,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.ignoresMouseEvents = false
             window.acceptsInteraction = true
         } else {
-            window.ignoresMouseEvents = !expanded
-            window.acceptsInteraction = expanded
-            if expanded { window.makeKey() }
+            if expanded {
+                window.acceptsInteraction = true
+                window.ignoresMouseEvents = false
+            } else {
+                if window.isKeyWindow {
+                    window.resignKey()
+                }
+                window.acceptsInteraction = false
+                window.ignoresMouseEvents = true
+            }
         }
         Task { @MainActor in vm.setExpanded(expanded) }
     }
