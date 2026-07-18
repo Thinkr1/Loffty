@@ -14,17 +14,30 @@
 		DB7403823000F63800879107 /* Exceptions for "Loffty" folder in "Loffty" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Dependencies/MediaRemoteAdapter/MediaRemoteAdapter.framework,
+				Dependencies/MediaRemoteAdapter/README.md,
 				Info.plist,
 			);
 			target = DB7403733000F63500879106 /* Loffty */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		DB85A297300B960100931919 /* Exceptions for "Loffty" folder in "Copy Bundle Resources" phase from "Loffty" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = DB7403723000F63500879106 /* Resources */;
+			membershipExceptions = (
+				Dependencies/MediaRemoteAdapter/MediaRemoteAdapter.framework,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DB7403763000F63500879106 /* Loffty */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				DB7403823000F63800879107 /* Exceptions for "Loffty" folder in "Loffty" target */,
+				DB85A297300B960100931919 /* Exceptions for "Loffty" folder in "Copy Bundle Resources" phase from "Loffty" target */,
 			);
 			path = Loffty;
 			sourceTree = "<group>";
@@ -269,6 +282,7 @@
 				DEVELOPMENT_TEAM = BML64T9T2X;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Loffty/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Loffty;
@@ -304,6 +318,7 @@
 				DEVELOPMENT_TEAM = BML64T9T2X;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Loffty/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Loffty;

@@ -5,8 +5,6 @@
 //  Created by Pierre-Louis ML on 10/07/2026.
 //
 
-// INSTALL ungive/media-control (homebrew)
-
 import SwiftUI
 
 private enum SpotifyMetadata {
@@ -113,16 +111,42 @@ final class NowPlayingStream {
     private static let seekJumpThreshold: Double = 1.35
     private static let pausedIdlePollInterval: Duration = .seconds(2)
     private let tsFormatter = ISO8601DateFormatter()
-    private let pth = "/opt/homebrew/bin/media-control"
+    
+    private struct AdapterLaunch {
+        let executable: URL
+        let baseArguments: [String]
+    }
+    
+    private func adapterLaunch() -> AdapterLaunch? {
+        let bundle = Bundle.main
+        if let script = bundle.url(forResource: "mediaremote-adapter", withExtension: "pl"),
+           let framework = bundle.url(
+            forResource: "MediaRemoteAdapter",
+            withExtension: "framework"
+           )
+        {
+            return AdapterLaunch(
+                executable: URL(fileURLWithPath: "/usr/bin/perl"),
+                baseArguments: [script.path, framework.path]
+            )
+        }
+        
+        let brew = URL(fileURLWithPath: "/opt/homebrew/bin/media-control") //fallback if bundle resources missing
+        if FileManager.default.isExecutableFile(atPath: brew.path) {
+            return AdapterLaunch(executable: brew, baseArguments: [])
+        }
+        return nil
+    }
 
     private var hasDisplayableMedia: Bool {
         !current.title.isEmpty || current.artwork != nil
     }
 
     func start() {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: pth)
-        p.arguments = ["stream"]
+        guard let launch=adapterLaunch() else {return}
+        let p=Process()
+        p.executableURL = launch.executable
+        p.arguments=launch.baseArguments+["stream"]
         let pipe = Pipe()
         p.standardOutput = pipe
         pipe.fileHandleForReading.readabilityHandler = { [weak self] h in
@@ -213,6 +237,31 @@ final class NowPlayingStream {
         if playStateChanged, !current.isPlaying, hasDisplayableMedia {
             verifyPausedStillPresent()
         }
+    }
+    
+    private func fetchNowPlaying(
+        now: Bool = false,
+        artwork: Bool = false
+    ) -> [String: Any]? {
+        guard let launch=adapterLaunch() else {return nil}
+        var args=launch.baseArguments+["get"]
+        if !artwork {args.append("--no-artwork")}
+        if now {args.append("--now")}
+        let proc=Process()
+        proc.executableURL=launch.executable
+        proc.arguments=args
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()
+        try? proc.run()
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let obj = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+        if obj is NSNull { return nil }
+        return obj as? [String: Any]
     }
 
     private func isIdlePayload(_ info: [String: Any], isDiff: Bool) -> Bool {
@@ -581,30 +630,6 @@ final class NowPlayingStream {
         }
     }
 
-    private func fetchNowPlaying(
-        now: Bool = false,
-        artwork: Bool = false
-    ) -> [String: Any]? {
-        var args = ["get"]
-        if !artwork { args.append("--no-artwork") }
-        if now { args.append("--now") }
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: pth)
-        proc.arguments = args
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = Pipe()
-        try? proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let obj = try? JSONSerialization.jsonObject(with: data) else {
-            return nil
-        }
-        if obj is NSNull { return nil }
-        return obj as? [String: Any]
-    }
-
     private func cancelArtworkPolling() {
         artworkPollTask?.cancel()
         artworkPollTask = nil
@@ -720,9 +745,10 @@ final class NowPlayingStream {
     }
 
     private func probeNowPlaying() -> NowPlayingProbe {
+        guard let launch = adapterLaunch() else { return .unavailable }
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: pth)
-        proc.arguments = ["get", "--no-artwork"]
+        proc.executableURL = launch.executable
+        proc.arguments = launch.baseArguments + ["get", "--no-artwork"]
         let pipe = Pipe()
         proc.standardOutput = pipe
         proc.standardError = Pipe()

@@ -1,0 +1,16 @@
+MediaRemote Adapter
+https://github.com/ungive/mediaremote-adapter
+
+Pinned version: v0.7.6
+Pinned commit: 3ac3d4bdf862c7b5399b4fba4df5689f5c38609a
+
+Copyright (c) 2025, Jonas van den Berg and contributors
+
+This directory contains a redistribution of MediaRemote Adapter
+(Perl script, framework, and optional test client).
+
+Licensed under the BSD 3-Clause License.
+See the LICENSE file in this directory for the full license text.
+
+This software is provided independently of Loffty.
+Use of the names of the copyright holders does not imply endorsement.
