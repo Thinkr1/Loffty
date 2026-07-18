@@ -6,8 +6,6 @@
 
 ## Installation
 
-NB: Install `ungive/media-control` (homebrew) before running (I'll bundle it later).
-
 Download the app in **.zip** or **.dmg** format from the [latest release page »](https://github.com/Thinkr1/Loffty/releases/latest)
 
 > **Note**: The app is not notarized (yet) due to the lack of a paid Apple Developer account. macOS will show an alert when opening the app for the first time saying it cannot be opened directly. Here are two options to open it:
@@ -60,4 +58,4 @@ This project is released under the [BSD-3-Clause license](LICENSE).
 
 Special thanks to [Alcove](https://tryalcove.com/) for the original inspiration.
 
-Thanks to ungive for his great [media-control](https://github.com/ungive/media-control) tool.
+Includes [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) by Jonas van den Berg (ungive) (thanks!), bundled under [Loffty/Dependencies/MediaRemoteAdapter/](https://github.com/Thinkr1/Loffty/tree/main/Loffty/Dependencies/MediaRemoteAdapter) (BSD-3-Clause). See that folder’s `LICENSE` and `NOTICE`.
