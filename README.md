@@ -44,8 +44,6 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
   - media-control skip Spotify ads
   - Golden Gate update
 - Fixes
-  - Prevent stealing focus when expanding
-  - Appropriate bluetooth (AirPods, etc) sf symbol in volume HUD
   - Remove system focus HUD
   - Album match geometry crosses below physical notch thereby making it visible
 
