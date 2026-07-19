@@ -39,6 +39,7 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
   - Add more controls (shuffle, repeat, etc)
   - Actual soundwaves
   - Lock screen lyrics
+  - Login item
   - Improve lock screen widget
   - Auto-expand on track change?
   - media-control skip Spotify ads
