@@ -40,6 +40,7 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
   - Actual soundwaves
   - Lock screen lyrics
   - Login item
+  - AirPlay
   - Improve lock screen widget
   - Auto-expand on track change?
   - media-control skip Spotify ads
