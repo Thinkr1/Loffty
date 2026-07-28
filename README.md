@@ -41,7 +41,10 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
   - Lock screen lyrics
   - Login item
   - AirPlay
-  - Improve lock screen widget
+  - Timer, live activities
+  - WhatsApp, Messages, Discord (+more) notifications (+reply, show more)
+  - Improve lock screen widget (+full screen artwork, show music video option)
+  - Screensaver music video
   - Auto-expand on track change?
   - media-control skip Spotify ads
   - Golden Gate update
