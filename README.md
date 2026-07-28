@@ -48,6 +48,7 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
 - Fixes
   - Remove system focus HUD
   - Album match geometry crosses below physical notch thereby making it visible
+  - Apple Music occasional crashes
 
 ## License
 
