@@ -1,7 +1,7 @@
 <div align="center"
-  
-# Loffty
 
+
+# Loffty
 ### A Dynamic Island for your Mac.
 
 </div>
