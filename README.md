@@ -4,9 +4,9 @@
 
 ### A Dynamic Island for your Mac.
 
-</div>
-
 Loffty turns the notch into a live, interactive Dynamic Island for music, system controls, AirDrop, and more.
+
+</div>
 
 <p align="center">
   <img width="1920" alt="Expanded Loffty" src="https://github.com/user-attachments/assets/adadd8c8-2809-4b4b-8f3b-9991cae38cf4" />
