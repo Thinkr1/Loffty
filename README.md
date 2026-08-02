@@ -8,8 +8,6 @@ Loffty turns the notch into a live, interactive Dynamic Island for music, system
   <img width="1920" alt="Expanded Loffty" src="https://github.com/user-attachments/assets/adadd8c8-2809-4b4b-8f3b-9991cae38cf4" />
 </p>
 
-Loffty brings together media controls, system HUDs, AirDrop, and Lock Screen widgets in one fluid interface around your notch.
-
 <p align="center">
   <img width="1920" alt="Lockscreen Loffty" src="https://github.com/user-attachments/assets/6d920f5e-bc1e-4cb0-ba1f-92dca3f41c34" />
 </p>
@@ -49,7 +47,7 @@ Then open Loffty normally.
 
 ## Beta testing
 
-Loffty is currently in its early stages of development. If you have a notched MacBook, try it out and let me know what you think.
+Loffty is currently in its early stages of development. If you have a notched MacBook, feel free try it out and let me know what you think.
 
 Found a bug, have a suggestion, or want to see something added? [Open an issue](../../issues) or get in touch directly.
 
