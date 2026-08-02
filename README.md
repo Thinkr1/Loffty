@@ -1,6 +1,6 @@
 <div align="center">
 
-![banner](https://ghrb.waren.build/banner?header=Loffty&subheader=Your+notch%2C+truly&bg=E7F9FF-90C4E8&color=0060A0&headerfont=Manrope&subheaderfont=Kinewave&support=false)
+![banner](https://ghrb.waren.build/banner?header=Loffty&subheader=Your+notch%2C+truly&bg=00000000&color=FFFFFF&headerfont=Manrope&subheaderfont=Kinewave&support=false)
 
 ### A Dynamic Island for your Mac.
 
