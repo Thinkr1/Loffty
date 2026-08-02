@@ -4,7 +4,7 @@
 
 ### A Dynamic Island for your Mac.
 
-Loffty turns the notch into a live, interactive Dynamic Island for music, system controls, AirDrop, and more.
+Loffty turns your notch into a live, interactive Dynamic Island for music, system controls, AirDrop, and more.
 
 </div>
 
@@ -20,7 +20,7 @@ Loffty turns the notch into a live, interactive Dynamic Island for music, system
 
 Download the latest `.zip` or `.dmg` from the [latest release](../../releases/latest).
 
-> **Beta:** Loffty is still in development.  Feedback is very welcome.
+> **Beta:** Loffty is still in development.  Feedback is warmly welcome.
 
 ### First launch
 
