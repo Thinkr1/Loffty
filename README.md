@@ -2,7 +2,12 @@
 
 ![banner](https://ghrb.waren.build/banner?header=Loffty&subheader=Your+notch%2C+truly&bg=00000000&color=FFFFFF&headerfont=Manrope&subheaderfont=Kinewave&support=false)
 
-### A Dynamic Island for your Mac.
+[![Tests](https://github.com/Thinkr1/Loffty/actions/workflows/xcode-build-test.yml/badge.svg)](https://github.com/Thinkr1/Loffty/actions/workflows/xcode-build-test.yml)
+[![Latest Version](https://img.shields.io/github/v/release/Thinkr1/Loffty?label=latest%20version)](https://github.com/Thinkr1/Loffty/releases/latest)
+![macOS](https://img.shields.io/badge/macOS-26%2B-black?logo=apple)
+![Swift](https://img.shields.io/badge/Swift-6-orange?logo=swift)
+
+## A Dynamic Island for your Mac.
 
 Loffty turns your notch into a live, interactive Dynamic Island for music, system controls, AirDrop, and more.
 
