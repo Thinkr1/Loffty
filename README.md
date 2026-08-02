@@ -1,38 +1,61 @@
 # Loffty
 
-<img width="1920" height="487" alt="Expanded Loffty" src="https://github.com/user-attachments/assets/adadd8c8-2809-4b4b-8f3b-9991cae38cf4" />
+### *A Dynamic Island for your Mac.*
 
-<img width="1920" height="1245" alt="Lockscreen Loffty" src="https://github.com/user-attachments/assets/6d920f5e-bc1e-4cb0-ba1f-92dca3f41c34" />
+Loffty turns the notch into a live, interactive Dynamic Island for music, system controls, AirDrop, and more.
+
+<p align="center">
+  <img width="1920" alt="Expanded Loffty" src="https://github.com/user-attachments/assets/adadd8c8-2809-4b4b-8f3b-9991cae38cf4" />
+</p>
+
+Loffty brings together media controls, system HUDs, AirDrop, and Lock Screen widgets in one fluid interface around your notch.
+
+<p align="center">
+  <img width="1920" alt="Lockscreen Loffty" src="https://github.com/user-attachments/assets/6d920f5e-bc1e-4cb0-ba1f-92dca3f41c34" />
+</p>
 
 ## Installation
 
-Download the app in **.zip** or **.dmg** format from the [latest release page »](https://github.com/Thinkr1/Loffty/releases/latest)
+Download the latest `.zip` or `.dmg` from the [latest release](../../releases/latest).
 
-> **Note**: The app is not notarized (yet) due to the lack of a paid Apple Developer account. macOS will show an alert when opening the app for the first time saying it cannot be opened directly. Here are two options to open it:
+> **Beta:** Loffty is still in development.  Feedback is very welcome.
 
-### Option A – Command line
+### First launch
+
+Loffty is currently not notarized because it is being developed without a paid Apple Developer account.
+
+As a result, macOS may prevent the app from opening the first time.
+
+#### Option A — Open Anyway
+
+1. Try to open Loffty normally.
+2. Open **System Settings → Privacy & Security**.
+3. Scroll down to the **Security** section.
+4. Click **Open Anyway** next to Loffty.
+
+<p align="center">
+  <img width="455" alt="macOS security warning" src="https://github.com/user-attachments/assets/0e854a39-215e-4eb3-9c08-4fca3cb33e9a" />
+</p>
+
+#### Option B — Terminal
+
+If **Open Anyway** does not appear:
 
 ```sh
 sudo xattr -rd com.apple.quarantine /path/to/Loffty.app
 ```
 
-Then open it normally.
+Then open Loffty normally.
 
-### Option B – macOS Security Settings
+## Beta testing
 
-1. Go to **System Settings > Privacy & Security**
-2. Scroll down to the **Security** section
-3. Click **"Open Anyway"** for `Loffty.app`
+Loffty is currently in its early stages of development. If you have a notched MacBook, try it out and let me know what you think.
 
-<p align="center">
-  <img width="455" height="177" alt="Screenshot 2026-07-14 at 12 25 21 AM" src="https://github.com/user-attachments/assets/0e854a39-215e-4eb3-9c08-4fca3cb33e9a" />
-</p>
+Found a bug, have a suggestion, or want to see something added? [Open an issue](../../issues) or get in touch directly.
 
-## Contributions
+## Roadmap
 
-Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a cool idea—[open an issue](https://github.com/Thinkr1/Loffty/issues) or submit a PR.
-
-## TODOs
+Some things I'm currently working on:
 
 - Features/improvements
   - Add queue?
@@ -53,12 +76,18 @@ Pull requests are welcome! Whether it's a bug fix, feature suggestion, or just a
   - Album match geometry crosses below physical notch thereby making it visible
   - Apple Music occasional crashes
 
+## Contributing
+
+Contributions are welcome. Feel free to [open an issue](../../issues) with a bug, feature request, or idea, or submit a pull request.
+
 ## License
 
-This project is released under the [BSD-3-Clause license](LICENSE).
+Loffty is released under the [BSD-3-Clause license](LICENSE).
 
 ## Acknowledgements
 
-Special thanks to [Alcove](https://tryalcove.com/) for the original inspiration.
+Special thanks to Alcove for the original inspiration.
 
-Includes [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) by Jonas van den Berg (ungive) (thanks!), bundled under [Loffty/Dependencies/MediaRemoteAdapter/](https://github.com/Thinkr1/Loffty/tree/main/Loffty/Dependencies/MediaRemoteAdapter) (BSD-3-Clause). See that folder’s `LICENSE` and `NOTICE`.
+Loffty also includes [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) by Jonas van den Berg (ungive), bundled under `Loffty/Dependencies/MediaRemoteAdapter/`.
+
+It is distributed under the BSD-3-Clause license. See its `LICENSE` and `NOTICE` files for details.
