@@ -1,20 +1,27 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: ''
+about: Suggest an idea or improvement for Loffty
+title: "[Feature] "
+labels: enhancement
 assignees: ''
-
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## What would you like to see?
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+A clear and concise description of the feature or improvement you'd like.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## What problem would this solve?
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+Describe the problem, limitation, or use case behind your suggestion.
+
+## What would you like to happen?
+
+Describe how you imagine the feature working.
+
+## Alternatives you've considered
+
+Describe any alternative solutions, workarounds, or existing features you've considered.
+
+## Additional context
+
+Add any other context, screenshots, mockups, or examples that could help explain the idea.
