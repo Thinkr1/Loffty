@@ -3,7 +3,7 @@ blank_issues_enabled: true
 contact_links:
   - name: Beta feedback & discussion
     url: https://github.com/Thinkr1/Loffty/discussions
-    about: Share your experience, ideas, questions, and general feedback with the Loffty community.
+    about: Share your experience, ideas, questions, and general feedback with the Loffty community by starting a discussion.
 
   - name: Latest release
     url: https://github.com/Thinkr1/Loffty/releases/latest
