@@ -56,9 +56,9 @@ Then open Loffty normally.
 
 ## Beta testing
 
-Loffty is currently in its early stages of development. If you have a notched MacBook, feel free try it out and let me know what you think.
+Loffty is currently in its early stages of development. If you have a notched MacBook, feel free to try it out and let me know what you think.
 
-Found a bug, have a suggestion, or want to see something added? [Open an issue](../../issues) or get in touch directly.
+Found a bug, have a suggestion, or want to see something added? [Open an issue](../../issues) or join the [Discussions](../../discussions).
 
 ## Roadmap
 
