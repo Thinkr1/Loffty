@@ -43,9 +43,9 @@ struct NotchMetricsTests {
 
     @Test func expandedPlaying() {
         let m = base(expanded: true, showAlbum: true)
-        #expect(m.height == 180)
-        #expect(m.width == 380)
-        #expect(m.topRadius == 20)
+        #expect(m.height == 206)
+        #expect(m.width == 392)
+        #expect(m.topRadius == 22)
     }
 
     @Test func expandedIdle() {
@@ -83,7 +83,7 @@ struct NotchMetricsTests {
             extended.width == 200 + 2 * extended.side + 2 * extended.topRadius
         )
         let expanded = base(expanded: true, showAlbum: false)
-        #expect(expanded.height == 170)
+        #expect(expanded.height == 196)
         #expect(expanded.bottomRadius == 30)
     }
 

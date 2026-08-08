@@ -26,7 +26,7 @@ struct NotchMetrics {
     var topRadius: CGFloat {
         if airDrop { return 16 }
         if expanded, idle { return 10 }
-        if expanded { return 20 }
+        if expanded { return 22 }
         if hudActive { return 16 }
         return 10
     }
@@ -40,7 +40,7 @@ struct NotchMetrics {
     var height: CGFloat {
         if airDrop { return airDropTransfer ? 128 : 112 }
         if expanded, idle { return notchH }
-        if expanded { return showAlbum ? 180 : 170 }
+        if expanded { return showAlbum ? 206 : 196 }
         if hudActive { return notchH + hudExtra }
         return notchH
     }
@@ -62,7 +62,7 @@ struct NotchMetrics {
         if expanded, idle {
             return notchW + 2 * side + 2 * topRadius
         }
-        if expanded { return 380 }
+        if expanded { return 392 }
         if hudActive { return notchW + 2 * topRadius + 36 }
         if sideAnnouncement {
             return notchW + 2 * side + 2 * topRadius + 10
@@ -777,6 +777,16 @@ struct NotchRootView: View {
                         topRadius: m.topRadius,
                         bottomRadius: m.bottomRadius
                     )
+                )
+                .shadow(
+                    color: .black.opacity(m.expanded ? 0.5 : 0),
+                    radius: m.expanded ? 30 : 0,
+                    y: m.expanded ? 16 : 0
+                )
+                .shadow(
+                    color: .black.opacity(m.expanded ? 0.28 : 0),
+                    radius: m.expanded ? 8 : 0,
+                    y: m.expanded ? 3 : 0
                 )
 
                 if hudBelowExpanded, let kind = vm.hudDisplay {

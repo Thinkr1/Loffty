@@ -31,7 +31,8 @@ struct ExpandedContent: View {
                                     SettingsOpener.shared.open()
                                 }
                             }
-                            .padding(.trailing, 26)
+                            .padding(.top, 16)
+                            .padding(.trailing, 24)
                         }
                     }
             }
@@ -75,14 +76,14 @@ struct ExpandedContent: View {
     }
 
     private var activeContent: some View {
-        let artSize: CGFloat = 46
+        let artSize: CGFloat = 48
         let titleBlockHeight: CGFloat =
             18 + (vm.nowPlaying.artist.isEmpty ? 0 : 2 + 16)
         let textTopInset =
             showingAlbum ? max(0, (artSize - titleBlockHeight) / 2) : 0
 
-        return VStack(spacing: 12) {
-            HStack(alignment: showingAlbum ? .top : .center, spacing: 14) {
+        return VStack(spacing: 16) {
+            HStack(alignment: showingAlbum ? .top : .center, spacing: 16) {
                 if vm.nowPlaying.artwork != nil
                     || !vm.nowPlaying.artworkUnavailable
                 {
@@ -90,7 +91,7 @@ struct ExpandedContent: View {
                         artwork: vm.nowPlaying.artwork,
                         unavailable: vm.nowPlaying.artworkUnavailable,
                         size: artSize,
-                        cornerRadius: 12,
+                        cornerRadius: 14,
                         trackKey: vm.nowPlaying.trackKey,
                         namespace: ns,
                         bundleIdentifier: vm.nowPlaying.bundleIdentifier,
@@ -140,16 +141,17 @@ struct ExpandedContent: View {
                     barCount: 5,
                     maxHeight: 16
                 )
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.white.opacity(0.82))
                 .padding(.top, showingAlbum ? textTopInset + 1 : 0)
             }
             MediaProgressRow(accent: vm.accentColor)
-                .frame(maxWidth: 310).padding(.bottom, -5)
-            MediaTransportControls().opacity(0.85)
+                .frame(maxWidth: .infinity)
+            MediaTransportControls()
+                .padding(.top, 2)
         }
-        .padding(.horizontal, 42)
-        .padding(.top, m.notchH + 1)
-        .padding(.bottom, 16)
+        .padding(.horizontal, 44)
+        .padding(.top, m.notchH + 8)
+        .padding(.bottom, 24)
     }
 }
 

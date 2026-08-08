@@ -396,8 +396,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             width: notch.width + pad * 2,
             height: screen.frame.maxY - (notch.minY - pad)
         )
-        let panelW: CGFloat = 390
-        let panelH: CGFloat = 182
+        let panelW: CGFloat = 392
+        let panelH: CGFloat = 206
         let margin: CGFloat = 36
         expandedZone = CGRect(
             x: notch.midX - panelW / 2 - margin,

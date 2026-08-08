@@ -28,22 +28,39 @@ struct WaveBars: View {
     }
 
     var body: some View {
-        TimelineView(
-            .animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)
-        ) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            HStack(alignment: .center, spacing: 2.5) {
-                ForEach(0..<barCount, id: \.self) { i in
-                    Capsule()
-                        .fill(barColor)
-                        .blendMode(barBlend)
-                        .frame(width: 2.5, height: height(i, t))
+        ZStack {
+            TimelineView(
+                .animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)
+            ) { timeline in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                HStack(alignment: .center, spacing: 2.5) {
+                    ForEach(0..<barCount, id: \.self) { i in
+                        Capsule()
+                            .fill(barColor)
+                            .blendMode(barBlend)
+                            .frame(width: 2.5, height: height(i, t))
+                    }
                 }
+                .frame(height: maxHeight)
+                .scaleEffect(x: 1, y: 1 + burst * 0.45, anchor: .center)
             }
-            .frame(height: maxHeight)
-            .scaleEffect(x: 1, y: 1 + burst * 0.45, anchor: .center)
-            .animation(.easeOut(duration: 0.12), value: isPlaying)
+            .opacity(isPlaying ? 1 : 0)
+            .scaleEffect(isPlaying ? 1 : 0.5)
+            .blur(radius: isPlaying ? 0 : 3)
+
+            Image(systemName: "pause.fill")
+                .font(.system(size: maxHeight * 0.8, weight: .semibold))
+                .foregroundStyle(barColor)
+                .blendMode(barBlend)
+                .opacity(isPlaying ? 0 : 1)
+                .scaleEffect(isPlaying ? 0.5 : 1)
+                .blur(radius: isPlaying ? 3 : 0)
         }
+        .frame(height: maxHeight)
+        .animation(
+            .spring(response: 0.34, dampingFraction: 0.8),
+            value: isPlaying
+        )
         .onChange(of: vm.trackChangeToken) { _, token in
             guard token > 0, !vm.isRapidSkipping else { return }
             withAnimation(.spring(response: 0.32, dampingFraction: 0.62)) {

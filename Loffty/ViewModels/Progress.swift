@@ -273,39 +273,39 @@ struct MediaTransportControls: View {
     }
 
     private func transportControls(behindLive: Bool) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             ControlButton(
                 systemName: "gobackward.10",
                 size: 18,
-                tint: .white.opacity(0.8),
+                tint: .white.opacity(0.5),
                 enabled: !vm.nowPlaying.isLive
             ) { vm.seek(by: -10) }
-            ControlButton(
-                systemName: "backward.fill",
-                size: 20,
-                tint: .white
-            ) { vm.prev() }
-            ControlButton(
-                systemName: vm.nowPlaying.isPlaying
-                    ? "pause.fill" : "play.fill",
-                size: 24,
-                tint: .white
-            ) { vm.playPause() }
-            ControlButton(
-                systemName: "forward.fill",
-                size: 20,
-                tint: .white
-            ) { vm.next() }
-            if behindLive {
-                LiveEdgeButton { vm.seekToLive() }
-            } else {
+            Spacer(minLength: 0)
+            HStack(spacing: 18) {
                 ControlButton(
-                    systemName: "goforward.10",
-                    size: 18,
-                    tint: .white.opacity(0.8),
-                    enabled: !vm.nowPlaying.isLive
-                ) { vm.seek(by: 10) }
+                    systemName: "backward.fill",
+                    size: 20,
+                    tint: .white
+                ) { vm.prev() }
+                ControlButton(
+                    systemName: vm.nowPlaying.isPlaying
+                        ? "pause.fill" : "play.fill",
+                    size: 26,
+                    tint: .white
+                ) { vm.playPause() }
+                ControlButton(
+                    systemName: "forward.fill",
+                    size: 20,
+                    tint: .white
+                ) { vm.next() }
             }
+            Spacer(minLength: 0)
+            ControlButton(
+                systemName: "goforward.10",
+                size: 18,
+                tint: .white.opacity(0.5),
+                enabled: !vm.nowPlaying.isLive
+            ) { vm.seek(by: 10) }
         }
         .frame(maxWidth: .infinity)
         .animation(.smooth(duration: 0.2), value: behindLive)
