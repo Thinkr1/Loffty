@@ -7,7 +7,33 @@
 
 import Combine
 import Network
+import ServiceManagement
 import SwiftUI
+
+@MainActor
+private enum LaunchAtLogin {
+    static var isEnabled: Bool {
+        switch SMAppService.mainApp.status {
+        case .enabled, .requiresApproval: true
+        default: false
+        }
+    }
+
+    static var requiresApproval: Bool {
+        SMAppService.mainApp.status == .requiresApproval
+    }
+
+    static func setEnabled(_ enabled: Bool) throws {
+        let service = SMAppService.mainApp
+        if enabled {
+            guard service.status != .enabled else { return }
+            try service.register()
+        } else {
+            guard service.status != .notRegistered else { return }
+            try service.unregister()
+        }
+    }
+}
 
 enum ArtistEnrichmentMode: String, CaseIterable, Identifiable {
     case never
@@ -287,7 +313,15 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var launchAtLogin: Bool {
+        didSet { applyLaunchAtLogin() }
+    }
+
+    @Published private(set) var launchAtLoginNeedsApproval = false
+
     @Published private(set) var widgetPositionResetToken: UInt = 0
+
+    private var isApplyingLaunchAtLogin = false
 
     var anyHUDEnabled: Bool {
         Self.anyHUDEnabled(
@@ -387,10 +421,34 @@ final class AppSettings: ObservableObject {
         } else {
             artistEnrichment = .always
         }
+        launchAtLogin = LaunchAtLogin.isEnabled
+        launchAtLoginNeedsApproval = LaunchAtLogin.requiresApproval
     }
 
     func resetWidgetPosition() {
         widgetPositionResetToken &+= 1
+    }
+
+    func refreshLaunchAtLogin() {
+        let enabled = LaunchAtLogin.isEnabled
+        let needsApproval = LaunchAtLogin.requiresApproval
+        launchAtLoginNeedsApproval = needsApproval
+        guard enabled != launchAtLogin else { return }
+        isApplyingLaunchAtLogin = true
+        launchAtLogin = enabled
+        isApplyingLaunchAtLogin = false
+    }
+
+    private func applyLaunchAtLogin() {
+        guard !isApplyingLaunchAtLogin else { return }
+        do {
+            try LaunchAtLogin.setEnabled(launchAtLogin)
+        } catch {
+            isApplyingLaunchAtLogin = true
+            launchAtLogin = LaunchAtLogin.isEnabled
+            isApplyingLaunchAtLogin = false
+        }
+        launchAtLoginNeedsApproval = LaunchAtLogin.requiresApproval
     }
 }
 
@@ -401,9 +459,18 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
+                Toggle("Launch at login", isOn: $settings.launchAtLogin)
+                if settings.launchAtLoginNeedsApproval {
+                    Text(
+                        "Allow Loffty in System Settings > General > Login Items."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 Toggle("Hide menu bar icon", isOn: $settings.hideMenuBarItem)
                 Toggle("Extend notch around media", isOn: $settings.extendNotch)
             }
+            .onAppear { settings.refreshLaunchAtLogin() }
 
             Section {
                 Toggle(
