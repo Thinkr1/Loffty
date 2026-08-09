@@ -644,171 +644,14 @@ struct NotchRootView: View {
     }
 
     var body: some View {
-        GlassEffectContainer(spacing: 0) {
-            VStack(spacing: hudBelowExpanded ? 6 : 0) {
-                ZStack(alignment: .top) {
-                    NotchShape(
-                        topRadius: m.topRadius,
-                        bottomRadius: m.bottomRadius
-                    )
-                    .fill(.black)
-                    .frame(width: m.width, height: m.height)
-                    .overlay {
-                        if airDropActive {
-                            NotchShape(
-                                topRadius: m.topRadius,
-                                bottomRadius: m.bottomRadius
-                            )
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        Color.white.opacity(
-                                            0.05 + 0.03 * airDropPulse
-                                        ),
-                                        .clear,
-                                    ],
-                                    center: UnitPoint(x: 0.5, y: 0.12),
-                                    startRadius: 1,
-                                    endRadius: m.height * 0.9
-                                )
-                            )
-                        }
-                    }
-                    .overlay {
-                        NotchShape(
-                            topRadius: m.topRadius,
-                            bottomRadius: m.bottomRadius
-                        )
-                        .stroke(
-                            airDropActive
-                                ? Color.white.opacity(
-                                    0.08 + 0.05 * airDropPulse
-                                )
-                                : vm.accentColor.opacity(0.55 * trackPulse),
-                            lineWidth: airDropActive ? 1 : 1.5
-                        )
-                        .blur(
-                            radius: airDropActive
-                                ? 0.8 : trackPulse * 1.5
-                        )
-                        .scaleEffect(
-                            1
-                                + (airDropActive
-                                    ? airDropPulse * 0.004 : trackPulse * 0.018)
-                        )
-                    }
-                    .background {
-                        NotchShape(
-                            topRadius: m.topRadius,
-                            bottomRadius: m.bottomRadius
-                        )
-                        .fill(
-                            airDropActive
-                                ? Color.white.opacity(0.045)
-                                : vm.accentColor.opacity(0.22 * trackPulse)
-                        )
-                        .blur(radius: airDropActive ? 18 : 28)
-                        .scaleEffect(x: 1.06, y: 1.1)
-                        .opacity(
-                            airDropActive
-                                ? 0.55
-                                : ((vm.isExpanded && !vm.isIdle || hudVisible
-                                    ? 0.55 : 0)
-                                    + trackPulse * 0.35)
-                        )
-                        .frame(width: m.width, height: m.height)
-                    }
-                    .background {
-                        NotchShape(
-                            topRadius: m.topRadius,
-                            bottomRadius: m.bottomRadius
-                        )
-                        .fill(Color.black.opacity(0.95))
-                        .blur(radius: 28)
-                        .scaleEffect(x: 1.12, y: 1.18)
-                        .opacity(
-                            airDropActive || vm.isExpanded && !vm.isIdle
-                                || hudVisible ? 0.55 : 0
-                        )
-                        .frame(width: m.width, height: m.height)
-                    }
-
-                    if airDropActive {
-                        AirDropNotchContent(airDrop: airDrop)
-                            .frame(
-                                maxWidth: .infinity,
-                                maxHeight: .infinity,
-                                alignment: .top
-                            )
-                    } else if vm.isExpanded {
-                        ExpandedContent(ns: ns, m: m)
-                            .frame(
-                                maxWidth: .infinity,
-                                maxHeight: .infinity,
-                                alignment: .top
-                            )
-                    } else {
-                        ZStack(alignment: .top) {
-                            CollapsedContent(ns: ns, m: m)
-                                .opacity(hudIntegrated ? 0 : 1)
-
-                            if hudIntegrated, let kind = vm.hudDisplay {
-                                VStack(spacing: 0) {
-                                    Color.clear.frame(height: m.notchH)
-                                    HUDChip(kind: kind)
-                                        .padding(.horizontal, 40)
-                                        .frame(
-                                            height: m.hudExtra,
-                                            alignment: .center
-                                        )
-                                }
-                                .frame(
-                                    width: m.width,
-                                    height: m.height,
-                                    alignment: .top
-                                )
-                            }
-                        }
-                    }
+        Group {
+            if #available(macOS 26.0, *) {
+                GlassEffectContainer(spacing: 0) {
+                    rootContent
                 }
-                .frame(width: m.width, height: m.height, alignment: .top)
-                .clipShape(
-                    NotchShape(
-                        topRadius: m.topRadius,
-                        bottomRadius: m.bottomRadius
-                    )
-                )
-                .shadow(
-                    color: .black.opacity(m.expanded ? 0.5 : 0),
-                    radius: m.expanded ? 30 : 0,
-                    y: m.expanded ? 16 : 0
-                )
-                .shadow(
-                    color: .black.opacity(m.expanded ? 0.28 : 0),
-                    radius: m.expanded ? 8 : 0,
-                    y: m.expanded ? 3 : 0
-                )
-
-                if hudBelowExpanded, let kind = vm.hudDisplay {
-                    ZStack {
-                        RoundedRectangle(
-                            cornerRadius: hudTailMetrics.bottomRadius,
-                            style: .continuous
-                        )
-                        .fill(.black)
-                        HUDChip(kind: kind)
-                            .padding(.horizontal, 20)
-                            .frame(height: m.hudExtra, alignment: .center)
-                    }
-                    .frame(width: hudTailMetrics.width, height: m.hudExtra)
-                    .transition(
-                        .opacity.combined(
-                            with: .scale(scale: 0.92, anchor: .top)
-                        )
-                    )
-                }
+            } else {
+                rootContent
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .animation(
             vm.isExpanded
@@ -852,5 +695,172 @@ struct NotchRootView: View {
                 withAnimation(.easeOut(duration: 0.28)) { airDropPulse = 0 }
             }
         }
+    }
+
+    private var rootContent: some View {
+        VStack(spacing: hudBelowExpanded ? 6 : 0) {
+            ZStack(alignment: .top) {
+                NotchShape(
+                    topRadius: m.topRadius,
+                    bottomRadius: m.bottomRadius
+                )
+                .fill(.black)
+                .frame(width: m.width, height: m.height)
+                .overlay {
+                    if airDropActive {
+                        NotchShape(
+                            topRadius: m.topRadius,
+                            bottomRadius: m.bottomRadius
+                        )
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color.white.opacity(
+                                        0.05 + 0.03 * airDropPulse
+                                    ),
+                                    .clear,
+                                ],
+                                center: UnitPoint(x: 0.5, y: 0.12),
+                                startRadius: 1,
+                                endRadius: m.height * 0.9
+                            )
+                        )
+                    }
+                }
+                .overlay {
+                    NotchShape(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                    .stroke(
+                        airDropActive
+                            ? Color.white.opacity(
+                                0.08 + 0.05 * airDropPulse
+                            )
+                            : vm.accentColor.opacity(0.55 * trackPulse),
+                        lineWidth: airDropActive ? 1 : 1.5
+                    )
+                    .blur(
+                        radius: airDropActive
+                            ? 0.8 : trackPulse * 1.5
+                    )
+                    .scaleEffect(
+                        1
+                            + (airDropActive
+                                ? airDropPulse * 0.004 : trackPulse * 0.018)
+                    )
+                }
+                .background {
+                    NotchShape(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                    .fill(
+                        airDropActive
+                            ? Color.white.opacity(0.045)
+                            : vm.accentColor.opacity(0.22 * trackPulse)
+                    )
+                    .blur(radius: airDropActive ? 18 : 28)
+                    .scaleEffect(x: 1.06, y: 1.1)
+                    .opacity(
+                        airDropActive
+                            ? 0.55
+                            : ((vm.isExpanded && !vm.isIdle || hudVisible
+                                ? 0.55 : 0)
+                                + trackPulse * 0.35)
+                    )
+                    .frame(width: m.width, height: m.height)
+                }
+                .background {
+                    NotchShape(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                    .fill(Color.black.opacity(0.95))
+                    .blur(radius: 28)
+                    .scaleEffect(x: 1.12, y: 1.18)
+                    .opacity(
+                        airDropActive || vm.isExpanded && !vm.isIdle
+                            || hudVisible ? 0.55 : 0
+                    )
+                    .frame(width: m.width, height: m.height)
+                }
+
+                if airDropActive {
+                    AirDropNotchContent(airDrop: airDrop)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .top
+                        )
+                } else if vm.isExpanded {
+                    ExpandedContent(ns: ns, m: m)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .top
+                        )
+                } else {
+                    ZStack(alignment: .top) {
+                        CollapsedContent(ns: ns, m: m)
+                            .opacity(hudIntegrated ? 0 : 1)
+
+                        if hudIntegrated, let kind = vm.hudDisplay {
+                            VStack(spacing: 0) {
+                                Color.clear.frame(height: m.notchH)
+                                HUDChip(kind: kind)
+                                    .padding(.horizontal, 40)
+                                    .frame(
+                                        height: m.hudExtra,
+                                        alignment: .center
+                                    )
+                            }
+                            .frame(
+                                width: m.width,
+                                height: m.height,
+                                alignment: .top
+                            )
+                        }
+                    }
+                }
+            }
+            .frame(width: m.width, height: m.height, alignment: .top)
+            .clipShape(
+                NotchShape(
+                    topRadius: m.topRadius,
+                    bottomRadius: m.bottomRadius
+                )
+            )
+            .shadow(
+                color: .black.opacity(m.expanded ? 0.5 : 0),
+                radius: m.expanded ? 30 : 0,
+                y: m.expanded ? 16 : 0
+            )
+            .shadow(
+                color: .black.opacity(m.expanded ? 0.28 : 0),
+                radius: m.expanded ? 8 : 0,
+                y: m.expanded ? 3 : 0
+            )
+
+            if hudBelowExpanded, let kind = vm.hudDisplay {
+                ZStack {
+                    RoundedRectangle(
+                        cornerRadius: hudTailMetrics.bottomRadius,
+                        style: .continuous
+                    )
+                    .fill(.black)
+                    HUDChip(kind: kind)
+                        .padding(.horizontal, 20)
+                        .frame(height: m.hudExtra, alignment: .center)
+                }
+                .frame(width: hudTailMetrics.width, height: m.hudExtra)
+                .transition(
+                    .opacity.combined(
+                        with: .scale(scale: 0.92, anchor: .top)
+                    )
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }

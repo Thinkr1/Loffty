@@ -116,6 +116,8 @@ private final class MovableHostingView<Content: View>: NSHostingView<Content> {
     override var mouseDownCanMoveWindow: Bool {
         allowsWindowDrag
     }
+
+    deinit {}
 }
 
 private final class MovableHostingController<Content: View>:
@@ -142,6 +144,8 @@ private final class MovableHostingController<Content: View>:
     @MainActor required dynamic init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+
+    deinit {}
 }
 
 @MainActor
@@ -332,122 +336,14 @@ struct LockCardView: View {
     }
 
     var body: some View {
-        GlassEffectContainer {
-            VStack(spacing: 14) {
-                HStack(alignment: .center, spacing: 14) {
-                    if vm.nowPlaying.artwork != nil
-                        || !vm.nowPlaying.artworkUnavailable
-                    {
-                        ArtworkThumbnail(
-                            artwork: vm.nowPlaying.artwork,
-                            unavailable: vm.nowPlaying.artworkUnavailable,
-                            size: 58,
-                            cornerRadius: 14,
-                            trackKey: vm.nowPlaying.trackKey,
-                            bundleIdentifier: vm.nowPlaying.bundleIdentifier,
-                            showPlayerBadge: settings.playerBadgeLockScreen
-                        )
-                        .shadow(
-                            color: .black.opacity(0.28),
-                            radius: 10,
-                            y: 4
-                        )
-                    }
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        MarqueeText(
-                            text: title,
-                            font: .system(size: 15, weight: .semibold),
-                            color: .white.opacity(0.96),
-                            height: 18,
-                            scrolling: settings.marqueeEnabled
-                        )
-                        if settings.showAlbum, !vm.nowPlaying.album.isEmpty {
-                            MarqueeText(
-                                text: vm.nowPlaying.album,
-                                font: .system(size: 12, weight: .medium),
-                                color: .white.opacity(0.38),
-                                height: 14,
-                                scrolling: settings.marqueeEnabled
-                            )
-                            .transition(
-                                .opacity.combined(with: .move(edge: .top))
-                            )
-                        }
-                        if !vm.nowPlaying.artist.isEmpty {
-                            MarqueeText(
-                                text: vm.nowPlaying.artist,
-                                font: .system(size: 13, weight: .medium),
-                                color: .white.opacity(0.52),
-                                height: 16,
-                                scrolling: settings.marqueeEnabled
-                            )
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
-                    .animation(
-                        .spring(response: 0.36, dampingFraction: 0.86),
-                        value: settings.showAlbum
-                    )
-
-                    if settings.lockScreenWaveforms {
-                        WaveBars(
-                            isPlaying: vm.nowPlaying.isPlaying,
-                            barCount: 5,
-                            maxHeight: 16,
-                            tint: settings.lockScreenWaveformsAccent
-                                ? vm.accentColor
-                                : .white.opacity(0.72)
-                        )
-                        .padding(.trailing, 14)
-                        .frame(width: 22)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .transition(
-                            .opacity.combined(with: .scale(scale: 0.85))
-                        )
-                    }
+        Group {
+            if #available(macOS 26.0, *) {
+                GlassEffectContainer {
+                    cardContent
                 }
-                .animation(
-                    .spring(response: 0.36, dampingFraction: 0.86),
-                    value: settings.lockScreenWaveforms
-                )
-                MediaProgressRow(accent: vm.accentColor).frame(maxWidth: 310)
-                    .padding(.bottom, -5)
-                MediaTransportControls()
+            } else {
+                cardContent
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 16)
-            .padding(.bottom, 14)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .glassEffect(.clear, in: cardShape)
-            .overlay {
-                cardShape
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(0.38),
-                                .white.opacity(0.10),
-                                .white.opacity(0.18),
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.75
-                    )
-            }
-            .overlay {
-                cardShape
-                    .strokeBorder(
-                        .white.opacity(0.06),
-                        lineWidth: 6
-                    )
-                    .blur(radius: 8)
-                    .clipShape(cardShape)
-                    .allowsHitTesting(false)
-            }
-            .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
-            .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
         }
         .frame(width: 356, height: 174)
         .animation(
@@ -458,5 +354,138 @@ struct LockCardView: View {
             .easeInOut(duration: 0.28),
             value: vm.nowPlaying.isPlaying
         )
+    }
+
+    private var cardContent: some View {
+        VStack(spacing: 14) {
+            HStack(alignment: .center, spacing: 14) {
+                if vm.nowPlaying.artwork != nil
+                    || !vm.nowPlaying.artworkUnavailable
+                {
+                    ArtworkThumbnail(
+                        artwork: vm.nowPlaying.artwork,
+                        unavailable: vm.nowPlaying.artworkUnavailable,
+                        size: 58,
+                        cornerRadius: 14,
+                        trackKey: vm.nowPlaying.trackKey,
+                        bundleIdentifier: vm.nowPlaying.bundleIdentifier,
+                        showPlayerBadge: settings.playerBadgeLockScreen
+                    )
+                    .shadow(
+                        color: .black.opacity(0.28),
+                        radius: 10,
+                        y: 4
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    MarqueeText(
+                        text: title,
+                        font: .system(size: 15, weight: .semibold),
+                        color: .white.opacity(0.96),
+                        height: 18,
+                        scrolling: settings.marqueeEnabled
+                    )
+                    if settings.showAlbum, !vm.nowPlaying.album.isEmpty {
+                        MarqueeText(
+                            text: vm.nowPlaying.album,
+                            font: .system(size: 12, weight: .medium),
+                            color: .white.opacity(0.38),
+                            height: 14,
+                            scrolling: settings.marqueeEnabled
+                        )
+                        .transition(
+                            .opacity.combined(with: .move(edge: .top))
+                        )
+                    }
+                    if !vm.nowPlaying.artist.isEmpty {
+                        MarqueeText(
+                            text: vm.nowPlaying.artist,
+                            font: .system(size: 13, weight: .medium),
+                            color: .white.opacity(0.52),
+                            height: 16,
+                            scrolling: settings.marqueeEnabled
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+                .animation(
+                    .spring(response: 0.36, dampingFraction: 0.86),
+                    value: settings.showAlbum
+                )
+
+                if settings.lockScreenWaveforms {
+                    WaveBars(
+                        isPlaying: vm.nowPlaying.isPlaying,
+                        barCount: 5,
+                        maxHeight: 16,
+                        tint: settings.lockScreenWaveformsAccent
+                            ? vm.accentColor
+                            : .white.opacity(0.72)
+                    )
+                    .padding(.trailing, 14)
+                    .frame(width: 22)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .transition(
+                        .opacity.combined(with: .scale(scale: 0.85))
+                    )
+                }
+            }
+            .animation(
+                .spring(response: 0.36, dampingFraction: 0.86),
+                value: settings.lockScreenWaveforms
+            )
+            MediaProgressRow(accent: vm.accentColor).frame(maxWidth: 310)
+                .padding(.bottom, -5)
+            MediaTransportControls()
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 16)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .lockCardGlassBackground(cardShape)
+        .overlay {
+            cardShape
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.38),
+                            .white.opacity(0.10),
+                            .white.opacity(0.18),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.75
+                )
+        }
+        .overlay {
+            cardShape
+                .strokeBorder(
+                    .white.opacity(0.06),
+                    lineWidth: 6
+                )
+                .blur(radius: 8)
+                .clipShape(cardShape)
+                .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
+        .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    fileprivate func lockCardGlassBackground<S: Shape>(_ shape: S)
+        -> some View
+    {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.clear, in: shape)
+        } else {
+            self
+                .background(Color.black.opacity(0.35), in: shape)
+                .background(.ultraThinMaterial, in: shape)
+        }
     }
 }
