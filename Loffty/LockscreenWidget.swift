@@ -224,6 +224,7 @@ final class LockScreenWidget {
             .sink { [weak self] allowed in
                 guard let self, self.vm.isLocked, !allowed else { return }
                 self.vm.setLockScreenArtExpanded(false)
+                self.restoreCompactWindowFrameIfNeeded()
             }
             .store(in: &cancellables)
 
@@ -279,7 +280,7 @@ final class LockScreenWidget {
     }
 
     private func applyMovableSetting(_ movable: Bool) {
-        guard !placement.isFlying else { return }
+        guard !vm.lockScreenArtExpanded else { return }
         cardWindow?.applyMovable(movable)
         cardController?.allowsWindowDrag = movable
     }
@@ -288,6 +289,7 @@ final class LockScreenWidget {
         cardWindow?.orderOut(nil)
         placement.isFlying = false
         vm.setLockScreenArtExpanded(false)
+        restoreCompactWindowFrameIfNeeded()
     }
 
     private func hideLockNotch() {
@@ -312,7 +314,7 @@ final class LockScreenWidget {
         else { return }
         let win = cardWindow ?? makeCardWindow()
         cardWindow = win
-        if !placement.isFlying {
+        if !vm.lockScreenArtExpanded {
             win.alphaValue = 1
             win.ignoresMouseEvents = false
             win.orderFrontRegardless()
@@ -326,18 +328,27 @@ final class LockScreenWidget {
     private func showFullScreenArt() {
         guard let cardWindow else { return }
         let screen = targetScreen()
-        let compactFrame = cardWindow.frame
-        savedCompactFrame = compactFrame
-        placement.compactRect = Self.convert(
-            compactFrame,
-            toLocalTopLeftIn: screen.frame
-        )
+
+        let alreadyFull =
+            abs(cardWindow.frame.width - screen.frame.width) < 1
+            && abs(cardWindow.frame.height - screen.frame.height) < 1
+        if !alreadyFull {
+            let compactFrame = cardWindow.frame
+            savedCompactFrame = compactFrame
+            placement.compactRect = Self.convert(
+                compactFrame,
+                toLocalTopLeftIn: screen.frame
+            )
+            cardWindow.setFrame(screen.frame, display: true)
+        }
 
         cardWindow.ignoresMouseEvents = true
         cardWindow.applyMovable(false)
         cardController?.allowsWindowDrag = false
-        cardWindow.setFrame(screen.frame, display: true)
         placement.isFlying = true
+        DispatchQueue.main.async { [weak self] in
+            self?.placement.requestExpand()
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard self?.vm.lockScreenArtExpanded == true else { return }
@@ -347,13 +358,27 @@ final class LockScreenWidget {
 
     private func hideFullScreenArt() {
         guard let cardWindow else { return }
+
+        cardWindow.ignoresMouseEvents = false
+        cardWindow.applyMovable(false)
+        cardController?.allowsWindowDrag = false
+        cardController?.updateHitRegion(
+            cardRect: placement.compactRect,
+            hitsFullWindow: false
+        )
+    }
+
+    private func restoreCompactWindowFrameIfNeeded() {
+        guard let cardWindow else { return }
         let compact =
             savedCompactFrame ?? Self.defaultCardFrame(for: targetScreen())
         savedCompactFrame = nil
-
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        cardWindow.setFrame(compact, display: false)
+        CATransaction.commit()
+        placement.compactRect = CGRect(origin: .zero, size: compact.size)
         placement.isFlying = false
-        cardWindow.setFrame(compact, display: true)
-        cardWindow.ignoresMouseEvents = false
         applyMovableSetting(AppSettings.shared.movableWidget)
         cardController?.updateHitRegion(cardRect: .null, hitsFullWindow: true)
     }
@@ -425,10 +450,11 @@ final class LockScreenWidget {
 private struct LockCardRootView: View {
     @ObservedObject var vm: NotchViewModel
     @ObservedObject var placement: LockCardPlacement
+    @ObservedObject private var settings = AppSettings.shared
     var onHitRegionChange: (CGRect, Bool) -> Void
 
     var body: some View {
-        if placement.isFlying {
+        if settings.lockScreenFullScreenArt {
             LockMorphCardView(
                 vm: vm,
                 placement: placement,
@@ -441,30 +467,36 @@ private struct LockCardRootView: View {
     }
 }
 
+enum LockCardMetrics {
+    static let width: CGFloat = 356
+    static let height: CGFloat = 174
+    static let cornerRadius: CGFloat = 38
+}
+
 struct LockCardView: View {
     @EnvironmentObject var vm: NotchViewModel
-    @ObservedObject private var settings = AppSettings.shared
-
-    private let cardShape = RoundedRectangle(
-        cornerRadius: 38,
-        style: .continuous
-    )
-
-    private var title: String {
-        vm.nowPlaying.title.isEmpty ? "Not playing" : vm.nowPlaying.title
-    }
 
     var body: some View {
         Group {
             if #available(macOS 26.0, *) {
                 GlassEffectContainer {
-                    cardContent
+                    LockCardBody {
+                        guard AppSettings.shared.lockScreenFullScreenArt else {
+                            return
+                        }
+                        vm.setLockScreenArtExpanded(true)
+                    }
                 }
             } else {
-                cardContent
+                LockCardBody {
+                    guard AppSettings.shared.lockScreenFullScreenArt else {
+                        return
+                    }
+                    vm.setLockScreenArtExpanded(true)
+                }
             }
         }
-        .frame(width: 356, height: 174)
+        .frame(width: LockCardMetrics.width, height: LockCardMetrics.height)
         .animation(
             .spring(response: 0.42, dampingFraction: 0.86),
             value: vm.nowPlaying.trackKey
@@ -474,19 +506,49 @@ struct LockCardView: View {
             value: vm.nowPlaying.isPlaying
         )
     }
+}
 
-    private var cardContent: some View {
-        VStack(spacing: 14) {
+struct LockCardBody: View {
+    @EnvironmentObject var vm: NotchViewModel
+    @ObservedObject private var settings = AppSettings.shared
+    var onArtworkTap: () -> Void
+    var namespace: Namespace.ID? = nil
+    var preferFullArtwork: Bool = false
+    var showsArtwork: Bool = true
+    var showsChrome: Bool = true
+
+    private var title: String {
+        vm.nowPlaying.title.isEmpty ? "Not playing" : vm.nowPlaying.title
+    }
+
+    private var artworkData: Data? {
+        if preferFullArtwork {
+            return vm.nowPlaying.fullArtwork ?? vm.nowPlaying.artwork
+        }
+        return vm.nowPlaying.artwork
+    }
+
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: LockCardMetrics.cornerRadius,
+            style: .continuous
+        )
+    }
+
+    var body: some View {
+        let content = VStack(spacing: 14) {
             HStack(alignment: .center, spacing: 14) {
-                if vm.nowPlaying.artwork != nil
-                    || !vm.nowPlaying.artworkUnavailable
+                if showsArtwork,
+                    artworkData != nil || !vm.nowPlaying.artworkUnavailable
                 {
                     ArtworkThumbnail(
-                        artwork: vm.nowPlaying.artwork,
+                        artwork: artworkData,
                         unavailable: vm.nowPlaying.artworkUnavailable,
                         size: 58,
                         cornerRadius: 14,
                         trackKey: vm.nowPlaying.trackKey,
+                        namespace: namespace,
+                        matchedGeometryID: LockCardMatchID.artwork,
                         bundleIdentifier: vm.nowPlaying.bundleIdentifier,
                         showPlayerBadge: settings.playerBadgeLockScreen
                     )
@@ -496,10 +558,10 @@ struct LockCardView: View {
                         y: 4
                     )
                     .contentShape(Rectangle())
-                    .onTapGesture {
-                        guard settings.lockScreenFullScreenArt else { return }
-                        vm.setLockScreenArtExpanded(true)
-                    }
+                    .onTapGesture(perform: onArtworkTap)
+                } else if !showsArtwork {
+                    Color.clear
+                        .frame(width: 58, height: 58)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -534,6 +596,7 @@ struct LockCardView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
+                .lockMatchedGeometry(id: LockCardMatchID.text, in: namespace)
                 .animation(
                     .spring(response: 0.36, dampingFraction: 0.86),
                     value: settings.showAlbum
@@ -560,15 +623,49 @@ struct LockCardView: View {
                 .spring(response: 0.36, dampingFraction: 0.86),
                 value: settings.lockScreenWaveforms
             )
-            MediaProgressRow(accent: vm.accentColor).frame(maxWidth: 310)
-                .padding(.bottom, -5)
-            MediaTransportControls()
+
+            VStack(spacing: 14) {
+                MediaProgressRow(accent: vm.accentColor)
+                    .frame(maxWidth: 310)
+                    .padding(.bottom, -5)
+                MediaTransportControls()
+            }
+            .lockMatchedGeometry(id: LockCardMatchID.controls, in: namespace)
         }
         .padding(.horizontal, 18)
         .padding(.top, 16)
         .padding(.bottom, 14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .lockWidgetChrome(cardShape)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
+
+        if showsChrome {
+            content.lockWidgetChrome(cardShape)
+        } else {
+            content
+        }
+    }
+}
+
+enum LockCardMatchID {
+    static let chrome = "lockCard.chrome"
+    static let artwork = "lockCard.artwork"
+    static let text = "lockCard.text"
+    static let controls = "lockCard.controls"
+}
+
+extension View {
+    @ViewBuilder
+    func lockMatchedGeometry(id: String, in namespace: Namespace.ID?)
+        -> some View
+    {
+        if let namespace {
+            self.matchedGeometryEffect(id: id, in: namespace)
+        } else {
+            self
+        }
     }
 }
 

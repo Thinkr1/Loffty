@@ -156,6 +156,7 @@ struct ArtworkThumbnail: View {
     var cornerRadius: CGFloat = 12
     var trackKey: String = ""
     var namespace: Namespace.ID? = nil
+    var matchedGeometryID: String = "artwork"
     var bundleIdentifier: String = ""
     var showPlayerBadge: Bool = false
     var showsShadow: Bool = true
@@ -194,7 +195,7 @@ struct ArtworkThumbnail: View {
             }
         }
         .frame(width: size, height: size)
-        .applyMatchedGeometry(id: "artwork", in: namespace)
+        .applyMatchedGeometry(id: matchedGeometryID, in: namespace)
     }
 }
 
