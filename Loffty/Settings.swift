@@ -86,6 +86,7 @@ final class AppSettings: ObservableObject {
     private static let marqueeEnabledKey = "marqueeEnabled"
     private static let showAlbumKey = "showAlbum"
     private static let automaticUpdatesKey = "automaticUpdates"
+    private static let showAirPlayButtonKey = "showAirPlayButton"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -267,6 +268,15 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var showAirPlayButton: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                showAirPlayButton,
+                forKey: Self.showAirPlayButtonKey
+            )
+        }
+    }
+
     @Published private(set) var widgetPositionResetToken: UInt = 0
 
     var anyHUDEnabled: Bool {
@@ -353,6 +363,9 @@ final class AppSettings: ObservableObject {
         automaticUpdates =
             UserDefaults.standard.object(forKey: Self.automaticUpdatesKey)
             as? Bool ?? false
+        showAirPlayButton =
+            UserDefaults.standard.object(forKey: Self.showAirPlayButtonKey)
+            as? Bool ?? true
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
@@ -467,6 +480,10 @@ struct SettingsView: View {
                     isOn: $settings.marqueeEnabled
                 )
                 Toggle("Show album name", isOn: $settings.showAlbum)
+                Toggle(
+                    "Show AirPlay button in notch",
+                    isOn: $settings.showAirPlayButton
+                )
             } header: {
                 Text("Media")
             } footer: {

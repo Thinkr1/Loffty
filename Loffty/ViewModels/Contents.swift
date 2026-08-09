@@ -19,25 +19,44 @@ struct ExpandedContent: View {
                 idleContent
             } else {
                 activeContent
-                    .overlay(alignment: .topTrailing) {
+                    .overlay(alignment: .top) {
                         if !vm.isLocked {
-                            ControlButton(
-                                systemName: "gearshape.fill",
-                                size: 13,
-                                tint: .white.opacity(0.45),
-                                hitSize: 40
-                            ) {
-                                Task { @MainActor in
-                                    SettingsOpener.shared.open()
-                                }
-                            }
-                            .padding(.top, 16)
-                            .padding(.trailing, 24)
+                            notchTopBar
                         }
                     }
             }
         }
         .animation(.easeInOut(duration: 0.22), value: vm.isIdle)
+    }
+
+    private var notchFlankWidth: CGFloat {
+        max(0, (m.width - m.notchW) / 2)
+    }
+
+    private var notchTopBar: some View {
+        HStack(spacing: 0) {
+            Group {
+                if settings.showAirPlayButton {
+                    AirPlayPickerButton()
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: notchFlankWidth, height: m.notchH)
+            Color.clear
+                .frame(width: m.notchW, height: m.notchH)
+            ControlButton(
+                systemName: "gearshape.fill",
+                size: 12,
+                tint: .white.opacity(0.45),
+                hitSize: min(28, notchFlankWidth)
+            ) {
+                Task { @MainActor in
+                    SettingsOpener.shared.open()
+                }
+            }
+            .frame(width: notchFlankWidth, height: m.notchH)
+        }
     }
 
     private var idleContent: some View {

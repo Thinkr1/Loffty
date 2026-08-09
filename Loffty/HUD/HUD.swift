@@ -6,6 +6,7 @@
 //
 
 import AudioToolbox
+import IOBluetooth
 import SwiftUI
 
 private enum NXKeyType: Int32 {
@@ -23,13 +24,25 @@ enum OutputDeviceIcon {
     static func currentSymbol() -> String {
         let device = defaultOutputDevice()
         guard device != 0 else { return speaker }
-        return symbol(
+        return symbolForDevice(
             name: deviceName(device) ?? "",
             transport: transportType(device)
         )
     }
 
-    static func symbol(name: String, transport: UInt32) -> String {
+    static func symbolForDevice(name: String, transport: UInt32) -> String {
+        symbol(
+            name: name,
+            transport: transport,
+            bluetoothMinorClass: bluetoothMinorClass(forDeviceNamed: name)
+        )
+    }
+
+    static func symbol(
+        name: String,
+        transport: UInt32,
+        bluetoothMinorClass: UInt32? = nil
+    ) -> String {
         let key = name.lowercased()
 
         if key.contains("airpods max") { return "airpods.max" }
@@ -53,12 +66,13 @@ enum OutputDeviceIcon {
         switch transport {
         case kAudioDeviceTransportTypeBluetooth,
             kAudioDeviceTransportTypeBluetoothLE:
-            return "headphones"
+            return bluetoothSymbol(key: key, minorClass: bluetoothMinorClass)
         case kAudioDeviceTransportTypeAirPlay:
             return "airplayaudio"
         case kAudioDeviceTransportTypeBuiltIn:
             return speaker
         default:
+            if isSpeakerName(key) { return "hifispeaker.fill" }
             if key.contains("headphone") || key.contains("headset") {
                 return "headphones"
             }
@@ -66,7 +80,70 @@ enum OutputDeviceIcon {
         }
     }
 
-    private static func defaultOutputDevice() -> AudioDeviceID {
+    private static func bluetoothSymbol(key: String, minorClass: UInt32?)
+        -> String
+    {
+        if let minorClass, let mapped = icon(forBluetoothMinorClass: minorClass)
+        {
+            return mapped
+        }
+        if isSpeakerName(key) { return "hifispeaker.fill" }
+        if key.contains("headphone") || key.contains("headset")
+            || key.contains("earbud") || key.contains("earphone")
+        {
+            return "headphones"
+        }
+        return "headphones"
+    }
+
+    private static func icon(forBluetoothMinorClass minor: UInt32) -> String? {
+        switch minor {
+        case 0x01, 0x02, 0x06:  // wearable headset, hands-free, headphones
+            return "headphones"
+        case 0x05, 0x07, 0x0A:  // loudspeaker, portable audio, hifi audio
+            return "hifispeaker.fill"
+        case 0x08:  // car audio
+            return "car.fill"
+        default:
+            return nil
+        }
+    }
+
+    private static let speakerKeywords = [
+        "speaker", "soundbar", "soundlink", "soundcore", "megaboom",
+        "boombox", "boom", "flip", "charge", "roam",
+    ]
+
+    private static func isSpeakerName(_ key: String) -> Bool {
+        speakerKeywords.contains { key.contains($0) }
+    }
+
+    private static func bluetoothMinorClass(forDeviceNamed name: String)
+        -> UInt32?
+    {
+        guard !name.isEmpty,
+            let devices = IOBluetoothDevice.pairedDevices()
+                as? [IOBluetoothDevice]
+        else { return nil }
+        let target = name.lowercased()
+        let connected = devices.filter { $0.isConnected() }
+        if let exact = connected.first(where: {
+            $0.nameOrAddress?.lowercased() == target
+        }) {
+            return UInt32(exact.deviceClassMinor)
+        }
+        if let partial = connected.first(where: {
+            guard let deviceName = $0.nameOrAddress?.lowercased(),
+                !deviceName.isEmpty
+            else { return false }
+            return deviceName.contains(target) || target.contains(deviceName)
+        }) {
+            return UInt32(partial.deviceClassMinor)
+        }
+        return nil
+    }
+
+    static func defaultOutputDevice() -> AudioDeviceID {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -85,7 +162,7 @@ enum OutputDeviceIcon {
         return id
     }
 
-    private static func deviceName(_ device: AudioDeviceID) -> String? {
+    static func deviceName(_ device: AudioDeviceID) -> String? {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioObjectPropertyName,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -100,7 +177,7 @@ enum OutputDeviceIcon {
         return name as String
     }
 
-    private static func transportType(_ device: AudioDeviceID) -> UInt32 {
+    static func transportType(_ device: AudioDeviceID) -> UInt32 {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyTransportType,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -236,25 +313,62 @@ final class SystemVolumeWatcher {
     var onChange: ((Float, Bool) -> Void)?
     private let controller = SystemVolumeController.shared
     private var armed = false
+    private var started = false
     private var lastVol: Float = -1
     private var lastMuted = false
+    private var device = AudioDeviceID(0)
+    private var volumeListenerBlock: AudioObjectPropertyListenerBlock?
+    private var muteListenerBlock: AudioObjectPropertyListenerBlock?
+    private var defaultDeviceListenerBlock: AudioObjectPropertyListenerBlock?
 
     func start() {
-        var device = AudioDeviceID(0)
+        guard !started else { return }
+        started = true
+        device = OutputDeviceIcon.defaultOutputDevice()
+        registerDeviceListeners(on: device)
+        listenForDefaultDeviceChanges()
+        lastVol = controller.readVolume()
+        lastMuted = controller.readMuted()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.armed = true
+        }
+    }
+
+    private func listenForDefaultDeviceChanges() {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        AudioObjectGetPropertyData(
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.handleDefaultDeviceChange()
+        }
+        defaultDeviceListenerBlock = block
+        AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject),
             &addr,
-            0,
-            nil,
-            &size,
-            &device
+            DispatchQueue.main,
+            block
         )
+    }
+
+    private func handleDefaultDeviceChange() {
+        let newDevice = OutputDeviceIcon.defaultOutputDevice()
+        guard newDevice != device else { return }
+        unregisterDeviceListeners(from: device)
+        device = newDevice
+        registerDeviceListeners(on: device)
+        lastVol = controller.readVolume()
+        lastMuted = controller.readMuted()
+    }
+
+    private func registerDeviceListeners(on device: AudioDeviceID) {
+        guard device != 0 else { return }
+        let volumeBlock: AudioObjectPropertyListenerBlock = {
+            [weak self] _, _ in
+            self?.emit()
+        }
+        volumeListenerBlock = volumeBlock
         var volAddr = AudioObjectPropertyAddress(
             mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
             mScope: kAudioObjectPropertyScopeOutput,
@@ -263,11 +377,15 @@ final class SystemVolumeWatcher {
         AudioObjectAddPropertyListenerBlock(
             device,
             &volAddr,
-            DispatchQueue.main
-        ) {
+            DispatchQueue.main,
+            volumeBlock
+        )
+
+        let muteBlock: AudioObjectPropertyListenerBlock = {
             [weak self] _, _ in
             self?.emit()
         }
+        muteListenerBlock = muteBlock
         var muteAddr = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyMute,
             mScope: kAudioObjectPropertyScopeOutput,
@@ -276,15 +394,41 @@ final class SystemVolumeWatcher {
         AudioObjectAddPropertyListenerBlock(
             device,
             &muteAddr,
-            DispatchQueue.main
-        ) {
-            [weak self] _, _ in
-            self?.emit()
+            DispatchQueue.main,
+            muteBlock
+        )
+    }
+
+    private func unregisterDeviceListeners(from device: AudioDeviceID) {
+        guard device != 0 else { return }
+        if let block = volumeListenerBlock {
+            var volAddr = AudioObjectPropertyAddress(
+                mSelector:
+                    kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                mScope: kAudioObjectPropertyScopeOutput,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            AudioObjectRemovePropertyListenerBlock(
+                device,
+                &volAddr,
+                DispatchQueue.main,
+                block
+            )
+            volumeListenerBlock = nil
         }
-        lastVol = controller.readVolume()
-        lastMuted = controller.readMuted()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-            self?.armed = true
+        if let block = muteListenerBlock {
+            var muteAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyMute,
+                mScope: kAudioObjectPropertyScopeOutput,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            AudioObjectRemovePropertyListenerBlock(
+                device,
+                &muteAddr,
+                DispatchQueue.main,
+                block
+            )
+            muteListenerBlock = nil
         }
     }
 
