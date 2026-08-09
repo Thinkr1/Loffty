@@ -15,6 +15,7 @@ final class LockWatcher {
 
     private let dnc = DistributedNotificationCenter.default()
     private var pollTimer: Timer?
+    private var unlockedPolls = 0
 
     func start() {
         dnc.addObserver(
@@ -31,27 +32,29 @@ final class LockWatcher {
         ) { [weak self] _ in
             self?.setLocked(false)
         }
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.sessionDidBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.setLocked(false)
+        if Self.sessionScreenIsLocked() {
+            setLocked(true)
         }
     }
 
     private func setLocked(_ locked: Bool) {
         guard locked != isLocked else { return }
         isLocked = locked
+        unlockedPolls = 0
         if locked { startPolling() } else { stopPolling() }
         onChange?(locked)
     }
 
     private func startPolling() {
         stopPolling()
-        let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: 0.35, repeats: true) { [weak self] _ in
             guard let self, self.isLocked else { return }
-            if !Self.sessionScreenIsLocked() {
+            if Self.sessionScreenIsLocked() {
+                self.unlockedPolls = 0
+                return
+            }
+            self.unlockedPolls += 1
+            if self.unlockedPolls >= 2 {
                 self.setLocked(false)
             }
         }
@@ -62,11 +65,18 @@ final class LockWatcher {
     private func stopPolling() {
         pollTimer?.invalidate()
         pollTimer = nil
+        unlockedPolls = 0
     }
 
     private static func sessionScreenIsLocked() -> Bool {
         guard let session = CGSessionCopyCurrentDictionary() as? [String: Any]
         else { return false }
-        return session["CGSSessionScreenIsLocked"] as? Bool ?? false
+        if let locked = session["CGSSessionScreenIsLocked"] as? Bool {
+            return locked
+        }
+        if let locked = session["CGSSessionScreenIsLocked"] as? NSNumber {
+            return locked.boolValue
+        }
+        return false
     }
 }

@@ -158,7 +158,16 @@ struct LockMorphCardView: View {
         {
             return CGRect(origin: .zero, size: size)
         }
-        return placement.compactRect
+        let placed = placement.compactRect
+        if placed.width > 1, placed.height > 1 {
+            return placed
+        }
+        return CGRect(
+            x: max(0, (size.width - LockCardMetrics.width) / 2),
+            y: max(0, (size.height - LockCardMetrics.height) / 2),
+            width: LockCardMetrics.width,
+            height: LockCardMetrics.height
+        )
     }
 
     private func expandedCardSize(in size: CGSize) -> CGSize {

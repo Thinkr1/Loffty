@@ -14,16 +14,17 @@ final class LockScreenSpace {
 
     private typealias F_MainConnectionID = @convention(c) () -> Int32
     private typealias F_SpaceCreate =
-        @convention(c) (Int32, Int32, Int32) -> Int32
+        @convention(c) (Int32, Int32, Int32) -> UInt64
     private typealias F_SpaceSetAbsoluteLevel =
-        @convention(c) (Int32, Int32, Int32) -> Int32
-    private typealias F_ShowSpaces = @convention(c) (Int32, CFArray) -> Int32
+        @convention(c) (Int32, UInt64, Int32) -> Int32
+    private typealias F_ShowSpaces = @convention(c) (Int32, CFArray) -> Void
     private typealias F_AddWindowsAndRemove =
-        @convention(c) (Int32, Int32, CFArray, Int32) -> Int32
+        @convention(c) (Int32, UInt64, CFArray, Int) -> Void
 
     private let addWindowsAndRemove: F_AddWindowsAndRemove?
+    private let showSpaces: F_ShowSpaces?
     private let connection: Int32
-    private let space: Int32
+    private let space: UInt64
     let isAvailable: Bool
 
     private init(level: Int32) {
@@ -43,7 +44,7 @@ final class LockScreenSpace {
             "SLSSpaceSetAbsoluteLevel",
             F_SpaceSetAbsoluteLevel.self
         )
-        let showSpaces = sym("SLSShowSpaces", F_ShowSpaces.self)
+        showSpaces = sym("SLSShowSpaces", F_ShowSpaces.self)
         addWindowsAndRemove = sym(
             "SLSSpaceAddWindowsAndRemoveFromSpaces",
             F_AddWindowsAndRemove.self
@@ -61,19 +62,26 @@ final class LockScreenSpace {
         let cid = mainConnectionID()
         let sid = spaceCreate(cid, 1, 0)
         _ = spaceSetAbsoluteLevel(cid, sid, level)
-        _ = showSpaces(cid, [sid] as CFArray)
+        showSpaces(cid, [NSNumber(value: sid)] as CFArray)
         connection = cid
         space = sid
-        isAvailable = true
+        isAvailable = sid != 0
+    }
+
+    func ensureShown() {
+        guard isAvailable, let showSpaces, space != 0 else { return }
+        showSpaces(connection, [NSNumber(value: space)] as CFArray)
     }
 
     func add(_ window: NSWindow) {
-        guard isAvailable, let addWindowsAndRemove else { return }
-        _ = addWindowsAndRemove(
+        guard isAvailable, let addWindowsAndRemove, space != 0 else { return }
+        let number = window.windowNumber
+        guard number > 0 else { return }
+        addWindowsAndRemove(
             connection,
             space,
-            [window.windowNumber] as CFArray,
-            7
+            [NSNumber(value: number)] as CFArray,
+            0x80007
         )
     }
 }
@@ -170,8 +178,8 @@ final class LockScreenWidget {
     private var cardController: LockCardHostingController<LockCardRootView>?
     private let placement = LockCardPlacement()
     private var savedCompactFrame: NSRect?
-    private var lockNotchDelegated = false
-    private var cardDelegated = false
+    private var cachedCardFrame: NSRect?
+    private var appliedCachedFrameThisLock = false
     private var cancellables = Set<AnyCancellable>()
 
     init(vm: NotchViewModel, notchWindow: NotchWindow) {
@@ -180,6 +188,9 @@ final class LockScreenWidget {
     }
 
     func start() {
+        _ = LockScreenSpace.interactive.isAvailable
+        cachedCardFrame = Self.defaultCardFrame(for: targetScreen())
+
         AppSettings.shared.$movableWidget
             .receive(on: RunLoop.main)
             .sink { [weak self] movable in
@@ -230,6 +241,7 @@ final class LockScreenWidget {
 
         vm.$lockScreenArtExpanded
             .removeDuplicates()
+            .dropFirst()
             .receive(on: RunLoop.main)
             .sink { [weak self] expanded in
                 guard let self else { return }
@@ -257,18 +269,37 @@ final class LockScreenWidget {
             if locked {
                 self.vm.setExpanded(false)
                 self.vm.setLocked(true)
-                if AppSettings.shared.lockScreenNotch {
-                    self.showLockNotch()
+                self.presentLockUI()
+                for delay in [0.08, 0.25, 0.55, 1.0] as [TimeInterval] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        [weak self] in
+                        guard let self, self.vm.isLocked else { return }
+                        self.presentLockUI()
+                    }
                 }
-                self.showCard()
             } else {
                 self.vm.setLocked(false)
                 self.setNotchInteractive(false)
                 self.hideLockNotch()
                 self.hideCard()
+                self.appliedCachedFrameThisLock = false
+                if let frame = self.cardWindow?.frame {
+                    self.cachedCardFrame = frame
+                } else {
+                    self.cachedCardFrame =
+                        Self.defaultCardFrame(for: self.targetScreen())
+                }
             }
         }
         lock.start()
+    }
+
+    private func presentLockUI() {
+        LockScreenSpace.interactive.ensureShown()
+        if AppSettings.shared.lockScreenNotch {
+            showLockNotch()
+        }
+        showCard()
     }
 
     func setNotchInteractive(_ interactive: Bool) {
@@ -302,27 +333,33 @@ final class LockScreenWidget {
         if let source = sourceNotchWindow {
             win.setFrame(source.frame, display: true)
         }
+        win.alphaValue = 1
         win.orderFrontRegardless()
-        if !lockNotchDelegated {
-            LockScreenSpace.interactive.add(win)
-            lockNotchDelegated = true
-        }
+        LockScreenSpace.interactive.add(win)
     }
 
     private func showCard() {
-        guard vm.nowPlaying.artwork != nil || !vm.nowPlaying.title.isEmpty
-        else { return }
         let win = cardWindow ?? makeCardWindow()
         cardWindow = win
         if !vm.lockScreenArtExpanded {
+            if !appliedCachedFrameThisLock {
+                let frame =
+                    cachedCardFrame
+                    ?? Self.defaultCardFrame(for: targetScreen())
+                win.setFrame(frame, display: true)
+                appliedCachedFrameThisLock = true
+            }
             win.alphaValue = 1
             win.ignoresMouseEvents = false
             win.orderFrontRegardless()
+            win.displayIfNeeded()
+            cardController?.updateHitRegion(
+                cardRect: .null,
+                hitsFullWindow: true
+            )
         }
-        if !cardDelegated {
-            LockScreenSpace.interactive.add(win)
-            cardDelegated = true
-        }
+        LockScreenSpace.interactive.ensureShown()
+        LockScreenSpace.interactive.add(win)
     }
 
     private func showFullScreenArt() {
@@ -371,12 +408,15 @@ final class LockScreenWidget {
     private func restoreCompactWindowFrameIfNeeded() {
         guard let cardWindow else { return }
         let compact =
-            savedCompactFrame ?? Self.defaultCardFrame(for: targetScreen())
+            savedCompactFrame
+            ?? cachedCardFrame
+            ?? Self.defaultCardFrame(for: targetScreen())
         savedCompactFrame = nil
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         cardWindow.setFrame(compact, display: false)
         CATransaction.commit()
+        cachedCardFrame = compact
         placement.compactRect = CGRect(origin: .zero, size: compact.size)
         placement.isFlying = false
         applyMovableSetting(AppSettings.shared.movableWidget)
@@ -396,10 +436,9 @@ final class LockScreenWidget {
 
     private func resetCardPosition() {
         guard !placement.isFlying else { return }
-        cardWindow?.setFrame(
-            Self.defaultCardFrame(for: targetScreen()),
-            display: true
-        )
+        let frame = Self.defaultCardFrame(for: targetScreen())
+        cachedCardFrame = frame
+        cardWindow?.setFrame(frame, display: true)
     }
 
     private static func defaultCardFrame(for screen: NSScreen) -> NSRect {
@@ -425,7 +464,9 @@ final class LockScreenWidget {
 
     private func makeCardWindow() -> SkyPanel {
         let movable = AppSettings.shared.movableWidget
-        let frame = Self.defaultCardFrame(for: targetScreen())
+        let frame =
+            cachedCardFrame ?? Self.defaultCardFrame(for: targetScreen())
+        cachedCardFrame = frame
         let win = SkyPanel(frame: frame, movableByBackground: movable)
         win.hasShadow = false
         let controller = LockCardHostingController(
@@ -450,11 +491,10 @@ final class LockScreenWidget {
 private struct LockCardRootView: View {
     @ObservedObject var vm: NotchViewModel
     @ObservedObject var placement: LockCardPlacement
-    @ObservedObject private var settings = AppSettings.shared
     var onHitRegionChange: (CGRect, Bool) -> Void
 
     var body: some View {
-        if settings.lockScreenFullScreenArt {
+        if placement.isFlying {
             LockMorphCardView(
                 vm: vm,
                 placement: placement,
