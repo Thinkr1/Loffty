@@ -4,7 +4,7 @@
 
 [![Tests](https://github.com/Thinkr1/Loffty/actions/workflows/xcode-build-test.yml/badge.svg)](https://github.com/Thinkr1/Loffty/actions/workflows/xcode-build-test.yml)
 [![Latest Version](https://img.shields.io/github/v/release/Thinkr1/Loffty?label=latest%20version)](https://github.com/Thinkr1/Loffty/releases/latest)
-![macOS](https://img.shields.io/badge/macOS-26%2B-black?logo=apple)
+![macOS](https://img.shields.io/badge/macOS-15%2B-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-6-orange?logo=swift)
 
 ## A Dynamic Island for your Mac.
