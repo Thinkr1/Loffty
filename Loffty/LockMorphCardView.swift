@@ -33,12 +33,14 @@ struct LockMorphCardView: View {
 
     @State private var progress: CGFloat = 0
     @State private var canCollapse = false
+    @State private var compactChromeVisible = true
 
     private let expandAnimation = Animation.smooth(
         duration: 0.46,
         extraBounce: 0.04
     )
     private let collapseAnimation = Animation.smooth(duration: 0.42)
+    private let chromeRevealAnimation = Animation.easeOut(duration: 0.14)
 
     private let compactArtSize: CGFloat = 58
     private let compactArtCorner: CGFloat = 14
@@ -113,6 +115,10 @@ struct LockMorphCardView: View {
                 .allowsHitTesting(isCompactRest || canCollapse)
             }
             .environmentObject(vm)
+            .environment(
+                \.suppressMediaTickAnimations,
+                t > 0.02 && t < 0.98
+            )
             .onAppear {
                 onHitRegionChange(card, isExpanded)
             }
@@ -352,7 +358,7 @@ struct LockMorphCardView: View {
         )
         .frame(width: width)
         .position(x: x, y: art.midY)
-        .opacity(1 - t)
+        .opacity(compactChromeVisible ? 1 : 0)
         .allowsHitTesting(false)
     }
 
@@ -365,9 +371,16 @@ struct LockMorphCardView: View {
         }
     }
 
+    private func hideCompactChrome() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { compactChromeVisible = false }
+    }
+
     private func expand() {
         guard progress < 0.5 else { return }
         canCollapse = false
+        hideCompactChrome()
         withAnimation(expandAnimation) { progress = 1 }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             canCollapse = true
@@ -377,9 +390,13 @@ struct LockMorphCardView: View {
     private func collapse() {
         guard canCollapse, isExpanded else { return }
         canCollapse = false
+        hideCompactChrome()
         withAnimation(collapseAnimation) {
             progress = 0
         } completion: {
+            withAnimation(chromeRevealAnimation) {
+                compactChromeVisible = true
+            }
             vm.setLockScreenArtExpanded(false)
         }
     }

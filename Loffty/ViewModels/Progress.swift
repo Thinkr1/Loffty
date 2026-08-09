@@ -7,6 +7,17 @@
 
 import SwiftUI
 
+private enum SuppressMediaTickAnimationsKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var suppressMediaTickAnimations: Bool {
+        get { self[SuppressMediaTickAnimationsKey.self] }
+        set { self[SuppressMediaTickAnimationsKey.self] = newValue }
+    }
+}
+
 func fmtTime(_ s: Double) -> String {
     guard s.isFinite, s >= 0 else { return "0:00" }
     let t = Int(s)
@@ -50,6 +61,8 @@ struct NotchControlButtonStyle: ButtonStyle {
 
 struct Progress: View {
     @EnvironmentObject var vm: NotchViewModel
+    @Environment(\.suppressMediaTickAnimations) private
+        var suppressTickAnimations
     let accent: Color
 
     @State private var hovering = false
@@ -68,25 +81,40 @@ struct Progress: View {
             let active = hovering || dragging
 
             HStack(spacing: 10) {
-                Text(fmtTime(displayTime))
-                    .contentTransition(.numericText())
+                timeLabel(fmtTime(displayTime))
                 seekTrack(
                     fraction: displayFraction,
                     enabled: dur > 0 && !vm.nowPlaying.isLive,
                     active: active
                 )
-                Text(dur > 0 ? "-\(fmtTime(remaining))" : fmtTime(displayTime))
-                    .contentTransition(.numericText())
+                timeLabel(
+                    dur > 0 ? "-\(fmtTime(remaining))" : fmtTime(displayTime)
+                )
             }
             .font(.system(size: 12, weight: .regular))
             .foregroundStyle(.white.opacity(0.5))
             .monospacedDigit()
-            .animation(.smooth(duration: 0.18), value: displayTime)
+            .animation(
+                suppressTickAnimations ? nil : .smooth(duration: 0.18),
+                value: displayTime
+            )
         }
         .animation(
-            .spring(response: 0.45, dampingFraction: 0.86),
+            suppressTickAnimations
+                ? nil
+                : .spring(response: 0.45, dampingFraction: 0.86),
             value: vm.nowPlaying.trackKey
         )
+    }
+
+    @ViewBuilder
+    private func timeLabel(_ text: String) -> some View {
+        if suppressTickAnimations {
+            Text(text)
+        } else {
+            Text(text)
+                .contentTransition(.numericText())
+        }
     }
 
     private func seekTrack(
@@ -162,11 +190,15 @@ struct Progress: View {
                     }
             )
             .animation(
-                .spring(response: 0.28, dampingFraction: 0.76),
+                suppressTickAnimations
+                    ? nil
+                    : .spring(response: 0.28, dampingFraction: 0.76),
                 value: active
             )
             .animation(
-                dragging ? nil : .spring(response: 0.32, dampingFraction: 0.82),
+                (dragging || suppressTickAnimations)
+                    ? nil
+                    : .spring(response: 0.32, dampingFraction: 0.82),
                 value: fraction
             )
         }

@@ -9,6 +9,8 @@ import SwiftUI
 
 struct WaveBars: View {
     @EnvironmentObject var vm: NotchViewModel
+    @Environment(\.suppressMediaTickAnimations) private
+        var suppressTickAnimations
     var isPlaying: Bool
     var barCount: Int = 4
     var maxHeight: CGFloat = 14
@@ -58,7 +60,9 @@ struct WaveBars: View {
         }
         .frame(height: maxHeight)
         .animation(
-            .spring(response: 0.34, dampingFraction: 0.8),
+            suppressTickAnimations
+                ? nil
+                : .spring(response: 0.34, dampingFraction: 0.8),
             value: isPlaying
         )
         .onChange(of: vm.trackChangeToken) { _, token in
