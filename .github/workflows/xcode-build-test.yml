@@ -93,7 +93,7 @@ jobs:
 
       - name: Publish test report
         if: always()
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@1cc81a5edf733718d4850df304aaa21c05cd7280 # v3
         with:
           name: LofftyTests
           path: TestResults/junit.xml
