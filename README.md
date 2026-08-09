@@ -70,18 +70,15 @@ Some things I'm currently working on:
   - Actual soundwaves
   - Lock screen lyrics
   - Login item
-  - AirPlay
   - Timer, live activities
   - WhatsApp, Messages, Discord (+more) notifications (+reply, show more)
-  - Improve lock screen widget (+full screen artwork, show music video option)
+  - Improve lock screen widget (+show music video option)
   - Screensaver music video
   - Auto-expand on track change?
   - media-control skip Spotify ads
   - Golden Gate update
 - Fixes
   - Remove system focus HUD
-  - Album match geometry crosses below physical notch thereby making it visible
-  - Apple Music occasional crashes
 
 ## Contributing
 
