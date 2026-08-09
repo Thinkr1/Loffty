@@ -832,14 +832,14 @@ struct NotchRootView: View {
                 )
             )
             .shadow(
-                color: .black.opacity(m.expanded ? 0.5 : 0),
-                radius: m.expanded ? 30 : 0,
-                y: m.expanded ? 16 : 0
+                color: .black.opacity(m.expanded ? 0.38 : 0),
+                radius: m.expanded ? 22 : 0,
+                y: m.expanded ? 12 : 0
             )
             .shadow(
-                color: .black.opacity(m.expanded ? 0.28 : 0),
-                radius: m.expanded ? 8 : 0,
-                y: m.expanded ? 3 : 0
+                color: .black.opacity(m.expanded ? 0.2 : 0),
+                radius: m.expanded ? 5 : 0,
+                y: m.expanded ? 2 : 0
             )
 
             if hudBelowExpanded, let kind = vm.hudDisplay {

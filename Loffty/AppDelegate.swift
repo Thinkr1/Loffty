@@ -165,7 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let info = detectNotch(on: screen)
         vm.notch = info
         let bandw: CGFloat = 600
-        let bandh: CGFloat = 260
+        let bandh: CGFloat = 300
         let rect = NSRect(
             x: info.notchRect.midX - bandw / 2,
             y: screen.frame.maxY - bandh,
