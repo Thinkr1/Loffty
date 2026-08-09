@@ -7,6 +7,40 @@
 
 import SwiftUI
 
+private struct ProcessOutput {
+    let status: Int32
+    let data: Data
+}
+
+private nonisolated func runProcessCollectingOutput(
+    executable: URL,
+    arguments: [String]
+) async -> ProcessOutput? {
+    await withCheckedContinuation {
+        (continuation: CheckedContinuation<ProcessOutput?, Never>) in
+        let proc = Process()
+        proc.executableURL = executable
+        proc.arguments = arguments
+        let outPipe = Pipe()
+        proc.standardOutput = outPipe
+        proc.standardError = Pipe()
+        proc.terminationHandler = { finished in
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            continuation.resume(
+                returning: ProcessOutput(
+                    status: finished.terminationStatus,
+                    data: data
+                )
+            )
+        }
+        do {
+            try proc.run()
+        } catch {
+            continuation.resume(returning: nil)
+        }
+    }
+}
+
 enum MediaParsing {
     static func parseArtistNames(from html: String) -> String? {
         guard let start = html.range(of: "\"artists\":[") else { return nil }
@@ -145,21 +179,19 @@ enum MediaParsing {
 }
 
 private enum SpotifyMetadata {
-    static func currentTrackID() -> String? {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        proc.arguments = [
-            "-e", "tell application \"Spotify\" to get id of current track",
-        ]
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = Pipe()
-        try? proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    static nonisolated func currentTrackID() async -> String? {
         guard
-            let raw = String(data: data, encoding: .utf8)?
+            let result = await runProcessCollectingOutput(
+                executable: URL(fileURLWithPath: "/usr/bin/osascript"),
+                arguments: [
+                    "-e",
+                    "tell application \"Spotify\" to get id of current track",
+                ]
+            ),
+            result.status == 0
+        else { return nil }
+        guard
+            let raw = String(data: result.data, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
             raw.hasPrefix("spotify:track:")
         else { return nil }
@@ -232,7 +264,7 @@ final class NowPlayingStream {
         let baseArguments: [String]
     }
 
-    private func adapterLaunch() -> AdapterLaunch? {
+    private nonisolated func adapterLaunch() -> AdapterLaunch? {
         let bundle = Bundle.main
         if let script = bundle.url(
             forResource: "mediaremote-adapter",
@@ -357,27 +389,23 @@ final class NowPlayingStream {
         }
     }
 
-    private func fetchNowPlaying(
+    private nonisolated func fetchNowPlaying(
         now: Bool = false,
         artwork: Bool = false
-    ) -> [String: Any]? {
+    ) async -> [String: Any]? {
         guard let launch = adapterLaunch() else { return nil }
         var args = launch.baseArguments + ["get"]
         if !artwork { args.append("--no-artwork") }
         if now { args.append("--now") }
-        let proc = Process()
-        proc.executableURL = launch.executable
-        proc.arguments = args
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = Pipe()
-        try? proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let obj = try? JSONSerialization.jsonObject(with: data) else {
-            return nil
-        }
+        guard
+            let result = await runProcessCollectingOutput(
+                executable: launch.executable,
+                arguments: args
+            ),
+            result.status == 0
+        else { return nil }
+        guard let obj = try? JSONSerialization.jsonObject(with: result.data)
+        else { return nil }
         if obj is NSNull { return nil }
         return obj as? [String: Any]
     }
@@ -575,7 +603,8 @@ final class NowPlayingStream {
             guard ArtistEnrichmentMode.current.allowsNetworkFetch else {
                 return
             }
-            guard let trackID = SpotifyMetadata.currentTrackID() else { return }
+            guard let trackID = await SpotifyMetadata.currentTrackID()
+            else { return }
             guard !Task.isCancelled else { return }
             guard
                 let artists = await SpotifyMetadata.fetchArtists(
@@ -641,7 +670,7 @@ final class NowPlayingStream {
                 attempts += 1
                 guard !Task.isCancelled else { return }
 
-                let info = self.fetchNowPlaying(artwork: true)
+                let info = await self.fetchNowPlaying(artwork: true)
                 let applied: Bool = await withCheckedContinuation { cont in
                     self.queue.async {
                         guard self.lastTrackKey == trackKeyAtStart,
@@ -728,11 +757,14 @@ final class NowPlayingStream {
                 case .checkStillPresent:
                     self.verifyPausedStillPresent()
                 case .liftSuppressionIfActive:
-                    switch self.probeNowPlaying() {
+                    switch await self.probeNowPlaying() {
                     case .unavailable, .inactive:
                         continue
                     case .active:
-                        guard let info = self.fetchNowPlaying(artwork: true)
+                        guard
+                            let info = await self.fetchNowPlaying(
+                                artwork: true
+                            )
                         else { continue }
                         self.queue.async {
                             self.applySuppressionLift(payload: info)
@@ -746,7 +778,7 @@ final class NowPlayingStream {
     private func confirmSuppressionLift(with obj: [String: Any]) {
         Task { [weak self] in
             guard let self else { return }
-            let probe = self.probeNowPlaying()
+            let probe = await self.probeNowPlaying()
             self.queue.async {
                 guard self.suppressStaleStream else { return }
                 switch probe {
@@ -773,7 +805,7 @@ final class NowPlayingStream {
     private func verifyPausedStillPresent() {
         Task { [weak self] in
             guard let self else { return }
-            let probe = self.probeNowPlaying()
+            let probe = await self.probeNowPlaying()
             self.queue.async {
                 guard self.hasDisplayableMedia, !self.current.isPlaying else {
                     return
@@ -797,31 +829,23 @@ final class NowPlayingStream {
         }
     }
 
-    private func probeNowPlaying() -> NowPlayingProbe {
+    private nonisolated func probeNowPlaying() async -> NowPlayingProbe {
         guard let launch = adapterLaunch() else { return .unavailable }
-        let proc = Process()
-        proc.executableURL = launch.executable
-        proc.arguments = launch.baseArguments + ["get", "--no-artwork"]
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = Pipe()
-        do {
-            try proc.run()
-        } catch {
-            return .unavailable
-        }
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else { return .unavailable }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        if let raw = String(data: data, encoding: .utf8)?
+        guard
+            let result = await runProcessCollectingOutput(
+                executable: launch.executable,
+                arguments: launch.baseArguments + ["get", "--no-artwork"]
+            )
+        else { return .unavailable }
+        guard result.status == 0 else { return .unavailable }
+        if let raw = String(data: result.data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
             raw == "null"
         {
             return .inactive
         }
-        guard let obj = try? JSONSerialization.jsonObject(with: data) else {
-            return .unavailable
-        }
+        guard let obj = try? JSONSerialization.jsonObject(with: result.data)
+        else { return .unavailable }
         if obj is NSNull { return .inactive }
         guard let info = obj as? [String: Any] else { return .unavailable }
         if let title = info["title"] as? String, !title.isEmpty {
@@ -838,7 +862,7 @@ final class NowPlayingStream {
         idleClearTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(800))
             guard let self, !Task.isCancelled else { return }
-            let probe = self.probeNowPlaying()
+            let probe = await self.probeNowPlaying()
             self.queue.async {
                 guard generation == self.idleClearGeneration else { return }
                 self.idleClearTask = nil
