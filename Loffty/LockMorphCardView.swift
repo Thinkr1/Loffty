@@ -153,20 +153,9 @@ struct LockMorphCardView: View {
     }
 
     private func resolvedCompactRect(in size: CGSize) -> CGRect {
-        if size.width <= LockCardMetrics.width + 0.5,
-            size.height <= LockCardMetrics.height + 0.5
-        {
-            return CGRect(origin: .zero, size: size)
-        }
-        let placed = placement.compactRect
-        if placed.width > 1, placed.height > 1 {
-            return placed
-        }
-        return CGRect(
-            x: max(0, (size.width - LockCardMetrics.width) / 2),
-            y: max(0, (size.height - LockCardMetrics.height) / 2),
-            width: LockCardMetrics.width,
-            height: LockCardMetrics.height
+        LockScreenPolicy.resolvedCompactRect(
+            windowSize: size,
+            placed: placement.compactRect
         )
     }
 

@@ -427,11 +427,7 @@ final class LockScreenWidget {
         _ rect: CGRect,
         toLocalTopLeftIn windowFrame: CGRect
     ) -> CGRect {
-        let x = rect.minX - windowFrame.minX
-        let y =
-            windowFrame.height - (rect.minY - windowFrame.minY)
-            - rect.height
-        return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+        LockScreenPolicy.convertToLocalTopLeft(rect, in: windowFrame)
     }
 
     private func resetCardPosition() {
@@ -442,13 +438,7 @@ final class LockScreenWidget {
     }
 
     private static func defaultCardFrame(for screen: NSScreen) -> NSRect {
-        let size = NSSize(width: 356, height: 174)
-        return NSRect(
-            x: screen.frame.midX - size.width / 2,
-            y: screen.frame.minY + screen.frame.height * 0.19,
-            width: size.width,
-            height: size.height
-        )
+        LockScreenPolicy.defaultCardFrame(screenFrame: screen.frame)
     }
 
     private func makeLockNotchWindow() -> SkyPanel {

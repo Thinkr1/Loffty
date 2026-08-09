@@ -63,4 +63,14 @@ struct SettingsTests {
         AppSettings.shared.resetWidgetPosition()
         #expect(AppSettings.shared.widgetPositionResetToken == before + 1)
     }
+
+    @Test @MainActor func launchAtLoginPublishedStateMatchesService() {
+        let settings = AppSettings.shared
+        settings.refreshLaunchAtLogin()
+        #expect(settings.launchAtLogin == LaunchAtLogin.isEnabled)
+        #expect(
+            settings.launchAtLoginNeedsApproval
+                == LaunchAtLogin.requiresApproval
+        )
+    }
 }

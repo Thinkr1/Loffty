@@ -93,6 +93,51 @@ enum LockScreenPolicy {
     ) -> Bool {
         lockScreenNotch && lockScreenExpandNotch
     }
+
+    static func defaultCardFrame(screenFrame: CGRect) -> CGRect {
+        let size = CGSize(
+            width: LockCardMetrics.width,
+            height: LockCardMetrics.height
+        )
+        return CGRect(
+            x: screenFrame.midX - size.width / 2,
+            y: screenFrame.minY + screenFrame.height * 0.19,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    static func convertToLocalTopLeft(
+        _ rect: CGRect,
+        in windowFrame: CGRect
+    ) -> CGRect {
+        let x = rect.minX - windowFrame.minX
+        let y =
+            windowFrame.height - (rect.minY - windowFrame.minY) - rect.height
+        return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+    }
+
+    static func resolvedCompactRect(
+        windowSize: CGSize,
+        placed: CGRect,
+        cardWidth: CGFloat = LockCardMetrics.width,
+        cardHeight: CGFloat = LockCardMetrics.height
+    ) -> CGRect {
+        if windowSize.width <= cardWidth + 0.5,
+            windowSize.height <= cardHeight + 0.5
+        {
+            return CGRect(origin: .zero, size: windowSize)
+        }
+        if placed.width > 1, placed.height > 1 {
+            return placed
+        }
+        return CGRect(
+            x: max(0, (windowSize.width - cardWidth) / 2),
+            y: max(0, (windowSize.height - cardHeight) / 2),
+            width: cardWidth,
+            height: cardHeight
+        )
+    }
 }
 
 func notchRect(

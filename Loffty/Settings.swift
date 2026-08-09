@@ -11,16 +11,24 @@ import ServiceManagement
 import SwiftUI
 
 @MainActor
-private enum LaunchAtLogin {
-    static var isEnabled: Bool {
-        switch SMAppService.mainApp.status {
+enum LaunchAtLogin {
+    static func isEnabled(status: SMAppService.Status) -> Bool {
+        switch status {
         case .enabled, .requiresApproval: true
         default: false
         }
     }
 
+    static func requiresApproval(status: SMAppService.Status) -> Bool {
+        status == .requiresApproval
+    }
+
+    static var isEnabled: Bool {
+        isEnabled(status: SMAppService.mainApp.status)
+    }
+
     static var requiresApproval: Bool {
-        SMAppService.mainApp.status == .requiresApproval
+        requiresApproval(status: SMAppService.mainApp.status)
     }
 
     static func setEnabled(_ enabled: Bool) throws {
