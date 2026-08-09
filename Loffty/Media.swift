@@ -233,6 +233,7 @@ struct NowPlaying: Equatable {
     var isLive: Bool = false
     var trackKey: String = ""
     var artwork: Data? = nil
+    var fullArtwork: Data? = nil
     var artworkUnavailable: Bool = true
     var bundleIdentifier: String = ""
 }
@@ -566,6 +567,7 @@ final class NowPlayingStream {
         if info["artworkData"] is NSNull {
             guard trackChanged else { return }
             current.artwork = nil
+            current.fullArtwork = nil
             current.artworkUnavailable = false
             return
         }
@@ -574,11 +576,13 @@ final class NowPlayingStream {
         else {
             if trackChanged {
                 current.artwork = nil
+                current.fullArtwork = nil
                 current.artworkUnavailable = false
             }
             return
         }
         current.artwork = ArtworkProcessor.thumbnailData(from: data)
+        current.fullArtwork = ArtworkProcessor.fullResData(from: data)
         current.artworkUnavailable = false
         cancelArtworkPolling()
     }
@@ -697,6 +701,10 @@ final class NowPlayingStream {
                         {
                             self.current.artwork =
                                 ArtworkProcessor.thumbnailData(
+                                    from: data
+                                )
+                            self.current.fullArtwork =
+                                ArtworkProcessor.fullResData(
                                     from: data
                                 )
                             self.current.artworkUnavailable = false

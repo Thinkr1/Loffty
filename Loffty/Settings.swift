@@ -75,6 +75,7 @@ final class AppSettings: ObservableObject {
     private static let movableWidgetKey = "movableWidget"
     private static let lockScreenNotchKey = "lockScreenNotch"
     private static let lockScreenExpandNotchKey = "lockScreenExpandNotch"
+    private static let lockScreenFullScreenArtKey = "lockScreenFullScreenArt"
     private static let lockScreenWaveformsKey = "lockScreenWaveforms"
     private static let lockScreenWaveformsAccentKey =
         "lockScreenWaveformsAccent"
@@ -186,6 +187,15 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.set(
                 lockScreenExpandNotch,
                 forKey: Self.lockScreenExpandNotchKey
+            )
+        }
+    }
+
+    @Published var lockScreenFullScreenArt: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenFullScreenArt,
+                forKey: Self.lockScreenFullScreenArtKey
             )
         }
     }
@@ -334,6 +344,10 @@ final class AppSettings: ObservableObject {
         lockScreenExpandNotch =
             UserDefaults.standard.object(forKey: Self.lockScreenExpandNotchKey)
             as? Bool ?? true
+        lockScreenFullScreenArt =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenFullScreenArtKey
+            ) as? Bool ?? true
         lockScreenWaveforms =
             UserDefaults.standard.object(forKey: Self.lockScreenWaveformsKey)
             as? Bool ?? true
@@ -425,6 +439,10 @@ struct SettingsView: View {
                         isOn: $settings.lockScreenExpandNotch
                     )
                 }
+                Toggle(
+                    "Expand lock screen artwork",
+                    isOn: $settings.lockScreenFullScreenArt
+                )
                 Toggle(
                     "Show soundwaves",
                     isOn: $settings.lockScreenWaveforms

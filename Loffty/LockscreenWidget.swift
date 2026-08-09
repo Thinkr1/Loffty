@@ -10,8 +10,7 @@ import Combine
 import SwiftUI
 
 final class LockScreenSpace {
-    static let shared = LockScreenSpace()
-    private let levelAboveLockScreen: Int32 = 300
+    static let interactive = LockScreenSpace(level: 300)
 
     private typealias F_MainConnectionID = @convention(c) () -> Int32
     private typealias F_SpaceCreate =
@@ -27,7 +26,7 @@ final class LockScreenSpace {
     private let space: Int32
     let isAvailable: Bool
 
-    private init() {
+    private init(level: Int32) {
         let path =
             "/System/Library/PrivateFrameworks/SkyLight.framework/Versions/A/SkyLight"
         let handle = dlopen(path, RTLD_NOW)
@@ -50,8 +49,9 @@ final class LockScreenSpace {
             F_AddWindowsAndRemove.self
         )
 
-        guard let mainConnectionID, let spaceCreate, let spaceSetAbsoluteLevel,
-            let showSpaces, addWindowsAndRemove != nil
+        guard let mainConnectionID, let spaceCreate,
+            let spaceSetAbsoluteLevel, let showSpaces,
+            addWindowsAndRemove != nil
         else {
             connection = 0
             space = 0
@@ -60,7 +60,7 @@ final class LockScreenSpace {
         }
         let cid = mainConnectionID()
         let sid = spaceCreate(cid, 1, 0)
-        _ = spaceSetAbsoluteLevel(cid, sid, levelAboveLockScreen)
+        _ = spaceSetAbsoluteLevel(cid, sid, level)
         _ = showSpaces(cid, [sid] as CFArray)
         connection = cid
         space = sid
@@ -110,39 +110,50 @@ final class SkyPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-private final class MovableHostingView<Content: View>: NSHostingView<Content> {
+private final class LockCardHostingView<Content: View>: NSHostingView<Content> {
     var allowsWindowDrag = false
+    var hitRect: CGRect = .null
+    var hitsFullWindow = true
 
-    override var mouseDownCanMoveWindow: Bool {
-        allowsWindowDrag
+    override var mouseDownCanMoveWindow: Bool { allowsWindowDrag }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if hitsFullWindow || hitRect.isNull || hitRect.isEmpty {
+            return super.hitTest(point)
+        }
+        let topLeftPoint = CGPoint(x: point.x, y: bounds.height - point.y)
+        guard hitRect.contains(topLeftPoint) else { return nil }
+        return super.hitTest(point)
     }
 
     deinit {}
 }
 
-private final class MovableHostingController<Content: View>:
-    NSHostingController<
-        Content
-    >
+private final class LockCardHostingController<Content: View>:
+    NSHostingController<Content>
 {
     var allowsWindowDrag = false {
         didSet { hostingView.allowsWindowDrag = allowsWindowDrag }
     }
 
-    private var hostingView: MovableHostingView<Content> {
-        view as! MovableHostingView<Content>
+    private var hostingView: LockCardHostingView<Content> {
+        view as! LockCardHostingView<Content>
     }
 
-    init(rootView: Content, allowsWindowDrag: Bool = false) {
-        self.allowsWindowDrag = allowsWindowDrag
+    override init(rootView: Content) {
         super.init(rootView: rootView)
-        let hostingView = MovableHostingView(rootView: rootView)
+        let hostingView = LockCardHostingView(rootView: rootView)
         hostingView.allowsWindowDrag = allowsWindowDrag
         view = hostingView
     }
 
     @MainActor required dynamic init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func updateHitRegion(cardRect: CGRect, hitsFullWindow: Bool) {
+        hostingView.hitRect = cardRect
+        hostingView.hitsFullWindow = hitsFullWindow
     }
 
     deinit {}
@@ -156,7 +167,9 @@ final class LockScreenWidget {
 
     private var lockNotchWindow: SkyPanel?
     private var cardWindow: SkyPanel?
-    private var cardController: MovableHostingController<LockCardRootView>?
+    private var cardController: LockCardHostingController<LockCardRootView>?
+    private let placement = LockCardPlacement()
+    private var savedCompactFrame: NSRect?
     private var lockNotchDelegated = false
     private var cardDelegated = false
     private var cancellables = Set<AnyCancellable>()
@@ -206,6 +219,38 @@ final class LockScreenWidget {
             }
             .store(in: &cancellables)
 
+        AppSettings.shared.$lockScreenFullScreenArt
+            .receive(on: RunLoop.main)
+            .sink { [weak self] allowed in
+                guard let self, self.vm.isLocked, !allowed else { return }
+                self.vm.setLockScreenArtExpanded(false)
+            }
+            .store(in: &cancellables)
+
+        vm.$lockScreenArtExpanded
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] expanded in
+                guard let self else { return }
+                if expanded {
+                    guard self.vm.isLocked,
+                        AppSettings.shared.lockScreenFullScreenArt
+                    else { return }
+                    self.showFullScreenArt()
+                } else {
+                    self.hideFullScreenArt()
+                }
+            }
+            .store(in: &cancellables)
+
+        vm.$nowPlaying
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, self.vm.isLocked else { return }
+                self.showCard()
+            }
+            .store(in: &cancellables)
+
         lock.onChange = { [weak self] locked in
             guard let self else { return }
             if locked {
@@ -234,12 +279,15 @@ final class LockScreenWidget {
     }
 
     private func applyMovableSetting(_ movable: Bool) {
+        guard !placement.isFlying else { return }
         cardWindow?.applyMovable(movable)
         cardController?.allowsWindowDrag = movable
     }
 
     private func hideCard() {
         cardWindow?.orderOut(nil)
+        placement.isFlying = false
+        vm.setLockScreenArtExpanded(false)
     }
 
     private func hideLockNotch() {
@@ -254,7 +302,7 @@ final class LockScreenWidget {
         }
         win.orderFrontRegardless()
         if !lockNotchDelegated {
-            LockScreenSpace.shared.add(win)
+            LockScreenSpace.interactive.add(win)
             lockNotchDelegated = true
         }
     }
@@ -264,14 +312,65 @@ final class LockScreenWidget {
         else { return }
         let win = cardWindow ?? makeCardWindow()
         cardWindow = win
-        win.orderFrontRegardless()
+        if !placement.isFlying {
+            win.alphaValue = 1
+            win.ignoresMouseEvents = false
+            win.orderFrontRegardless()
+        }
         if !cardDelegated {
-            LockScreenSpace.shared.add(win)
+            LockScreenSpace.interactive.add(win)
             cardDelegated = true
         }
     }
 
+    private func showFullScreenArt() {
+        guard let cardWindow else { return }
+        let screen = targetScreen()
+        let compactFrame = cardWindow.frame
+        savedCompactFrame = compactFrame
+        placement.compactRect = Self.convert(
+            compactFrame,
+            toLocalTopLeftIn: screen.frame
+        )
+
+        cardWindow.ignoresMouseEvents = true
+        cardWindow.applyMovable(false)
+        cardController?.allowsWindowDrag = false
+        cardWindow.setFrame(screen.frame, display: true)
+        placement.isFlying = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard self?.vm.lockScreenArtExpanded == true else { return }
+            self?.cardWindow?.ignoresMouseEvents = false
+        }
+    }
+
+    private func hideFullScreenArt() {
+        guard let cardWindow else { return }
+        let compact =
+            savedCompactFrame ?? Self.defaultCardFrame(for: targetScreen())
+        savedCompactFrame = nil
+
+        placement.isFlying = false
+        cardWindow.setFrame(compact, display: true)
+        cardWindow.ignoresMouseEvents = false
+        applyMovableSetting(AppSettings.shared.movableWidget)
+        cardController?.updateHitRegion(cardRect: .null, hitsFullWindow: true)
+    }
+
+    private static func convert(
+        _ rect: CGRect,
+        toLocalTopLeftIn windowFrame: CGRect
+    ) -> CGRect {
+        let x = rect.minX - windowFrame.minX
+        let y =
+            windowFrame.height - (rect.minY - windowFrame.minY)
+            - rect.height
+        return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+    }
+
     private func resetCardPosition() {
+        guard !placement.isFlying else { return }
         cardWindow?.setFrame(
             Self.defaultCardFrame(for: targetScreen()),
             display: true
@@ -304,10 +403,19 @@ final class LockScreenWidget {
         let frame = Self.defaultCardFrame(for: targetScreen())
         let win = SkyPanel(frame: frame, movableByBackground: movable)
         win.hasShadow = false
-        let controller = MovableHostingController(
-            rootView: LockCardRootView(vm: vm),
-            allowsWindowDrag: movable
+        let controller = LockCardHostingController(
+            rootView: LockCardRootView(
+                vm: vm,
+                placement: placement,
+                onHitRegionChange: { [weak self] rect, hitsFull in
+                    self?.cardController?.updateHitRegion(
+                        cardRect: rect,
+                        hitsFullWindow: hitsFull
+                    )
+                }
+            )
         )
+        controller.allowsWindowDrag = movable
         win.contentViewController = controller
         cardController = controller
         return win
@@ -316,9 +424,20 @@ final class LockScreenWidget {
 
 private struct LockCardRootView: View {
     @ObservedObject var vm: NotchViewModel
+    @ObservedObject var placement: LockCardPlacement
+    var onHitRegionChange: (CGRect, Bool) -> Void
 
     var body: some View {
-        LockCardView().environmentObject(vm)
+        if placement.isFlying {
+            LockMorphCardView(
+                vm: vm,
+                placement: placement,
+                onHitRegionChange: onHitRegionChange
+            )
+        } else {
+            LockCardView()
+                .environmentObject(vm)
+        }
     }
 }
 
@@ -376,6 +495,11 @@ struct LockCardView: View {
                         radius: 10,
                         y: 4
                     )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard settings.lockScreenFullScreenArt else { return }
+                        vm.setLockScreenArtExpanded(true)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -444,40 +568,13 @@ struct LockCardView: View {
         .padding(.top, 16)
         .padding(.bottom, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .lockCardGlassBackground(cardShape)
-        .overlay {
-            cardShape
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            .white.opacity(0.38),
-                            .white.opacity(0.10),
-                            .white.opacity(0.18),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.75
-                )
-        }
-        .overlay {
-            cardShape
-                .strokeBorder(
-                    .white.opacity(0.06),
-                    lineWidth: 6
-                )
-                .blur(radius: 8)
-                .clipShape(cardShape)
-                .allowsHitTesting(false)
-        }
-        .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
-        .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
+        .lockWidgetChrome(cardShape)
     }
 }
 
 extension View {
     @ViewBuilder
-    fileprivate func lockCardGlassBackground<S: Shape>(_ shape: S)
+    private func lockCardGlassBackground<S: Shape>(_ shape: S)
         -> some View
     {
         if #available(macOS 26.0, *) {
@@ -487,5 +584,37 @@ extension View {
                 .background(Color.black.opacity(0.35), in: shape)
                 .background(.ultraThinMaterial, in: shape)
         }
+    }
+
+    func lockWidgetChrome<S: InsettableShape>(_ shape: S) -> some View {
+        self
+            .lockCardGlassBackground(shape)
+            .overlay {
+                shape
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.38),
+                                .white.opacity(0.10),
+                                .white.opacity(0.18),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.75
+                    )
+            }
+            .overlay {
+                shape
+                    .strokeBorder(
+                        .white.opacity(0.06),
+                        lineWidth: 6
+                    )
+                    .blur(radius: 8)
+                    .clipShape(shape)
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
+            .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
     }
 }

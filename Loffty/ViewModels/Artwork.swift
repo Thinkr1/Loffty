@@ -12,8 +12,21 @@ import SwiftUI
 enum ArtworkProcessor {
     private static let ctx = CIContext(options: [.workingColorSpace: NSNull()])
     static let maxPixel: CGFloat = 120
+    static let maxFullPixel: CGFloat = 680
 
     static func thumbnailData(from data: Data) -> Data {
+        resizedData(from: data, maxPixel: maxPixel, quality: 0.82)
+    }
+
+    static func fullResData(from data: Data) -> Data {
+        resizedData(from: data, maxPixel: maxFullPixel, quality: 0.9)
+    }
+
+    private static func resizedData(
+        from data: Data,
+        maxPixel: CGFloat,
+        quality: CGFloat
+    ) -> Data {
         guard
             let img = CIImage(data: data),
             max(img.extent.width, img.extent.height) > maxPixel
@@ -29,7 +42,7 @@ enum ArtworkProcessor {
         guard
             let jpeg = rep.representation(
                 using: .jpeg,
-                properties: [.compressionFactor: 0.82]
+                properties: [.compressionFactor: quality]
             )
         else { return data }
         return jpeg

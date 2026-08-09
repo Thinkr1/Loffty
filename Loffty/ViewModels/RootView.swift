@@ -85,6 +85,7 @@ final class NotchViewModel: ObservableObject {
     @Published private(set) var trackChangeToken: UInt = 0
     @Published var accentColor: Color = NotchViewModel.defaultAccent
     @Published var isLocked = false
+    @Published var lockScreenArtExpanded = false
     @Published var hud: HUDKind? = nil
     @Published var hudDisplay: HUDKind? = nil
     @Published var hudLevel: Float = 0
@@ -341,6 +342,7 @@ final class NotchViewModel: ObservableObject {
         var incoming = np
         if incoming.title.isEmpty {
             incoming.artwork = nil
+            incoming.fullArtwork = nil
             incoming.artworkUnavailable = true
             incoming.artist = ""
             incoming.album = ""
@@ -425,6 +427,12 @@ final class NotchViewModel: ObservableObject {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) {
             isLocked = v
         }
+        if !v { lockScreenArtExpanded = false }
+    }
+
+    func setLockScreenArtExpanded(_ v: Bool) {
+        guard v != lockScreenArtExpanded else { return }
+        lockScreenArtExpanded = v
     }
 
     static func interpolatedElapsed(from np: NowPlaying, at date: Date)
