@@ -41,12 +41,13 @@ final class NotchWindow: NSPanel {
 @MainActor
 final class SettingsOpener {
     static let shared = SettingsOpener()
+    static let contentSize = NSSize(width: 700, height: 580)
     private var window: NSWindow?
 
     func prewarm() {
         ensureWindow()
         guard let window, let content = window.contentView else { return }
-        content.frame = NSRect(x: 0, y: 0, width: 400, height: 580)
+        content.frame = NSRect(origin: .zero, size: Self.contentSize)
         content.layoutSubtreeIfNeeded()
         window.layoutIfNeeded()
     }
@@ -63,15 +64,25 @@ final class SettingsOpener {
     private func ensureWindow() {
         guard window == nil else { return }
         let w = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 580),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(origin: .zero, size: Self.contentSize),
+            styleMask: [
+                .titled, .closable, .resizable, .fullSizeContentView,
+            ],
             backing: .buffered,
             defer: false
         )
         w.title = "Loffty Settings"
+        w.titleVisibility = .hidden
+        w.titlebarAppearsTransparent = true
+        w.isMovableByWindowBackground = true
+        w.backgroundColor = .clear
+        w.isOpaque = false
+        w.standardWindowButton(.zoomButton)?.isHidden = true
+        w.standardWindowButton(.miniaturizeButton)?.isHidden = true
         let hosting = NSHostingView(rootView: SettingsView())
-        hosting.frame = NSRect(x: 0, y: 0, width: 400, height: 580)
+        hosting.frame = NSRect(origin: .zero, size: Self.contentSize)
         w.contentView = hosting
+        w.contentMinSize = NSSize(width: 700, height: 560)
         w.isReleasedWhenClosed = false
         w.level = .floating
         w.animationBehavior = .none

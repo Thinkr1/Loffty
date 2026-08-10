@@ -1,0 +1,1130 @@
+//
+//  SettingsView.swift
+//  Loffty
+//
+//  Created by Pierre-Louis ML on 10/08/2026.
+//
+
+import AppKit
+import ServiceManagement
+import SwiftUI
+
+enum SettingsPage: String, CaseIterable, Identifiable {
+    case general
+    case media
+    case sensory
+    case battery
+    case accessories
+    case focus
+    case airDrop
+    case lockScreen
+    case updates
+
+    enum Region {
+        case app
+        case overlays
+        case footer
+    }
+
+    var id: String { rawValue }
+
+    var region: Region {
+        switch self {
+        case .general, .media: .app
+        case .sensory, .battery, .accessories, .focus, .airDrop, .lockScreen:
+            .overlays
+        case .updates: .footer
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .media: "Media"
+        case .sensory: "Sensory"
+        case .battery: "Battery"
+        case .accessories: "Accessories"
+        case .focus: "Focus"
+        case .airDrop: "AirDrop"
+        case .lockScreen: "Lock Screen"
+        case .updates: "Updates"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape.fill"
+        case .media: "play.rectangle.fill"
+        case .sensory: "sun.max.fill"
+        case .battery: "battery.100percent"
+        case .accessories: "airpods.gen3"
+        case .focus: "moon.fill"
+        case .airDrop: "dot.radiowaves.up.forward"
+        case .lockScreen: "lock.fill"
+        case .updates: "arrow.down.circle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .general: .secondary
+        case .media: .pink
+        case .sensory: .yellow
+        case .battery: .green
+        case .accessories: .mint
+        case .focus: .indigo
+        case .airDrop: .blue
+        case .lockScreen: .orange
+        case .updates: .blue
+        }
+    }
+}
+
+struct SettingsEntry: Identifiable {
+    let id: String
+    let title: String
+    let detail: String?
+    let keywords: [String]
+    let isEnabled: Bool
+    let control: AnyView
+
+    init(
+        _ id: String,
+        title: String,
+        detail: String? = nil,
+        keywords: [String] = [],
+        isEnabled: Bool = true,
+        @ViewBuilder control: () -> some View
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.keywords = keywords
+        self.isEnabled = isEnabled
+        self.control = AnyView(control())
+    }
+
+    func matches(_ tokens: [String]) -> Bool {
+        let haystack =
+            ([title, detail ?? ""] + keywords)
+            .joined(separator: " ")
+            .lowercased()
+        return tokens.allSatisfy { haystack.contains($0) }
+    }
+}
+
+struct SettingsGroup: Identifiable {
+    let page: SettingsPage
+    let title: String
+    let note: String?
+    let entries: [SettingsEntry]
+
+    var id: String { "\(page.rawValue).\(title)" }
+
+    init(
+        page: SettingsPage,
+        title: String,
+        note: String? = nil,
+        entries: [SettingsEntry]
+    ) {
+        self.page = page
+        self.title = title
+        self.note = note
+        self.entries = entries
+    }
+
+    func filtered(by tokens: [String]) -> SettingsGroup? {
+        guard !tokens.isEmpty else { return self }
+        let context = "\(page.title) \(title)".lowercased()
+        let matchesContext = tokens.allSatisfy { context.contains($0) }
+        let matched =
+            matchesContext ? entries : entries.filter { $0.matches(tokens) }
+        guard !matched.isEmpty else { return nil }
+        return SettingsGroup(
+            page: page,
+            title: title,
+            note: note,
+            entries: matched
+        )
+    }
+}
+
+struct SettingsView: View {
+    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var updater = AppUpdater.shared
+
+    @AppStorage("settings.selectedPage") private var storedPage =
+        SettingsPage.general.rawValue
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
+
+    private var page: SettingsPage {
+        SettingsPage(rawValue: storedPage) ?? .general
+    }
+
+    private var tokens: [String] {
+        query
+            .lowercased()
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+    }
+
+    private var isSearching: Bool { !tokens.isEmpty }
+
+    private var results: [SettingsGroup] {
+        let source = isSearching ? groups : groups.filter { $0.page == page }
+        return source.compactMap { $0.filtered(by: tokens) }
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            sidebar
+            Divider().opacity(0.5)
+            detail
+        }
+        .frame(minWidth: 700, minHeight: 560)
+        .background(
+            VisualEffectBackground(material: .hudWindow)
+                .ignoresSafeArea()
+        )
+        .background {
+            Button("Search") { searchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .onAppear { settings.refreshLaunchAtLogin() }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didBecomeActiveNotification
+            )
+        ) { _ in
+            settings.refreshLaunchAtLogin()
+        }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(height: 30)
+
+            HStack(spacing: 10) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 34, height: 34)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Loffty")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Settings")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 14)
+
+            SearchField(text: $query)
+                .focused($searchFocused)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
+
+            ScrollView {
+                GlassStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(pages(in: .app)) { sidebarRow($0) }
+
+                        Text("Overlays")
+                            .font(.system(size: 10, weight: .semibold))
+                            .tracking(0.5)
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 18)
+                            .padding(.top, 14)
+                            .padding(.bottom, 4)
+
+                        ForEach(pages(in: .overlays)) { sidebarRow($0) }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 8)
+            }
+            .scrollIndicators(.never)
+
+            Divider().opacity(0.4).padding(.horizontal, 10)
+
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(pages(in: .footer)) { sidebarRow($0) }
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "power")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 18)
+                        Text("Quit Loffty")
+                            .font(.system(size: 12.5))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .frame(height: 28)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("q", modifiers: .command)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+        }
+        .frame(width: 208)
+        .background(VisualEffectBackground(material: .hudWindow))
+    }
+
+    private func pages(in region: SettingsPage.Region) -> [SettingsPage] {
+        SettingsPage.allCases.filter { $0.region == region }
+    }
+
+    private func sidebarRow(_ item: SettingsPage) -> some View {
+        SidebarRow(
+            page: item,
+            isSelected: !isSearching && item == page,
+            badge: item == .updates ? updater.currentVersion : nil,
+            showsDot: item == .updates && updateAvailable
+        ) {
+            query = ""
+            guard item.rawValue != storedPage else { return }
+            withAnimation(.easeInOut(duration: 0.15)) {
+                storedPage = item.rawValue
+            }
+        }
+    }
+
+    private var updateAvailable: Bool {
+        if case .available = updater.state { return true }
+        return false
+    }
+
+    private var detail: some View {
+        ZStack(alignment: .topLeading) {
+            detailPage
+                .id(isSearching ? "search" : storedPage)
+                .transition(.opacity)
+        }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
+    }
+
+    private var detailPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(height: 26)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isSearching ? "Search" : page.title)
+                    .font(.system(size: 24, weight: .bold))
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 16)
+
+            if results.isEmpty {
+                emptyResults
+            } else {
+                ScrollView {
+                    GlassStack {
+                        LazyVStack(alignment: .leading, spacing: 18) {
+                            ForEach(results) { group in
+                                SettingsCard(
+                                    group: group,
+                                    showsPage: isSearching,
+                                    showsNote: !isSearching
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 26)
+                }
+                .scrollIndicators(.automatic)
+            }
+        }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
+    }
+
+    private var resultsCaption: String {
+        let count = results.reduce(0) { $0 + $1.entries.count }
+        let noun = count == 1 ? "match" : "matches"
+        return "\(count) \(noun) for “\(query)”"
+    }
+
+    private var emptyResults: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text("No settings match “\(query)”")
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var groups: [SettingsGroup] {
+        generalGroups + mediaGroups + overlayGroups + lockScreenGroups
+            + updateGroups
+    }
+
+    private var generalGroups: [SettingsGroup] {
+        [
+            SettingsGroup(
+                page: .general,
+                title: "Startup",
+                entries: [
+                    SettingsEntry(
+                        "launchAtLogin",
+                        title: "Launch at login",
+                        keywords: ["startup", "boot", "open"]
+                    ) {
+                        Toggle("", isOn: $settings.launchAtLogin)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                ]
+                    + (settings.launchAtLoginNeedsApproval
+                        ? [
+                            SettingsEntry(
+                                "launchApproval",
+                                title: "Approval required",
+                                detail:
+                                    "macOS is waiting for you to allow Loffty in Login Items.",
+                                keywords: ["login items", "permission"]
+                            ) {
+                                Button("Open") {
+                                    SMAppService.openSystemSettingsLoginItems()
+                                }
+                                .controlSize(.small)
+                                .settingsButton()
+                            }
+                        ] : [])
+            ),
+            SettingsGroup(
+                page: .general,
+                title: "Menu Bar",
+                entries: [
+                    SettingsEntry(
+                        "hideMenuBarItem",
+                        title: "Hide menu bar icon",
+                        detail: "Reopen settings from the notch.",
+                        keywords: ["status item", "icon"]
+                    ) {
+                        Toggle("", isOn: $settings.hideMenuBarItem)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                ]
+            ),
+            SettingsGroup(
+                page: .general,
+                title: "Notch",
+                note:
+                    "The overlay duration applies to every notch overlay: volume, brightness, battery, Bluetooth and Focus.",
+                entries: [
+                    SettingsEntry(
+                        "extendNotch",
+                        title: "Extend notch around media",
+                        keywords: ["grow", "widen", "playing"]
+                    ) {
+                        Toggle("", isOn: $settings.extendNotch)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "hudDuration",
+                        title: "Overlay duration",
+                        keywords: ["hud", "timing", "seconds", "dismiss"],
+                        isEnabled: settings.anyHUDEnabled
+                    ) {
+                        HStack(spacing: 10) {
+                            Slider(
+                                value: $settings.hudDuration,
+                                in: 1...3,
+                                step: 0.25
+                            )
+                            .frame(width: 120)
+                            Text(String(format: "%.2fs", settings.hudDuration))
+                                .font(.system(size: 11.5))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                    },
+                ]
+            ),
+        ]
+    }
+
+    private var mediaGroups: [SettingsGroup] {
+        [
+            SettingsGroup(
+                page: .media,
+                title: "Artists",
+                note:
+                    "Spotify only reports the first artist to macOS. Loffty can look up the full list over the network.",
+                entries: [
+                    SettingsEntry(
+                        "artistEnrichment",
+                        title: "Spotify artists",
+                        keywords: ["network", "wifi", "lookup", "featuring"]
+                    ) {
+                        Picker("", selection: $settings.artistEnrichment) {
+                            ForEach(ArtistEnrichmentMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    }
+                ]
+            ),
+            SettingsGroup(
+                page: .media,
+                title: "Player Badge",
+                note:
+                    "The badge shows the icon of the app that is playing on top of the album cover.",
+                entries: [
+                    SettingsEntry(
+                        "playerBadgeExpanded",
+                        title: "Expanded notch",
+                        keywords: ["badge", "app icon"]
+                    ) {
+                        Toggle("", isOn: $settings.playerBadgeExpanded)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "playerBadgeCollapsed",
+                        title: "Collapsed notch",
+                        keywords: ["badge", "app icon"]
+                    ) {
+                        Toggle("", isOn: $settings.playerBadgeCollapsed)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "playerBadgeLockScreen",
+                        title: "Lock screen",
+                        keywords: ["badge", "app icon"]
+                    ) {
+                        Toggle("", isOn: $settings.playerBadgeLockScreen)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .media,
+                title: "Presentation",
+                note:
+                    "With scrolling off, long titles and artists truncate with an ellipsis.",
+                entries: [
+                    SettingsEntry(
+                        "marqueeEnabled",
+                        title: "Scroll long titles and artists",
+                        keywords: ["marquee", "ticker", "ellipsis"]
+                    ) {
+                        Toggle("", isOn: $settings.marqueeEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "showAlbum",
+                        title: "Show album name",
+                        keywords: ["record", "title"]
+                    ) {
+                        Toggle("", isOn: $settings.showAlbum)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "showAirPlayButton",
+                        title: "Show AirPlay button",
+                        keywords: ["output", "speaker", "route"]
+                    ) {
+                        Toggle("", isOn: $settings.showAirPlayButton)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "collapsedWaveformsAccent",
+                        title: "Tint collapsed soundwaves",
+                        detail: "Uses the accent colour of the album cover.",
+                        keywords: ["waveform", "colour", "color", "accent"]
+                    ) {
+                        Toggle("", isOn: $settings.collapsedWaveformsAccent)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                ]
+            ),
+        ]
+    }
+
+    private var overlayGroups: [SettingsGroup] {
+        [
+            SettingsGroup(
+                page: .sensory,
+                title: "Volume & Brightness",
+                note:
+                    "Replacing the system HUD requires Accessibility access in System Settings → Privacy & Security.",
+                entries: [
+                    SettingsEntry(
+                        "replaceSystemHUD",
+                        title: "Replace system HUDs",
+                        keywords: ["volume", "brightness", "accessibility"]
+                    ) {
+                        Toggle("", isOn: $settings.replaceSystemHUD)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "brightnessHUD",
+                        title: "Show brightness overlay",
+                        keywords: ["screen", "display", "dim"],
+                        isEnabled: settings.replaceSystemHUD
+                    ) {
+                        Toggle("", isOn: $settings.brightnessHUD)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .battery,
+                title: "Battery",
+                note:
+                    "Appears as a drop-down chip when the charger is plugged in or the battery runs low.",
+                entries: [
+                    SettingsEntry(
+                        "batteryHUD",
+                        title: "Battery overlay",
+                        keywords: ["charging", "power", "percentage", "chip"]
+                    ) {
+                        Toggle("", isOn: $settings.batteryHUD)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                ]
+            ),
+            SettingsGroup(
+                page: .accessories,
+                title: "Bluetooth",
+                note:
+                    "Takes over the side of the notch when a device connects or disconnects.",
+                entries: [
+                    SettingsEntry(
+                        "bluetoothHUD",
+                        title: "Bluetooth overlay",
+                        keywords: [
+                            "airpods", "headphones", "device", "connection",
+                        ]
+                    ) {
+                        Toggle("", isOn: $settings.bluetoothHUD)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                ]
+            ),
+            SettingsGroup(
+                page: .focus,
+                title: "Focus",
+                note:
+                    "Shows the current Focus mode on the side of the notch when it changes.",
+                entries: [
+                    SettingsEntry(
+                        "focusHUD",
+                        title: "Focus overlay",
+                        keywords: [
+                            "do not disturb", "dnd", "sleep", "work",
+                        ]
+                    ) {
+                        Toggle("", isOn: $settings.focusHUD)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                ]
+            ),
+            SettingsGroup(
+                page: .airDrop,
+                title: "AirDrop",
+                note:
+                    "Drop a file on the notch to start sending it. Incoming transfers appear there too.",
+                entries: [
+                    SettingsEntry(
+                        "airDropHUD",
+                        title: "AirDrop in notch",
+                        keywords: ["drag", "drop", "share", "send", "files"]
+                    ) {
+                        Toggle("", isOn: $settings.airDropHUD)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                ]
+            ),
+        ]
+    }
+
+    private var lockScreenGroups: [SettingsGroup] {
+        [
+            SettingsGroup(
+                page: .lockScreen,
+                title: "Notch",
+                note:
+                    "Expanding on the lock screen never steals focus from the password field.",
+                entries: [
+                    SettingsEntry(
+                        "lockScreenNotch",
+                        title: "Show notch on lock screen",
+                        keywords: ["locked", "login window"]
+                    ) {
+                        Toggle("", isOn: $settings.lockScreenNotch)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "lockScreenExpandNotch",
+                        title: "Allow expanding on hover",
+                        keywords: ["expand", "hover", "open"],
+                        isEnabled: settings.lockScreenNotch
+                    ) {
+                        Toggle("", isOn: $settings.lockScreenExpandNotch)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .lockScreen,
+                title: "Artwork",
+                entries: [
+                    SettingsEntry(
+                        "lockScreenFullScreenArt",
+                        title: "Expand album artwork",
+                        keywords: ["cover", "full screen", "art"]
+                    ) {
+                        Toggle("", isOn: $settings.lockScreenFullScreenArt)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "lockScreenWaveforms",
+                        title: "Show soundwaves",
+                        keywords: ["waveform", "bars", "visualiser"]
+                    ) {
+                        Toggle("", isOn: $settings.lockScreenWaveforms)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "lockScreenWaveformsAccent",
+                        title: "Tint soundwaves",
+                        detail: "Uses the accent colour of the album cover.",
+                        keywords: ["waveform", "colour", "color", "accent"],
+                        isEnabled: settings.lockScreenWaveforms
+                    ) {
+                        Toggle("", isOn: $settings.lockScreenWaveformsAccent)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .lockScreen,
+                title: "Widget",
+                entries: [
+                    SettingsEntry(
+                        "movableWidget",
+                        title: "Allow moving the widget",
+                        keywords: ["drag", "position", "place"]
+                    ) {
+                        Toggle("", isOn: $settings.movableWidget)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "resetWidgetPosition",
+                        title: "Reset widget position",
+                        detail: "Puts the widget back in the centre.",
+                        keywords: ["default", "centre", "center"]
+                    ) {
+                        Button("Reset") { settings.resetWidgetPosition() }
+                            .controlSize(.small)
+                            .settingsButton()
+                    },
+                ]
+            ),
+        ]
+    }
+
+    private var updateGroups: [SettingsGroup] {
+        [
+            SettingsGroup(
+                page: .updates,
+                title: "Updates",
+                note:
+                    "Updates come from GitHub Releases and are verified with SHA-256 and Ed25519. Because Loffty is not notarized, macOS may ask you to allow a new build once after an update.",
+                entries: [
+                    SettingsEntry(
+                        "automaticUpdates",
+                        title: "Check automatically",
+                        detail: "Once a day, in the background.",
+                        keywords: ["auto", "daily", "background"]
+                    ) {
+                        Toggle("", isOn: $settings.automaticUpdates)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    },
+                    SettingsEntry(
+                        "checkForUpdates",
+                        title: "Version \(updater.currentVersion)",
+                        detail: updateStatusText,
+                        keywords: ["check", "install", "release", "download"]
+                    ) {
+                        HStack(spacing: 8) {
+                            if isUpdateBusy {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .scaleEffect(0.7)
+                            }
+                            if case .available(let release) = updater.state {
+                                Button("Install \(release.version)") {
+                                    updater.install(release)
+                                }
+                                .controlSize(.small)
+                                .settingsButton(prominent: true)
+                            } else {
+                                Button("Check Now") {
+                                    updater.checkForUpdatesNow()
+                                }
+                                .controlSize(.small)
+                                .settingsButton()
+                                .disabled(isUpdateBusy)
+                            }
+                        }
+                    },
+                ]
+            )
+        ]
+    }
+
+    private var isUpdateBusy: Bool {
+        switch updater.state {
+        case .checking, .downloading, .installing: true
+        default: false
+        }
+    }
+
+    private var updateStatusText: String {
+        switch updater.state {
+        case .idle: "Not checked yet"
+        case .checking: "Checking…"
+        case .upToDate: "Up to date"
+        case .available(let release): "\(release.version) is available"
+        case .downloading: "Downloading…"
+        case .installing: "Installing…"
+        case .failed(let message): message
+        }
+    }
+}
+
+private struct SidebarRow: View {
+    let page: SettingsPage
+    let isSelected: Bool
+    let badge: String?
+    let showsDot: Bool
+    let action: () -> Void
+
+    @Environment(\.colorScheme) private var scheme
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            decorated(
+                HStack(spacing: 9) {
+                    Image(systemName: page.symbol)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(page.tint)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .frame(width: 18)
+                    Text(page.title)
+                        .font(
+                            .system(
+                                size: 12.5,
+                                weight: isSelected ? .semibold : .regular
+                            )
+                        )
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if showsDot {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 6, height: 6)
+                    }
+                    if let badge {
+                        Text(badge)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.horizontal, 9)
+                .frame(height: 30)
+            )
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+    }
+
+    @ViewBuilder
+    private func decorated(_ content: some View) -> some View {
+        if isSelected {
+            content.settingsSurface(
+                shape,
+                scheme: scheme,
+                interactive: true,
+                fallbackFill: SettingsChrome.selectionFill(scheme)
+            )
+        } else if hovering {
+            content.background(shape.fill(SettingsChrome.hoverFill(scheme)))
+        } else {
+            content
+        }
+    }
+}
+
+private struct SettingsCard: View {
+    let group: SettingsGroup
+    let showsPage: Bool
+    let showsNote: Bool
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(caption)
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+
+            VStack(spacing: 0) {
+                ForEach(Array(group.entries.enumerated()), id: \.element.id) {
+                    index,
+                    entry in
+                    if index > 0 {
+                        Rectangle()
+                            .fill(SettingsChrome.cardStroke(scheme))
+                            .frame(height: 1)
+                            .padding(.leading, 14)
+                    }
+                    SettingsRowView(entry: entry)
+                }
+            }
+            .settingsSurface(shape, scheme: scheme)
+
+            if showsNote, let note = group.note {
+                Text(note)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 1)
+            }
+        }
+    }
+
+    private var caption: String {
+        let text =
+            showsPage
+            ? "\(group.page.title) · \(group.title)"
+            : group.title
+        return text.uppercased()
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 11, style: .continuous)
+    }
+}
+
+private struct SettingsRowView: View {
+    let entry: SettingsEntry
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.title)
+                    .font(.system(size: 12.5, weight: .medium))
+                if let detail = entry.detail {
+                    Text(detail)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 8)
+            entry.control
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .frame(minHeight: 42)
+        .opacity(entry.isEnabled ? 1 : 0.4)
+        .disabled(!entry.isEnabled)
+    }
+}
+
+private struct SearchField: View {
+    @Binding var text: String
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            TextField("Search", text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 28)
+        .settingsSurface(shape, scheme: scheme, interactive: true)
+        .onExitCommand { text = "" }
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func settingsSurface<S: InsettableShape>(
+        _ shape: S,
+        scheme: ColorScheme,
+        interactive: Bool = false,
+        fallbackFill: Color? = nil
+    ) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(
+                interactive ? .clear.interactive() : .clear,
+                in: shape
+            )
+        } else {
+            self
+                .background(
+                    shape.fill(fallbackFill ?? SettingsChrome.cardFill(scheme))
+                )
+                .overlay(
+                    shape.strokeBorder(
+                        SettingsChrome.cardStroke(scheme),
+                        lineWidth: 1
+                    )
+                )
+        }
+    }
+
+    @ViewBuilder
+    func settingsButton(prominent: Bool = false) -> some View {
+        if #available(macOS 26.0, *) {
+            if prominent {
+                self.buttonStyle(.glassProminent)
+            } else {
+                self.buttonStyle(.glass)
+            }
+        } else {
+            if prominent {
+                self.buttonStyle(.borderedProminent)
+            } else {
+                self.buttonStyle(.bordered)
+            }
+        }
+    }
+}
+
+struct GlassStack<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 0) { content }
+        } else {
+            content
+        }
+    }
+}
+
+enum SettingsChrome {
+    static func cardFill(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color.white.opacity(0.045)
+            : Color.white.opacity(0.35)
+    }
+
+    static func cardStroke(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color.white.opacity(0.10)
+            : Color.black.opacity(0.05)
+    }
+
+    static func selectionFill(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color.white.opacity(0.09)
+            : Color.white.opacity(0.50)
+    }
+
+    static func hoverFill(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color.white.opacity(0.04)
+            : Color.black.opacity(0.03)
+    }
+}
+
+struct VisualEffectBackground: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = material
+    }
+}
