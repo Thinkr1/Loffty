@@ -69,7 +69,6 @@ Some things I'm currently working on:
   - Add more controls (shuffle, repeat, etc)
   - Actual soundwaves
   - Lock screen lyrics
-  - Login item
   - Timer, live activities
   - WhatsApp, Messages, Discord (+more) notifications (+reply, show more)
   - Improve lock screen widget (+show music video option)
