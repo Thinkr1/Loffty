@@ -195,7 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NotchWindow!
     private var airDropCatch: NSPanel!
     private var statusItem: NSStatusItem!
-    private lazy var vm = NotchViewModel()
+    private var vm: NotchViewModel!
     private var lockWidget: LockScreenWidget!
     private var hoverExpanded = false
     private var mouseButtonDown = false
@@ -218,6 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 })
                 ?? NSScreen.main
         else { return }
+        vm = NotchViewModel()
         let info = detectNotch(on: screen)
         vm.notch = info
         let bandw: CGFloat = 600
