@@ -423,7 +423,7 @@ final class AirDropController: ObservableObject {
         return NSClassFromString("SFAirDropTransferObserver") != nil
     }
 
-    static func dedupe(_ urls: [URL]) -> [URL] {
+    nonisolated static func dedupe(_ urls: [URL]) -> [URL] {
         var seen = Set<String>()
         return urls.filter { seen.insert($0.path).inserted }
     }

@@ -443,7 +443,7 @@ final class NotchViewModel: ObservableObject {
         lockScreenArtExpanded = v
     }
 
-    static func interpolatedElapsed(from np: NowPlaying, at date: Date)
+    nonisolated static func interpolatedElapsed(from np: NowPlaying, at date: Date)
         -> Double
     {
         let rate = np.isPlaying ? max(0, np.playbackRate) : 0
