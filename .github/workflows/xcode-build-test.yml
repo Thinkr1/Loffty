@@ -18,9 +18,13 @@ concurrency:
 
 jobs:
   test:
-    name: Build & Test
-    runs-on: macos-latest
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-15]
     permissions:
       contents: read
       checks: write
@@ -34,17 +38,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-deriveddata-${{ hashFiles('**/*.pbxproj', '**/Package.resolved') }}
+          key: ${{ matrix.os }}-deriveddata-${{ hashFiles('**/*.pbxproj', '**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-deriveddata-
+            ${{ matrix.os }}-deriveddata-
 
       - name: Cache SPM packages
         uses: actions/cache@v4
         with:
           path: ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          key: ${{ matrix.os }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ matrix.os }}-spm-
 
       - name: Build & Test
         run: |
@@ -79,7 +83,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcresult
+          name: xcresult-${{ matrix.os }}
           path: TestResults/Loffty.xcresult
           if-no-files-found: ignore
 
@@ -87,7 +91,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: junit
+          name: junit-${{ matrix.os }}
           path: TestResults/junit.xml
           if-no-files-found: ignore
 
@@ -95,7 +99,7 @@ jobs:
         if: always()
         uses: dorny/test-reporter@1cc81a5edf733718d4850df304aaa21c05cd7280 # v3
         with:
-          name: LofftyTests
+          name: LofftyTests (${{ matrix.os }})
           path: TestResults/junit.xml
           reporter: java-junit
           fail-on-error: false
