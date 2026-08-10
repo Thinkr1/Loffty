@@ -361,6 +361,16 @@ final class AppSettings: ObservableObject {
         replaceSystemHUD || batteryHUD || bluetoothHUD || focusHUD || airDropHUD
     }
 
+    static func shouldPresentBrightnessHUD(
+        brightnessHUD: Bool,
+        replaceSystemHUD: Bool,
+        showOnAutoAdjust: Bool,
+        changeWasFromKeyPress: Bool
+    ) -> Bool {
+        guard brightnessHUD, replaceSystemHUD else { return false }
+        return showOnAutoAdjust || changeWasFromKeyPress
+    }
+
     private init() {
         hideMenuBarItem = UserDefaults.standard.bool(
             forKey: Self.hideMenuBarItemKey

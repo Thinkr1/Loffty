@@ -3,6 +3,7 @@
 //  LofftyTests
 //
 
+import Foundation
 import Testing
 
 @testable import Loffty
@@ -37,6 +38,71 @@ struct SettingsTests {
                 airDropHUD: true
             )
         )
+    }
+
+    @Test func shouldPresentBrightnessHUDRequiresEnabledAndReplace() {
+        #expect(
+            !AppSettings.shouldPresentBrightnessHUD(
+                brightnessHUD: false,
+                replaceSystemHUD: true,
+                showOnAutoAdjust: true,
+                changeWasFromKeyPress: true
+            )
+        )
+        #expect(
+            !AppSettings.shouldPresentBrightnessHUD(
+                brightnessHUD: true,
+                replaceSystemHUD: false,
+                showOnAutoAdjust: true,
+                changeWasFromKeyPress: true
+            )
+        )
+    }
+
+    @Test func shouldPresentBrightnessHUDAutoAdjustGate() {
+        #expect(
+            AppSettings.shouldPresentBrightnessHUD(
+                brightnessHUD: true,
+                replaceSystemHUD: true,
+                showOnAutoAdjust: true,
+                changeWasFromKeyPress: false
+            )
+        )
+        #expect(
+            !AppSettings.shouldPresentBrightnessHUD(
+                brightnessHUD: true,
+                replaceSystemHUD: true,
+                showOnAutoAdjust: false,
+                changeWasFromKeyPress: false
+            )
+        )
+        #expect(
+            AppSettings.shouldPresentBrightnessHUD(
+                brightnessHUD: true,
+                replaceSystemHUD: true,
+                showOnAutoAdjust: false,
+                changeWasFromKeyPress: true
+            )
+        )
+    }
+
+    @Test @MainActor func brightnessHUDShownOnAutoAdjustPersists() {
+        let settings = AppSettings.shared
+        let original = settings.brightnessHUDShownOnAutoAdjust
+        defer { settings.brightnessHUDShownOnAutoAdjust = original }
+
+        settings.brightnessHUDShownOnAutoAdjust = true
+        #expect(
+            UserDefaults.standard.object(forKey: "brightnessHUDShownOnAuto")
+                as? Bool == true
+        )
+
+        settings.brightnessHUDShownOnAutoAdjust = false
+        #expect(
+            UserDefaults.standard.object(forKey: "brightnessHUDShownOnAuto")
+                as? Bool == false
+        )
+        #expect(!settings.brightnessHUDShownOnAutoAdjust)
     }
 
     @Test func artistEnrichmentModeNetworkFetch() {

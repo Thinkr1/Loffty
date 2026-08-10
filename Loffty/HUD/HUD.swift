@@ -631,6 +631,21 @@ final class SystemKeyInterceptor {
         return date.timeIntervalSince(last) <= brightnessKeyCorrelationWindow
     }
 
+    #if DEBUG
+        func recordBrightnessKeyPressForTesting(
+            at date: Date,
+            direction: BrightnessKeyDirection = .up
+        ) {
+            lastBrightnessKeyPressDate = date
+            lastBrightnessKeyDirection = direction
+        }
+
+        func clearBrightnessKeyPressForTesting() {
+            lastBrightnessKeyPressDate = nil
+            lastBrightnessKeyDirection = nil
+        }
+    #endif
+
     private func requestAccessibilityIfNeeded() {
         guard !AXIsProcessTrusted() else { return }
         let key = kAXTrustedCheckOptionPrompt.takeRetainedValue() as String
