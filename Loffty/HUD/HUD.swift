@@ -549,6 +549,10 @@ final class SystemKeyInterceptor {
     private var runLoopSource: CFRunLoopSource?
     private var wakeObserver: NSObjectProtocol?
     private(set) var isEnabled = false
+    enum BrightnessKeyDirection { case up, down }
+    private(set) var lastBrightnessKeyPressDate: Date?
+    private(set) var lastBrightnessKeyDirection: BrightnessKeyDirection?
+    var brightnessKeyCorrelationWindow: TimeInterval = 0.3
 
     static let normalStep: Float = 1.0 / 16.0
     static let fineStep: Float = 1.0 / 64.0
@@ -622,6 +626,11 @@ final class SystemKeyInterceptor {
         runLoopSource = nil
     }
 
+    func brightnessChangeWasFromKeyPress(at date: Date = Date()) -> Bool {
+        guard let last = lastBrightnessKeyPressDate else { return false }
+        return date.timeIntervalSince(last) <= brightnessKeyCorrelationWindow
+    }
+
     private func requestAccessibilityIfNeeded() {
         guard !AXIsProcessTrusted() else { return }
         let key = kAXTrustedCheckOptionPrompt.takeRetainedValue() as String
@@ -665,13 +674,23 @@ final class SystemKeyInterceptor {
         let keyState = (keyFlags & 0xFF00) >> 8
         guard keyState == 0x0A else { return Unmanaged.passRetained(event) }
 
+        switch keyCode {
+        case NXKeyType.brightnessUp.rawValue:
+            lastBrightnessKeyPressDate = Date()
+            lastBrightnessKeyDirection = .up
+        case NXKeyType.brightnessDown.rawValue:
+            lastBrightnessKeyPressDate = Date()
+            lastBrightnessKeyDirection = .down
+        default:
+            break
+        }
+
         let replace =
             UserDefaults.standard.object(forKey: Self.replaceKey) as? Bool
             ?? true
         let brightnessHUD =
             UserDefaults.standard.object(forKey: Self.brightnessHUDKey) as? Bool
             ?? true
-
         let step = Self.adjustmentStep(for: event)
 
         switch keyCode {

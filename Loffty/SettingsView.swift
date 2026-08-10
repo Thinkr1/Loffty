@@ -564,7 +564,7 @@ struct SettingsView: View {
                 page: .sensory,
                 title: "Volume & Brightness",
                 note:
-                    "Replacing the system HUD requires Accessibility access in System Settings → Privacy & Security.",
+                    "Replacing the system HUD requires Accessibility access in System Settings > Privacy & Security.",
                 entries: [
                     SettingsEntry(
                         "replaceSystemHUD",
@@ -580,6 +580,16 @@ struct SettingsView: View {
                         isEnabled: settings.replaceSystemHUD
                     ) {
                         SettingsToggle(isOn: $settings.brightnessHUD)
+                    },
+                    SettingsEntry(
+                        "brightnessHUDShownOnAuto",
+                        title: "Show automatic brightness adjustments",
+                        keywords: ["screen", "display", "dim"],
+                        isEnabled: settings.brightnessHUD
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.brightnessHUDShownOnAutoAdjust
+                        )
                     },
                 ]
             ),
@@ -791,11 +801,11 @@ struct SettingsView: View {
     private var updateStatusText: String {
         switch updater.state {
         case .idle: "Not checked yet"
-        case .checking: "Checking…"
+        case .checking: "Checking..."
         case .upToDate: "Up to date"
         case .available(let release): "\(release.version) is available"
-        case .downloading: "Downloading…"
-        case .installing: "Installing…"
+        case .downloading: "Downloading..."
+        case .installing: "Installing..."
         case .failed(let message): message
         }
     }

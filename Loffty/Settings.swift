@@ -101,6 +101,8 @@ final class AppSettings: ObservableObject {
     private static let replaceSystemHUDKey = "replaceSystemHUD"
     private static let hudDurationKey = "hudDuration"
     private static let brightnessHUDKey = "brightnessHUD"
+    private static let brightnessHUDShownOnAutoAdjustKey =
+        "brightnessHUDShownOnAuto"
     private static let batteryHUDKey = "batteryHUD"
     private static let bluetoothHUDKey = "bluetoothHUD"
     private static let focusHUDKey = "focusHUD"
@@ -157,6 +159,15 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.set(
                 brightnessHUD,
                 forKey: Self.brightnessHUDKey
+            )
+        }
+    }
+
+    @Published var brightnessHUDShownOnAutoAdjust: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                brightnessHUDShownOnAutoAdjust,
+                forKey: Self.brightnessHUDShownOnAutoAdjustKey
             )
         }
     }
@@ -364,6 +375,10 @@ final class AppSettings: ObservableObject {
         brightnessHUD =
             UserDefaults.standard.object(forKey: Self.brightnessHUDKey) as? Bool
             ?? true
+        brightnessHUDShownOnAutoAdjust =
+            UserDefaults.standard.object(
+                forKey: Self.brightnessHUDShownOnAutoAdjustKey
+            ) as? Bool ?? false
         batteryHUD =
             UserDefaults.standard.object(forKey: Self.batteryHUDKey) as? Bool
             ?? true

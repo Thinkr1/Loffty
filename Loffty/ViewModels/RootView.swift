@@ -182,7 +182,10 @@ final class NotchViewModel: ObservableObject {
         brightness.onChange = { [weak self] level in
             Task { @MainActor in
                 guard AppSettings.shared.brightnessHUD,
-                    AppSettings.shared.replaceSystemHUD
+                    AppSettings.shared.replaceSystemHUD,
+                    !AppSettings.shared.brightnessHUDShownOnAutoAdjust
+                        ? self?.keyInterceptor.brightnessChangeWasFromKeyPress()
+                            == true : true
                 else { return }
                 self?.showHUD(.brightness, lvl: level)
             }
