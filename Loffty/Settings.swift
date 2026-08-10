@@ -351,7 +351,7 @@ final class AppSettings: ObservableObject {
         )
     }
 
-    static func anyHUDEnabled(
+    nonisolated static func anyHUDEnabled(
         replaceSystemHUD: Bool,
         batteryHUD: Bool,
         bluetoothHUD: Bool,
@@ -361,7 +361,7 @@ final class AppSettings: ObservableObject {
         replaceSystemHUD || batteryHUD || bluetoothHUD || focusHUD || airDropHUD
     }
 
-    static func shouldPresentBrightnessHUD(
+    nonisolated static func shouldPresentBrightnessHUD(
         brightnessHUD: Bool,
         replaceSystemHUD: Bool,
         showOnAutoAdjust: Bool,
