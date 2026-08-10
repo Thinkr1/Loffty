@@ -74,7 +74,7 @@ final class SettingsOpener {
         w.title = "Loffty Settings"
         w.titleVisibility = .hidden
         w.titlebarAppearsTransparent = true
-        w.isMovableByWindowBackground = true
+        w.isMovableByWindowBackground = false
         w.backgroundColor = .clear
         w.isOpaque = false
         w.standardWindowButton(.zoomButton)?.isHidden = true

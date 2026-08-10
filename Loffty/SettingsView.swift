@@ -277,9 +277,9 @@ struct SettingsView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-        }
-        .frame(width: 208)
-        .background(VisualEffectBackground(material: .hudWindow))
+        }.padding(.top, -30)
+            .frame(width: 208)
+            .background(VisualEffectBackground(material: .hudWindow))
     }
 
     private func pages(in region: SettingsPage.Region) -> [SettingsPage] {
@@ -392,9 +392,7 @@ struct SettingsView: View {
                         title: "Launch at login",
                         keywords: ["startup", "boot", "open"]
                     ) {
-                        Toggle("", isOn: $settings.launchAtLogin)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.launchAtLogin)
                     }
                 ]
                     + (settings.launchAtLoginNeedsApproval
@@ -424,9 +422,7 @@ struct SettingsView: View {
                         detail: "Reopen settings from the notch.",
                         keywords: ["status item", "icon"]
                     ) {
-                        Toggle("", isOn: $settings.hideMenuBarItem)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.hideMenuBarItem)
                     }
                 ]
             ),
@@ -441,9 +437,7 @@ struct SettingsView: View {
                         title: "Extend notch around media",
                         keywords: ["grow", "widen", "playing"]
                     ) {
-                        Toggle("", isOn: $settings.extendNotch)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.extendNotch)
                     },
                     SettingsEntry(
                         "hudDuration",
@@ -452,9 +446,9 @@ struct SettingsView: View {
                         isEnabled: settings.anyHUDEnabled
                     ) {
                         HStack(spacing: 10) {
-                            Slider(
+                            SettingsSlider(
                                 value: $settings.hudDuration,
-                                in: 1...3,
+                                range: 1...3,
                                 step: 0.25
                             )
                             .frame(width: 120)
@@ -506,27 +500,21 @@ struct SettingsView: View {
                         title: "Expanded notch",
                         keywords: ["badge", "app icon"]
                     ) {
-                        Toggle("", isOn: $settings.playerBadgeExpanded)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.playerBadgeExpanded)
                     },
                     SettingsEntry(
                         "playerBadgeCollapsed",
                         title: "Collapsed notch",
                         keywords: ["badge", "app icon"]
                     ) {
-                        Toggle("", isOn: $settings.playerBadgeCollapsed)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.playerBadgeCollapsed)
                     },
                     SettingsEntry(
                         "playerBadgeLockScreen",
                         title: "Lock screen",
                         keywords: ["badge", "app icon"]
                     ) {
-                        Toggle("", isOn: $settings.playerBadgeLockScreen)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.playerBadgeLockScreen)
                     },
                 ]
             ),
@@ -541,27 +529,21 @@ struct SettingsView: View {
                         title: "Scroll long titles and artists",
                         keywords: ["marquee", "ticker", "ellipsis"]
                     ) {
-                        Toggle("", isOn: $settings.marqueeEnabled)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.marqueeEnabled)
                     },
                     SettingsEntry(
                         "showAlbum",
                         title: "Show album name",
                         keywords: ["record", "title"]
                     ) {
-                        Toggle("", isOn: $settings.showAlbum)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.showAlbum)
                     },
                     SettingsEntry(
                         "showAirPlayButton",
                         title: "Show AirPlay button",
                         keywords: ["output", "speaker", "route"]
                     ) {
-                        Toggle("", isOn: $settings.showAirPlayButton)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.showAirPlayButton)
                     },
                     SettingsEntry(
                         "collapsedWaveformsAccent",
@@ -569,9 +551,7 @@ struct SettingsView: View {
                         detail: "Uses the accent colour of the album cover.",
                         keywords: ["waveform", "colour", "color", "accent"]
                     ) {
-                        Toggle("", isOn: $settings.collapsedWaveformsAccent)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.collapsedWaveformsAccent)
                     },
                 ]
             ),
@@ -591,9 +571,7 @@ struct SettingsView: View {
                         title: "Replace system HUDs",
                         keywords: ["volume", "brightness", "accessibility"]
                     ) {
-                        Toggle("", isOn: $settings.replaceSystemHUD)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.replaceSystemHUD)
                     },
                     SettingsEntry(
                         "brightnessHUD",
@@ -601,9 +579,7 @@ struct SettingsView: View {
                         keywords: ["screen", "display", "dim"],
                         isEnabled: settings.replaceSystemHUD
                     ) {
-                        Toggle("", isOn: $settings.brightnessHUD)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.brightnessHUD)
                     },
                 ]
             ),
@@ -618,9 +594,7 @@ struct SettingsView: View {
                         title: "Battery overlay",
                         keywords: ["charging", "power", "percentage", "chip"]
                     ) {
-                        Toggle("", isOn: $settings.batteryHUD)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.batteryHUD)
                     }
                 ]
             ),
@@ -637,9 +611,7 @@ struct SettingsView: View {
                             "airpods", "headphones", "device", "connection",
                         ]
                     ) {
-                        Toggle("", isOn: $settings.bluetoothHUD)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.bluetoothHUD)
                     }
                 ]
             ),
@@ -656,9 +628,7 @@ struct SettingsView: View {
                             "do not disturb", "dnd", "sleep", "work",
                         ]
                     ) {
-                        Toggle("", isOn: $settings.focusHUD)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.focusHUD)
                     }
                 ]
             ),
@@ -673,9 +643,7 @@ struct SettingsView: View {
                         title: "AirDrop in notch",
                         keywords: ["drag", "drop", "share", "send", "files"]
                     ) {
-                        Toggle("", isOn: $settings.airDropHUD)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.airDropHUD)
                     }
                 ]
             ),
@@ -695,9 +663,7 @@ struct SettingsView: View {
                         title: "Show notch on lock screen",
                         keywords: ["locked", "login window"]
                     ) {
-                        Toggle("", isOn: $settings.lockScreenNotch)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.lockScreenNotch)
                     },
                     SettingsEntry(
                         "lockScreenExpandNotch",
@@ -705,9 +671,7 @@ struct SettingsView: View {
                         keywords: ["expand", "hover", "open"],
                         isEnabled: settings.lockScreenNotch
                     ) {
-                        Toggle("", isOn: $settings.lockScreenExpandNotch)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.lockScreenExpandNotch)
                     },
                 ]
             ),
@@ -720,18 +684,14 @@ struct SettingsView: View {
                         title: "Expand album artwork",
                         keywords: ["cover", "full screen", "art"]
                     ) {
-                        Toggle("", isOn: $settings.lockScreenFullScreenArt)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.lockScreenFullScreenArt)
                     },
                     SettingsEntry(
                         "lockScreenWaveforms",
                         title: "Show soundwaves",
                         keywords: ["waveform", "bars", "visualiser"]
                     ) {
-                        Toggle("", isOn: $settings.lockScreenWaveforms)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.lockScreenWaveforms)
                     },
                     SettingsEntry(
                         "lockScreenWaveformsAccent",
@@ -740,9 +700,9 @@ struct SettingsView: View {
                         keywords: ["waveform", "colour", "color", "accent"],
                         isEnabled: settings.lockScreenWaveforms
                     ) {
-                        Toggle("", isOn: $settings.lockScreenWaveformsAccent)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWaveformsAccent
+                        )
                     },
                 ]
             ),
@@ -755,9 +715,7 @@ struct SettingsView: View {
                         title: "Allow moving the widget",
                         keywords: ["drag", "position", "place"]
                     ) {
-                        Toggle("", isOn: $settings.movableWidget)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.movableWidget)
                     },
                     SettingsEntry(
                         "resetWidgetPosition",
@@ -788,9 +746,7 @@ struct SettingsView: View {
                         detail: "Once a day, in the background.",
                         keywords: ["auto", "daily", "background"]
                     ) {
-                        Toggle("", isOn: $settings.automaticUpdates)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
+                        SettingsToggle(isOn: $settings.automaticUpdates)
                     },
                     SettingsEntry(
                         "checkForUpdates",
@@ -992,6 +948,33 @@ private struct SettingsRowView: View {
         .frame(minHeight: 42)
         .opacity(entry.isEnabled ? 1 : 0.4)
         .disabled(!entry.isEnabled)
+    }
+}
+
+private struct SettingsToggle: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle("", isOn: $isOn)
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .sensoryFeedback(.selection, trigger: isOn)
+    }
+}
+
+private struct SettingsSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+
+    var body: some View {
+        Slider(value: $value, in: range, step: step)
+            .onChange(of: value) { _, _ in
+                NSHapticFeedbackManager.defaultPerformer.perform(
+                    .alignment,
+                    performanceTime: .now
+                )
+            }
     }
 }
 
