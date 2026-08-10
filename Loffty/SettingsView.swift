@@ -1031,40 +1031,67 @@ extension View {
         interactive: Bool = false,
         fallbackFill: Color? = nil
     ) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(
-                interactive ? .clear.interactive() : .clear,
-                in: shape
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                self.glassEffect(
+                    interactive ? .clear.interactive() : .clear,
+                    in: shape
+                )
+            } else {
+                settingsSurfaceFallback(
+                    shape,
+                    scheme: scheme,
+                    fallbackFill: fallbackFill
+                )
+            }
+        #else
+            settingsSurfaceFallback(
+                shape,
+                scheme: scheme,
+                fallbackFill: fallbackFill
             )
-        } else {
-            self
-                .background(
-                    shape.fill(fallbackFill ?? SettingsChrome.cardFill(scheme))
+        #endif
+    }
+
+    @ViewBuilder
+    private func settingsSurfaceFallback<S: InsettableShape>(
+        _ shape: S,
+        scheme: ColorScheme,
+        fallbackFill: Color?
+    ) -> some View {
+        self
+            .background(
+                shape.fill(fallbackFill ?? SettingsChrome.cardFill(scheme))
+            )
+            .overlay(
+                shape.strokeBorder(
+                    SettingsChrome.cardStroke(scheme),
+                    lineWidth: 1
                 )
-                .overlay(
-                    shape.strokeBorder(
-                        SettingsChrome.cardStroke(scheme),
-                        lineWidth: 1
-                    )
-                )
-        }
+            )
     }
 
     @ViewBuilder
     func settingsButton(prominent: Bool = false) -> some View {
-        if #available(macOS 26.0, *) {
-            if prominent {
-                self.buttonStyle(.glassProminent)
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                if prominent {
+                    self.buttonStyle(.glassProminent)
+                } else {
+                    self.buttonStyle(.glass)
+                }
+            } else if prominent {
+                self.buttonStyle(.borderedProminent)
             } else {
-                self.buttonStyle(.glass)
+                self.buttonStyle(.bordered)
             }
-        } else {
+        #else
             if prominent {
                 self.buttonStyle(.borderedProminent)
             } else {
                 self.buttonStyle(.bordered)
             }
-        }
+        #endif
     }
 }
 
@@ -1072,11 +1099,15 @@ struct GlassStack<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: 0) { content }
-        } else {
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                GlassEffectContainer(spacing: 0) { content }
+            } else {
+                content
+            }
+        #else
             content
-        }
+        #endif
     }
 }
 

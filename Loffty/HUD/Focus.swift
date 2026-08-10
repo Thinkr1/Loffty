@@ -66,6 +66,7 @@ final class FocusFilterBridge {
     }
 }
 
+@MainActor
 final class FocusHUDWatcher {
     var onChange: ((Bool, String?) -> Void)?
     private var observers: [NSObjectProtocol] = []
@@ -90,7 +91,9 @@ final class FocusHUDWatcher {
                 object: nil,
                 queue: .main
             ) { [weak self] note in
-                self?.announce(active: true, note: note)
+                Task { @MainActor in
+                    self?.announce(active: true, note: note)
+                }
             }
         )
         observers.append(
@@ -101,7 +104,9 @@ final class FocusHUDWatcher {
                 object: nil,
                 queue: .main
             ) { [weak self] note in
-                self?.announce(active: false, note: note)
+                Task { @MainActor in
+                    self?.announce(active: false, note: note)
+                }
             }
         )
 
@@ -116,7 +121,9 @@ final class FocusHUDWatcher {
                     object: nil,
                     queue: .main
                 ) { [weak self] note in
-                    self?.handleAmbiguous(note)
+                    Task { @MainActor in
+                        self?.handleAmbiguous(note)
+                    }
                 }
             )
         }
@@ -216,9 +223,10 @@ final class FocusHUDWatcher {
         return nil
     }
 
-    private static func stringValue(_ info: [AnyHashable: Any]?, keys: [String])
-        -> String?
-    {
+    private nonisolated static func stringValue(
+        _ info: [AnyHashable: Any]?,
+        keys: [String]
+    ) -> String? {
         guard let info else { return nil }
         for key in keys {
             if let value = info[key] as? String, !value.isEmpty { return value }
@@ -230,7 +238,9 @@ final class FocusHUDWatcher {
         return nil
     }
 
-    static func displayName(identifier: String?, name: String?) -> String? {
+    nonisolated static func displayName(identifier: String?, name: String?)
+        -> String?
+    {
         if let name, !name.isEmpty, !name.contains(".") { return name }
         guard let identifier else { return name }
         let id = identifier.lowercased()

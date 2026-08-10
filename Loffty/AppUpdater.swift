@@ -226,7 +226,7 @@ enum UpdateReleaseParser {
 @MainActor
 final class AppUpdater: ObservableObject {
     static let shared = AppUpdater()
-    static let ed25519PublicKeyBase64 =
+    nonisolated static let ed25519PublicKeyBase64 =
         "js3DcaYcokrymhljLhxgUlWaLGDxpW46LQa5fN7MsVA="
 
     private static let lastCheckKey = "appUpdater.lastCheck"
@@ -485,7 +485,7 @@ final class AppUpdater: ObservableObject {
         try process.run()
     }
 
-    static func normalizeVersion(_ raw: String) -> String {
+    nonisolated static func normalizeVersion(_ raw: String) -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if s.lowercased().hasPrefix("v") {
             s.removeFirst()
@@ -493,14 +493,17 @@ final class AppUpdater: ObservableObject {
         return s
     }
 
-    static func isVersion(_ candidate: String, newerThan current: String)
+    nonisolated static func isVersion(
+        _ candidate: String,
+        newerThan current: String
+    )
         -> Bool
     {
         compareVersions(normalizeVersion(candidate), normalizeVersion(current))
             == .orderedDescending
     }
 
-    static func compareVersions(_ lhs: String, _ rhs: String)
+    nonisolated static func compareVersions(_ lhs: String, _ rhs: String)
         -> ComparisonResult
     {
         let a = lhs.split(separator: ".").map { Int($0) ?? 0 }

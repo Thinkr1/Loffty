@@ -508,23 +508,15 @@ struct LockCardView: View {
 
     var body: some View {
         Group {
-            if #available(macOS 26.0, *) {
-                GlassEffectContainer {
-                    LockCardBody {
-                        guard AppSettings.shared.lockScreenFullScreenArt else {
-                            return
-                        }
-                        vm.setLockScreenArtExpanded(true)
-                    }
+            #if compiler(>=6.2)
+                if #available(macOS 26.0, *) {
+                    GlassEffectContainer { cardBody }
+                } else {
+                    cardBody
                 }
-            } else {
-                LockCardBody {
-                    guard AppSettings.shared.lockScreenFullScreenArt else {
-                        return
-                    }
-                    vm.setLockScreenArtExpanded(true)
-                }
-            }
+            #else
+                cardBody
+            #endif
         }
         .frame(width: LockCardMetrics.width, height: LockCardMetrics.height)
         .animation(
@@ -535,6 +527,15 @@ struct LockCardView: View {
             .easeInOut(duration: 0.28),
             value: vm.nowPlaying.isPlaying
         )
+    }
+
+    private var cardBody: some View {
+        LockCardBody {
+            guard AppSettings.shared.lockScreenFullScreenArt else {
+                return
+            }
+            vm.setLockScreenArtExpanded(true)
+        }
     }
 }
 
@@ -704,13 +705,21 @@ extension View {
     private func lockCardGlassBackground<S: Shape>(_ shape: S)
         -> some View
     {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.clear, in: shape)
-        } else {
-            self
-                .background(Color.black.opacity(0.35), in: shape)
-                .background(.ultraThinMaterial, in: shape)
-        }
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                self.glassEffect(.clear, in: shape)
+            } else {
+                lockCardMaterialBackground(shape)
+            }
+        #else
+            lockCardMaterialBackground(shape)
+        #endif
+    }
+
+    private func lockCardMaterialBackground<S: Shape>(_ shape: S) -> some View {
+        self
+            .background(Color.black.opacity(0.35), in: shape)
+            .background(.ultraThinMaterial, in: shape)
     }
 
     func lockWidgetChrome<S: InsettableShape>(_ shape: S) -> some View {

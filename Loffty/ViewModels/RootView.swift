@@ -661,13 +661,17 @@ struct NotchRootView: View {
 
     var body: some View {
         Group {
-            if #available(macOS 26.0, *) {
-                GlassEffectContainer(spacing: 0) {
+            #if compiler(>=6.2)
+                if #available(macOS 26.0, *) {
+                    GlassEffectContainer(spacing: 0) {
+                        rootContent
+                    }
+                } else {
                     rootContent
                 }
-            } else {
+            #else
                 rootContent
-            }
+            #endif
         }
         .animation(
             vm.isExpanded
