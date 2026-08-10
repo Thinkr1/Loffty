@@ -191,6 +191,7 @@ func detectNotch(on screen: NSScreen) -> NotchInfo {
     )
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NotchWindow!
     private var airDropCatch: NSPanel!
@@ -204,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var airDropZone = CGRect.zero
     private var cancellables = Set<AnyCancellable>()
 
-    private static var isRunningTests: Bool {
+    private nonisolated static var isRunningTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"]
             != nil
     }
@@ -241,33 +242,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         vm.start()
         lockWidget = LockScreenWidget(vm: vm, notchWindow: window)
         lockWidget.start()
-        MainActor.assumeIsolated {
-            syncAirDropHUD(enabled: AppSettings.shared.airDropHUD)
-            vm.$isLocked
-                .receive(on: RunLoop.main)
-                .sink { [weak self] locked in
-                    guard let self, locked else { return }
-                    self.setHoverExpanded(false)
-                }
-                .store(in: &cancellables)
+        syncAirDropHUD(enabled: AppSettings.shared.airDropHUD)
+        vm.$isLocked
+            .receive(on: RunLoop.main)
+            .sink { [weak self] locked in
+                guard let self, locked else { return }
+                self.setHoverExpanded(false)
+            }
+            .store(in: &cancellables)
 
-            AppSettings.shared.$lockScreenExpandNotch
-                .receive(on: RunLoop.main)
-                .sink { [weak self] allowed in
-                    guard let self, self.vm.isLocked, !allowed else { return }
-                    self.setHoverExpanded(false)
-                }
-                .store(in: &cancellables)
+        AppSettings.shared.$lockScreenExpandNotch
+            .receive(on: RunLoop.main)
+            .sink { [weak self] allowed in
+                guard let self, self.vm.isLocked, !allowed else { return }
+                self.setHoverExpanded(false)
+            }
+            .store(in: &cancellables)
 
-            AppSettings.shared.$lockScreenNotch
-                .receive(on: RunLoop.main)
-                .sink { [weak self] enabled in
-                    guard let self, self.vm.isLocked, !enabled else { return }
-                    self.setHoverExpanded(false)
-                }
-                .store(in: &cancellables)
-        }
-        Task { @MainActor in
+        AppSettings.shared.$lockScreenNotch
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self, self.vm.isLocked, !enabled else { return }
+                self.setHoverExpanded(false)
+            }
+            .store(in: &cancellables)
+        Task {
             try? await Task.sleep(for: .milliseconds(800))
             SettingsOpener.shared.prewarm()
             AppUpdater.shared.checkForUpdatesIfNeeded()
@@ -303,7 +302,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let catchView = AirDropCatchView(frame: .zero)
         catchView.autoresizingMask = [.width, .height]
-        catchView.isEnabled = { AppSettings.shared.airDropHUD }
+        catchView.isEnabled = {
+            MainActor.assumeIsolated { AppSettings.shared.airDropHUD }
+        }
         catchView.onDragEnter = { [weak self] urls in
             Task { @MainActor in
                 guard let self, AppSettings.shared.airDropHUD else { return }
@@ -399,50 +400,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         statusItem.menu = menu
 
-        MainActor.assumeIsolated {
-            AppSettings.shared.$hideMenuBarItem
-                .receive(on: RunLoop.main)
-                .sink { [weak self] hidden in
-                    self?.statusItem.isVisible = !hidden
-                }
-                .store(in: &cancellables)
+        AppSettings.shared.$hideMenuBarItem
+            .receive(on: RunLoop.main)
+            .sink { [weak self] hidden in
+                self?.statusItem.isVisible = !hidden
+            }
+            .store(in: &cancellables)
 
-            AppSettings.shared.$airDropHUD
-                .receive(on: RunLoop.main)
-                .sink { [weak self] enabled in
-                    self?.syncAirDropHUD(enabled: enabled)
-                }
-                .store(in: &cancellables)
+        AppSettings.shared.$airDropHUD
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                self?.syncAirDropHUD(enabled: enabled)
+            }
+            .store(in: &cancellables)
 
-            AirDropController.shared.$phase
-                .receive(on: RunLoop.main)
-                .sink { [weak self] phase in
-                    guard let self else { return }
-                    if phase.isActive {
-                        self.setAirDropInteractive(true)
-                    } else {
-                        self.resetAirDropCatch()
-                        if !self.hoverExpanded {
-                            self.window.ignoresMouseEvents = true
-                            self.window.acceptsInteraction = false
-                        }
+        AirDropController.shared.$phase
+            .receive(on: RunLoop.main)
+            .sink { [weak self] phase in
+                guard let self else { return }
+                if phase.isActive {
+                    self.setAirDropInteractive(true)
+                } else {
+                    self.resetAirDropCatch()
+                    if !self.hoverExpanded {
+                        self.window.ignoresMouseEvents = true
+                        self.window.acceptsInteraction = false
                     }
                 }
-                .store(in: &cancellables)
-        }
+            }
+            .store(in: &cancellables)
     }
 
     @objc private func openSettings() {
         NSApp.activate(ignoringOtherApps: true)
-        MainActor.assumeIsolated {
-            SettingsOpener.shared.open()
-        }
+        SettingsOpener.shared.open()
     }
 
     @objc private func checkForUpdates() {
-        MainActor.assumeIsolated {
-            AppUpdater.shared.checkForUpdatesNow()
-        }
+        AppUpdater.shared.checkForUpdatesNow()
     }
 
     private func installHoverMonitor(screen: NSScreen, notch: CGRect) {
@@ -464,7 +459,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let mouseHandler: (NSEvent) -> Void = { [weak self] _ in
-            self?.updateHoverState()
+            Task { @MainActor in
+                self?.updateHoverState()
+            }
         }
         NSEvent.addGlobalMonitorForEvents(
             matching: [.mouseMoved],
@@ -476,16 +473,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSEvent.addGlobalMonitorForEvents(matching: [
             .leftMouseDown, .rightMouseDown,
-        ]) {
-            [weak self] _ in
-            self?.mouseButtonDown = true
+        ]) { [weak self] _ in
+            Task { @MainActor in
+                self?.mouseButtonDown = true
+            }
         }
         NSEvent.addGlobalMonitorForEvents(matching: [
             .leftMouseUp, .rightMouseUp,
-        ]) {
-            [weak self] _ in
-            self?.mouseButtonDown = false
-            self?.updateHoverState()
+        ]) { [weak self] _ in
+            Task { @MainActor in
+                self?.mouseButtonDown = false
+                self?.updateHoverState()
+            }
         }
     }
 
@@ -535,6 +534,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.ignoresMouseEvents = true
             }
         }
-        Task { @MainActor in vm.setExpanded(expanded) }
+        vm.setExpanded(expanded)
     }
 }
