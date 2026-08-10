@@ -3,6 +3,7 @@
 //  LofftyTests
 //
 
+import SwiftUI
 import Testing
 
 @testable import Loffty
