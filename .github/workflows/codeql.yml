@@ -34,7 +34,7 @@ jobs:
         xcodebuild build \
           -project Loffty.xcodeproj \
           -scheme Loffty \
-          -destination 'platform=macOS,arch=arm64' \
+          -destination 'generic/platform=macOS' \
           CODE_SIGNING_ALLOWED=NO \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGN_IDENTITY="-"
