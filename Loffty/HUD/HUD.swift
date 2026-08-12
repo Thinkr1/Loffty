@@ -647,7 +647,9 @@ final class SystemKeyInterceptor {
     #endif
 
     private func requestAccessibilityIfNeeded() {
-        PrivacyAccess.requestAccessibilityPrompt()
+        Task { @MainActor in
+            PrivacyAccess.requestAccessibilityPrompt()
+        }
     }
 
     private func reenableTap() {
