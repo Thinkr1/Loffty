@@ -139,4 +139,22 @@ struct SettingsTests {
                 == LaunchAtLogin.requiresApproval
         )
     }
+
+    @Test @MainActor func hasCompletedOnboardingPersists() {
+        let settings = AppSettings.shared
+        let original = settings.hasCompletedOnboarding
+        defer { settings.hasCompletedOnboarding = original }
+
+        settings.hasCompletedOnboarding = true
+        #expect(
+            UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        )
+        #expect(settings.hasCompletedOnboarding)
+
+        settings.hasCompletedOnboarding = false
+        #expect(
+            !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        )
+        #expect(!settings.hasCompletedOnboarding)
+    }
 }

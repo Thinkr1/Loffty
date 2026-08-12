@@ -75,12 +75,17 @@ enum PrivacyAccess {
         openPrivacyPane("Privacy_LocalNetwork")
     }
 
-    private static func openPrivacyPane(_ anchor: String) {
-        let candidates = [
+    nonisolated static func privacySettingsURLCandidates(anchor: String)
+        -> [String]
+    {
+        [
             "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?\(anchor)",
             "x-apple.systempreferences:com.apple.preference.security?\(anchor)",
         ]
-        for candidate in candidates {
+    }
+
+    private static func openPrivacyPane(_ anchor: String) {
+        for candidate in privacySettingsURLCandidates(anchor: anchor) {
             guard let url = URL(string: candidate) else { continue }
             if NSWorkspace.shared.open(url) { return }
         }

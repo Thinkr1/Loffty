@@ -32,7 +32,7 @@ final class OnboardingOpener: NSObject, NSWindowDelegate {
     func finish() {
         guard !didFinish else { return }
         didFinish = true
-        AppSettings.shared.hasCompletedOnboarding = true
+        OnboardingFlow.markCompleted()
         window?.delegate = nil
         window?.orderOut(nil)
         window = nil
@@ -140,19 +140,60 @@ extension NSImage {
     }
 }
 
-private enum OnboardingStep: Int, CaseIterable, Identifiable {
-    case welcome
-    case setup
-    case ready
+enum OnboardingFlow {
+    enum Step: Int, CaseIterable, Identifiable {
+        case welcome
+        case setup
+        case ready
 
-    var id: Int { rawValue }
+        var id: Int { rawValue }
+    }
 
-    var transitionGroup: String {
-        switch self {
+    nonisolated static func shouldPresentOnboarding(
+        hasCompletedOnboarding: Bool
+    ) -> Bool {
+        !hasCompletedOnboarding
+    }
+
+    nonisolated static func transitionGroup(for step: Step) -> String {
+        switch step {
         case .welcome: "welcome"
         case .setup: "setup"
         case .ready: "ready"
         }
+    }
+
+    nonisolated static func primaryTitle(for step: Step) -> String {
+        switch step {
+        case .welcome: "Get Started"
+        case .setup: "Continue"
+        case .ready: "Start Loffty"
+        }
+    }
+
+    nonisolated static func next(_ step: Step) -> Step? {
+        Step(rawValue: step.rawValue + 1)
+    }
+
+    nonisolated static func previous(_ step: Step) -> Step? {
+        Step(rawValue: step.rawValue - 1)
+    }
+
+    nonisolated static func finishesOnPrimaryAction(_ step: Step) -> Bool {
+        step == .ready
+    }
+
+    nonisolated static func showMenuBarIcon(hidingMenuBarItem: Bool) -> Bool {
+        !hidingMenuBarItem
+    }
+
+    nonisolated static func hideMenuBarItem(showingMenuBarIcon: Bool) -> Bool {
+        !showingMenuBarIcon
+    }
+
+    @MainActor
+    static func markCompleted(settings: AppSettings = .shared) {
+        settings.hasCompletedOnboarding = true
     }
 }
 
@@ -163,7 +204,7 @@ struct OnboardingView: View {
     @Environment(\.colorScheme) private var scheme
     @Namespace private var glassNamespace
 
-    @State private var step: OnboardingStep = .welcome
+    @State private var step: OnboardingFlow.Step = .welcome
     @State private var accessibilityTrusted = PrivacyAccess
         .isAccessibilityTrusted
     @State private var appeared = false
@@ -173,8 +214,16 @@ struct OnboardingView: View {
 
     private var showMenuBarIcon: Binding<Bool> {
         Binding(
-            get: { !settings.hideMenuBarItem },
-            set: { settings.hideMenuBarItem = !$0 }
+            get: {
+                OnboardingFlow.showMenuBarIcon(
+                    hidingMenuBarItem: settings.hideMenuBarItem
+                )
+            },
+            set: {
+                settings.hideMenuBarItem = OnboardingFlow.hideMenuBarItem(
+                    showingMenuBarIcon: $0
+                )
+            }
         )
     }
 
@@ -187,7 +236,7 @@ struct OnboardingView: View {
 
                 ZStack {
                     stepBody
-                        .id(step.transitionGroup)
+                        .id(OnboardingFlow.transitionGroup(for: step))
                         .transition(contentTransition)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -430,22 +479,17 @@ struct OnboardingView: View {
         VStack(spacing: 12) {
             Capsule()
                 .fill(Color.primary.opacity(0.72))
-                .frame(width: 40, height: 5)
+                .frame(width: 40, height: 3)
 
             Text("Loffty v\(version)")
                 .font(.system(size: 30, weight: .bold))
 
-            HStack(spacing: 6) {
-                Text("Your notch, truly.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Image(systemName: "sparkle")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
+            Text("Your notch, truly.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 32)
+        .padding(.bottom, 32)
         .padding(.horizontal, 20)
         .onboardingGlass(
             RoundedRectangle(cornerRadius: 22, style: .continuous),
@@ -483,7 +527,7 @@ struct OnboardingView: View {
             Spacer(minLength: 0)
 
             Button(action: primaryAction) {
-                Text(primaryTitle)
+                Text(OnboardingFlow.primaryTitle(for: step))
                     .font(.system(size: 14, weight: .semibold))
                     .frame(minWidth: step == .welcome ? 168 : 128)
             }
@@ -499,25 +543,16 @@ struct OnboardingView: View {
         .animation(morph, value: step)
     }
 
-    private var primaryTitle: String {
-        switch step {
-        case .welcome: "Get Started"
-        case .setup: "Continue"
-        case .ready: "Start Loffty"
-        }
-    }
-
     private func primaryAction() {
-        switch step {
-        case .welcome, .setup:
-            goForward()
-        case .ready:
+        if OnboardingFlow.finishesOnPrimaryAction(step) {
             onFinished()
+        } else {
+            goForward()
         }
     }
 
     private func goForward() {
-        guard let next = OnboardingStep(rawValue: step.rawValue + 1) else {
+        guard let next = OnboardingFlow.next(step) else {
             onFinished()
             return
         }
@@ -525,9 +560,7 @@ struct OnboardingView: View {
     }
 
     private func goBack() {
-        guard let previous = OnboardingStep(rawValue: step.rawValue - 1) else {
-            return
-        }
+        guard let previous = OnboardingFlow.previous(step) else { return }
         withAnimation(morph) { step = previous }
     }
 }

@@ -264,12 +264,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        if AppSettings.shared.hasCompletedOnboarding {
-            beginNormalOperation()
-        } else {
+        if OnboardingFlow.shouldPresentOnboarding(
+            hasCompletedOnboarding: AppSettings.shared.hasCompletedOnboarding
+        ) {
             OnboardingOpener.shared.present { [weak self] in
                 self?.beginNormalOperation()
             }
+        } else {
+            beginNormalOperation()
         }
     }
 
