@@ -239,10 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupAirDropCatch(notch: info.notchRect, screen: screen)
         setupStatusItem()
         installHoverMonitor(screen: screen, notch: info.notchRect)
-        vm.start()
         lockWidget = LockScreenWidget(vm: vm, notchWindow: window)
-        lockWidget.start()
-        syncAirDropHUD(enabled: AppSettings.shared.airDropHUD)
         vm.$isLocked
             .receive(on: RunLoop.main)
             .sink { [weak self] locked in
@@ -266,6 +263,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.setHoverExpanded(false)
             }
             .store(in: &cancellables)
+
+        if AppSettings.shared.hasCompletedOnboarding {
+            beginNormalOperation()
+        } else {
+            OnboardingOpener.shared.present { [weak self] in
+                self?.beginNormalOperation()
+            }
+        }
+    }
+
+    private func beginNormalOperation() {
+        vm.start()
+        lockWidget.start()
+        syncAirDropHUD(enabled: AppSettings.shared.airDropHUD)
         Task {
             try? await Task.sleep(for: .milliseconds(800))
             SettingsOpener.shared.prewarm()

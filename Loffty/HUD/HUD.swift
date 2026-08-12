@@ -647,9 +647,7 @@ final class SystemKeyInterceptor {
     #endif
 
     private func requestAccessibilityIfNeeded() {
-        guard !AXIsProcessTrusted() else { return }
-        let key = kAXTrustedCheckOptionPrompt.takeRetainedValue() as String
-        AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+        PrivacyAccess.requestAccessibilityPrompt()
     }
 
     private func reenableTap() {

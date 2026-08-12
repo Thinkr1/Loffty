@@ -123,6 +123,7 @@ final class AppSettings: ObservableObject {
     private static let showAlbumKey = "showAlbum"
     private static let automaticUpdatesKey = "automaticUpdates"
     private static let showAirPlayButtonKey = "showAirPlayButton"
+    private static let hasCompletedOnboardingKey = "hasCompletedOnboarding"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -331,6 +332,15 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var hasCompletedOnboarding: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                hasCompletedOnboarding,
+                forKey: Self.hasCompletedOnboardingKey
+            )
+        }
+    }
+
     @Published var launchAtLogin: Bool {
         didSet { applyLaunchAtLogin() }
     }
@@ -446,6 +456,9 @@ final class AppSettings: ObservableObject {
         showAirPlayButton =
             UserDefaults.standard.object(forKey: Self.showAirPlayButtonKey)
             as? Bool ?? true
+        hasCompletedOnboarding = UserDefaults.standard.bool(
+            forKey: Self.hasCompletedOnboardingKey
+        )
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {

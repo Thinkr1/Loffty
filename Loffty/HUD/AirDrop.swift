@@ -89,7 +89,6 @@ final class AirDropController: ObservableObject {
     private var chooserWatchTask: Task<Void, Never>?
     private var scopedURLs: [URL] = []
     private var sharingLoaded = false
-    private var localNetworkBrowser: NWBrowser?
     private var didAutoPresentChooser = false
     private var sawMeaningfulProgress = false
     private var awaitingDelivery = false
@@ -208,24 +207,11 @@ final class AirDropController: ObservableObject {
     }
 
     private func primeLocalNetworkAccess() {
-        guard localNetworkBrowser == nil else { return }
-        let params = NWParameters()
-        params.includePeerToPeer = true
-        let browser = NWBrowser(
-            for: .bonjour(type: "_airdrop._tcp", domain: nil),
-            using: params
-        )
-        browser.stateUpdateHandler = { (_: NWBrowser.State) in }
-        browser.browseResultsChangedHandler = {
-            (_: Set<NWBrowser.Result>, _: Set<NWBrowser.Result.Change>) in
-        }
-        browser.start(queue: .main)
-        localNetworkBrowser = browser
+        PrivacyAccess.primeLocalNetworkAccess()
     }
 
     private func stopLocalNetworkPrime() {
-        localNetworkBrowser?.cancel()
-        localNetworkBrowser = nil
+        PrivacyAccess.stopLocalNetworkPrime()
     }
 
     private func armSystemChooser() {
