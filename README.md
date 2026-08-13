@@ -68,7 +68,8 @@ Some things I'm currently working on:
   - Actual soundwaves
   - Lock screen lyrics
   - Timer, live activities
-  - WhatsApp, Messages, Discord (+more) notifications (+reply, show more)
+  - Support more apps for push notifications
+  - Show profile picture in push notifications
   - Improve lock screen widget (+show music video option)
   - Screensaver music video
   - Auto-expand on track change?
