@@ -3,7 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>Loffty intercepts volume and brightness keys to replace system HUD for these settings</string>
+	<string>Loffty intercepts volume and brightness keys to replace system HUD for these settings, and reads notification banners for the notch</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Loffty sends quick replies to Messages from the notch</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Loffty looks up contact photos and addresses so you can reply from the notch</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_airdrop._tcp</string>

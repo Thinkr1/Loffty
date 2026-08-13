@@ -279,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         vm.start()
         lockWidget.start()
         syncAirDropHUD(enabled: AppSettings.shared.airDropHUD)
+        syncNotificationsHUD(enabled: AppSettings.shared.notificationsHUD)
         Task {
             try? await Task.sleep(for: .milliseconds(800))
             SettingsOpener.shared.prewarm()
@@ -364,15 +365,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setAirDropInteractive(_ active: Bool) {
         if active {
-            window.ignoresMouseEvents = false
-            window.acceptsInteraction = true
-            window.orderFrontRegardless()
+            applyWindowInteraction(interactive: true)
             resetAirDropCatch()
             airDropCatch.orderFrontRegardless()
-        } else if !hoverExpanded {
-            window.ignoresMouseEvents = true
-            window.acceptsInteraction = false
+        } else {
             resetAirDropCatch()
+            applyWindowInteraction()
         }
     }
 
@@ -384,6 +382,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AirDropController.shared.stopReceiveMonitoring()
             AirDropController.shared.cancel()
             setAirDropInteractive(false)
+        }
+    }
+
+    private func syncNotificationsHUD(enabled: Bool) {
+        if enabled {
+            NotificationController.shared.start()
+        } else {
+            NotificationController.shared.stop()
+        }
+        applyWindowInteraction()
+    }
+
+    private func applyWindowInteraction(interactive: Bool? = nil) {
+        let notes = NotificationController.shared
+        let airDropActive = AirDropController.shared.phase.isActive
+        let shouldInteract =
+            interactive
+            ?? (hoverExpanded || airDropActive
+                || notes.wantsKeyWindow)
+
+        if vm.isLocked {
+            window.ignoresMouseEvents = true
+            window.acceptsInteraction = false
+            lockWidget.setNotchInteractive(hoverExpanded)
+            return
+        }
+
+        window.ignoresMouseEvents = !shouldInteract
+        window.acceptsInteraction = shouldInteract
+        if notes.wantsKeyWindow {
+            window.makeKey()
+        } else if window.isKeyWindow, !hoverExpanded, !airDropActive {
+            window.resignKey()
+        }
+        if shouldInteract {
+            window.orderFrontRegardless()
         }
     }
 
@@ -406,6 +440,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             action: #selector(checkForUpdates),
             keyEquivalent: ""
         )
+        #if DEBUG
+            menu.addItem(.separator())
+            menu.addItem(
+                withTitle: "Test WhatsApp Notification",
+                action: #selector(previewWhatsAppNotification),
+                keyEquivalent: "n"
+            )
+            menu.addItem(
+                withTitle: "Test Messages Notification",
+                action: #selector(previewMessagesNotification),
+                keyEquivalent: ""
+            )
+            menu.addItem(
+                withTitle: "Test Discord Notification",
+                action: #selector(previewDiscordNotification),
+                keyEquivalent: ""
+            )
+        #endif
         menu.addItem(
             withTitle: "Quit",
             action: #selector(NSApplication.terminate(_:)),
@@ -427,6 +479,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        AppSettings.shared.$notificationsHUD
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                self?.syncNotificationsHUD(enabled: enabled)
+            }
+            .store(in: &cancellables)
+
         AirDropController.shared.$phase
             .receive(on: RunLoop.main)
             .sink { [weak self] phase in
@@ -435,13 +494,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.setAirDropInteractive(true)
                 } else {
                     self.resetAirDropCatch()
-                    if !self.hoverExpanded {
-                        self.window.ignoresMouseEvents = true
-                        self.window.acceptsInteraction = false
-                    }
+                    self.applyWindowInteraction()
                 }
             }
             .store(in: &cancellables)
+
+        NotificationController.shared.$current
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateHoverState()
+            }
+            .store(in: &cancellables)
+
+        NotificationController.shared.$isReplying
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.applyWindowInteraction()
+            }
+            .store(in: &cancellables)
+
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+            [weak self] event in
+            if event.keyCode == 53 {
+                let notes = NotificationController.shared
+                if notes.isActive {
+                    Task { @MainActor in
+                        notes.dismiss()
+                        self?.applyWindowInteraction()
+                    }
+                    return nil
+                }
+            }
+            return event
+        }
     }
 
     @objc private func openSettings() {
@@ -452,6 +537,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func checkForUpdates() {
         AppUpdater.shared.checkForUpdatesNow()
     }
+
+    #if DEBUG
+        @objc private func previewWhatsAppNotification() {
+            NotificationController.shared.presentPreview(app: .whatsApp)
+        }
+
+        @objc private func previewMessagesNotification() {
+            NotificationController.shared.presentPreview(app: .messages)
+        }
+
+        @objc private func previewDiscordNotification() {
+            NotificationController.shared.presentPreview(app: .discord)
+        }
+    #endif
 
     private func installHoverMonitor(screen: NSScreen, notch: CGRect) {
         let pad: CGFloat = 10
@@ -505,6 +604,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if AirDropController.shared.phase.isActive { return }
         if vm.isLocked, !Self.lockScreenExpandAllowed { return }
 
+        let notes = NotificationController.shared
+        if notes.isActive {
+            let overExpanded = expandedZone.contains(NSEvent.mouseLocation)
+            let overCompact = notificationCompactZone.contains(
+                NSEvent.mouseLocation
+            )
+            if notes.isExpanded {
+                if !overExpanded, !mouseButtonDown, !notes.isPinned {
+                    notes.collapse()
+                }
+            }
+            applyWindowInteraction(
+                interactive: (notes.isExpanded ? overExpanded : overCompact)
+                    || notes.wantsKeyWindow
+            )
+            return
+        }
+
         if hoverExpanded {
             guard !expandedZone.contains(NSEvent.mouseLocation) else { return }
             guard !mouseButtonDown else { return }
@@ -514,6 +631,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard triggerZone.contains(NSEvent.mouseLocation) else { return }
         setHoverExpanded(true)
+    }
+
+    private var notificationCompactZone: CGRect {
+        triggerZone.insetBy(dx: -90, dy: -96)
     }
 
     private static var lockScreenExpandAllowed: Bool {
@@ -532,20 +653,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.ignoresMouseEvents = true
             window.acceptsInteraction = false
             lockWidget.setNotchInteractive(expanded)
-        } else if AirDropController.shared.phase.isActive {
-            window.ignoresMouseEvents = false
-            window.acceptsInteraction = true
         } else {
-            if expanded {
-                window.acceptsInteraction = true
-                window.ignoresMouseEvents = false
-            } else {
-                if window.isKeyWindow {
-                    window.resignKey()
-                }
-                window.acceptsInteraction = false
-                window.ignoresMouseEvents = true
-            }
+            applyWindowInteraction()
         }
         vm.setExpanded(expanded)
     }

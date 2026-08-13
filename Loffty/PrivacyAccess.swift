@@ -75,6 +75,10 @@ enum PrivacyAccess {
         openPrivacyPane("Privacy_LocalNetwork")
     }
 
+    static func openFullDiskAccessSettings() {
+        openPrivacyPane("Privacy_AllFiles")
+    }
+
     nonisolated static func privacySettingsURLCandidates(anchor: String)
         -> [String]
     {

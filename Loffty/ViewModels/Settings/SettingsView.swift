@@ -17,6 +17,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     case accessories
     case focus
     case airDrop
+    case notifications
     case lockScreen
     case updates
 
@@ -31,7 +32,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     var region: Region {
         switch self {
         case .general, .media: .app
-        case .sensory, .battery, .accessories, .focus, .airDrop, .lockScreen:
+        case .sensory, .battery, .accessories, .focus, .airDrop, .notifications,
+            .lockScreen:
             .overlays
         case .updates: .footer
         }
@@ -46,6 +48,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .accessories: "Accessories"
         case .focus: "Focus"
         case .airDrop: "AirDrop"
+        case .notifications: "Notifications"
         case .lockScreen: "Lock Screen"
         case .updates: "Updates"
         }
@@ -60,6 +63,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .accessories: "airpods.gen3"
         case .focus: "moon.fill"
         case .airDrop: "dot.radiowaves.up.forward"
+        case .notifications: "bell.fill"
         case .lockScreen: "lock.fill"
         case .updates: "arrow.down.circle.fill"
         }
@@ -74,6 +78,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .accessories: .mint
         case .focus: .indigo
         case .airDrop: .blue
+        case .notifications: .green
         case .lockScreen: .orange
         case .updates: .blue
         }
@@ -655,6 +660,61 @@ struct SettingsView: View {
                     ) {
                         SettingsToggle(isOn: $settings.airDropHUD)
                     }
+                ]
+            ),
+            SettingsGroup(
+                page: .notifications,
+                title: "Notifications",
+                note:
+                    "Incoming Messages, WhatsApp and Discord appear on the notch. Accessibility is required; Full Disk Access helps if banners are turned off.",
+                entries: [
+                    SettingsEntry(
+                        "notificationsHUD",
+                        title: "Notifications in notch",
+                        keywords: [
+                            "messages", "whatsapp", "discord", "reply",
+                            "banner",
+                        ]
+                    ) {
+                        SettingsToggle(isOn: $settings.notificationsHUD)
+                    },
+                    SettingsEntry(
+                        "notificationMessages",
+                        title: "Messages",
+                        keywords: ["imessage", "sms", "chat"],
+                        isEnabled: settings.notificationsHUD
+                    ) {
+                        SettingsToggle(isOn: $settings.notificationMessages)
+                    },
+                    SettingsEntry(
+                        "notificationWhatsApp",
+                        title: "WhatsApp",
+                        keywords: ["chat", "reply"],
+                        isEnabled: settings.notificationsHUD
+                    ) {
+                        SettingsToggle(isOn: $settings.notificationWhatsApp)
+                    },
+                    SettingsEntry(
+                        "notificationDiscord",
+                        title: "Discord",
+                        keywords: ["chat", "reply"],
+                        isEnabled: settings.notificationsHUD
+                    ) {
+                        SettingsToggle(isOn: $settings.notificationDiscord)
+                    },
+                    SettingsEntry(
+                        "notificationFullDiskAccess",
+                        title: "Full Disk Access",
+                        detail:
+                            "Needed to read notifications when banners are hidden.",
+                        keywords: ["permission", "privacy", "database"]
+                    ) {
+                        Button("Open") {
+                            PrivacyAccess.openFullDiskAccessSettings()
+                        }
+                        .controlSize(.small)
+                        .settingsButton()
+                    },
                 ]
             ),
         ]

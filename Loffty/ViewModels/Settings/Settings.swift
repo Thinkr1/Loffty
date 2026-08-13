@@ -107,6 +107,10 @@ final class AppSettings: ObservableObject {
     private static let bluetoothHUDKey = "bluetoothHUD"
     private static let focusHUDKey = "focusHUD"
     private static let airDropHUDKey = "airDropHUD"
+    private static let notificationsHUDKey = "notificationsHUD"
+    private static let notificationMessagesKey = "notificationMessages"
+    private static let notificationWhatsAppKey = "notificationWhatsApp"
+    private static let notificationDiscordKey = "notificationDiscord"
     private static let movableWidgetKey = "movableWidget"
     private static let lockScreenNotchKey = "lockScreenNotch"
     private static let lockScreenExpandNotchKey = "lockScreenExpandNotch"
@@ -197,6 +201,42 @@ final class AppSettings: ObservableObject {
     @Published var airDropHUD: Bool {
         didSet {
             UserDefaults.standard.set(airDropHUD, forKey: Self.airDropHUDKey)
+        }
+    }
+
+    @Published var notificationsHUD: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                notificationsHUD,
+                forKey: Self.notificationsHUDKey
+            )
+        }
+    }
+
+    @Published var notificationMessages: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                notificationMessages,
+                forKey: Self.notificationMessagesKey
+            )
+        }
+    }
+
+    @Published var notificationWhatsApp: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                notificationWhatsApp,
+                forKey: Self.notificationWhatsAppKey
+            )
+        }
+    }
+
+    @Published var notificationDiscord: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                notificationDiscord,
+                forKey: Self.notificationDiscordKey
+            )
         }
     }
 
@@ -411,6 +451,18 @@ final class AppSettings: ObservableObject {
         airDropHUD =
             UserDefaults.standard.object(forKey: Self.airDropHUDKey) as? Bool
             ?? true
+        notificationsHUD =
+            UserDefaults.standard.object(forKey: Self.notificationsHUDKey)
+            as? Bool ?? true
+        notificationMessages =
+            UserDefaults.standard.object(forKey: Self.notificationMessagesKey)
+            as? Bool ?? true
+        notificationWhatsApp =
+            UserDefaults.standard.object(forKey: Self.notificationWhatsAppKey)
+            as? Bool ?? true
+        notificationDiscord =
+            UserDefaults.standard.object(forKey: Self.notificationDiscordKey)
+            as? Bool ?? true
         movableWidget = UserDefaults.standard.bool(
             forKey: Self.movableWidgetKey
         )

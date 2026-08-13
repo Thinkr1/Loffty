@@ -140,6 +140,20 @@ struct SettingsTests {
         )
     }
 
+    @Test @MainActor func notificationsHUDPersists() {
+        let settings = AppSettings.shared
+        let original = settings.notificationsHUD
+        defer { settings.notificationsHUD = original }
+
+        settings.notificationsHUD = false
+        #expect(
+            UserDefaults.standard.object(forKey: "notificationsHUD") as? Bool
+                == false
+        )
+        settings.notificationsHUD = true
+        #expect(settings.notificationsHUD)
+    }
+
     @Test @MainActor func hasCompletedOnboardingPersists() {
         let settings = AppSettings.shared
         let original = settings.hasCompletedOnboarding

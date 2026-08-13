@@ -18,6 +18,9 @@ struct NotchMetrics {
     var sideAnnouncement: Bool = false
     var airDrop: Bool = false
     var airDropTransfer: Bool = false
+    var notification: Bool = false
+    var notificationExpanded: Bool = false
+    var notificationPreview: String = ""
     var showAlbum: Bool = false
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
@@ -25,6 +28,8 @@ struct NotchMetrics {
     let hudExtra: CGFloat = 38
     var topRadius: CGFloat {
         if airDrop { return 16 }
+        if notification, notificationExpanded { return 16 }
+        if notification { return 12 }
         if expanded, idle { return 10 }
         if expanded { return 22 }
         if hudActive { return 16 }
@@ -32,6 +37,8 @@ struct NotchMetrics {
     }
     var bottomRadius: CGFloat {
         if airDrop { return 24 }
+        if notification, notificationExpanded { return 28 }
+        if notification { return 22 }
         if expanded, idle { return 12 }
         if expanded { return 30 }
         if hudActive { return 26 }
@@ -39,6 +46,13 @@ struct NotchMetrics {
     }
     var height: CGFloat {
         if airDrop { return airDropTransfer ? 128 : 112 }
+        if notification, notificationExpanded {
+            return NotificationLayout.expandedHeight
+        }
+        if notification {
+            return notchH
+                + NotificationLayout.compactExtra(message: notificationPreview)
+        }
         if expanded, idle { return notchH }
         if expanded { return showAlbum ? 206 : 196 }
         if hudActive { return notchH + hudExtra }
@@ -46,9 +60,13 @@ struct NotchMetrics {
     }
     var artSize: CGFloat { notchH - 11 }
     var gap: CGFloat {
-        extended || sideAnnouncement || (expanded && idle) ? gapExtended : 6
+        extended || sideAnnouncement || notification || (expanded && idle)
+            ? gapExtended : 6
     }
     var side: CGFloat {
+        if notification, !notificationExpanded {
+            return edgePad + NotificationLayout.compactSideContent + gap
+        }
         if expanded, idle {
             return edgePad + 22 + gap
         }
@@ -59,6 +77,12 @@ struct NotchMetrics {
     }
     var width: CGFloat {
         if airDrop { return max(notchW + 160, 380) }
+        if notification, notificationExpanded {
+            return NotificationLayout.expandedWidth
+        }
+        if notification {
+            return notchW + 2 * side + 2 * topRadius + 20
+        }
         if expanded, idle {
             return notchW + 2 * side + 2 * topRadius
         }
@@ -105,11 +129,11 @@ final class NotchViewModel: ObservableObject {
         dampingFraction: 0.8,
         blendDuration: 0.04
     )
-    fileprivate static let notchExpandSpring = Animation.spring(
+    static let notchExpandSpring = Animation.spring(
         response: 0.35,
         dampingFraction: 0.72
     )
-    fileprivate static let notchCollapseSpring = Animation.spring(
+    static let notchCollapseSpring = Animation.spring(
         response: 0.35,
         dampingFraction: 1.0
     )
@@ -443,7 +467,10 @@ final class NotchViewModel: ObservableObject {
         lockScreenArtExpanded = v
     }
 
-    nonisolated static func interpolatedElapsed(from np: NowPlaying, at date: Date)
+    nonisolated static func interpolatedElapsed(
+        from np: NowPlaying,
+        at date: Date
+    )
         -> Double
     {
         let rate = np.isPlaying ? max(0, np.playbackRate) : 0
@@ -477,6 +504,7 @@ final class NotchViewModel: ObservableObject {
 
     func setExpanded(_ v: Bool) {
         if !v, AirDropController.shared.phase.isActive { return }
+        if !v, NotificationController.shared.isPinned { return }
         guard v != isExpanded else { return }
         withAnimation(v ? Self.notchExpandSpring : Self.notchCollapseSpring) {
             isExpanded = v
@@ -599,25 +627,38 @@ struct NotchRootView: View {
     @EnvironmentObject var vm: NotchViewModel
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var airDrop = AirDropController.shared
+    @ObservedObject private var notifications = NotificationController.shared
     @Namespace private var ns
     @State private var trackPulse: CGFloat = 0
     @State private var airDropPulse: CGFloat = 0
 
     private var hasTrack: Bool { !vm.isIdle }
     private var airDropActive: Bool { airDrop.phase.isActive }
-    private var hudVisible: Bool { vm.hudDisplay != nil && !airDropActive }
+    private var notificationActive: Bool {
+        notifications.isActive && !airDropActive
+    }
+    private var hudVisible: Bool {
+        vm.hudDisplay != nil && !airDropActive && !notificationActive
+    }
     private var verticalHUD: Bool {
-        !airDropActive && vm.hudDisplay?.presentsVertically == true
+        !airDropActive && !notificationActive
+            && vm.hudDisplay?.presentsVertically == true
     }
     private var sideAnnouncement: Bool {
-        !airDropActive && vm.hudDisplay?.presentsOnSides == true
+        !airDropActive && !notificationActive
+            && vm.hudDisplay?.presentsOnSides == true
             && !vm.isExpanded
     }
     private var hudIntegrated: Bool {
-        verticalHUD && !vm.isExpanded && !airDropActive
+        verticalHUD && !vm.isExpanded && !airDropActive && !notificationActive
     }
     private var hudBelowExpanded: Bool {
-        verticalHUD && vm.isExpanded && !airDropActive
+        verticalHUD && vm.isExpanded && !airDropActive && !notificationActive
+    }
+    private var islandRaised: Bool {
+        (vm.isExpanded && !vm.isIdle && !airDropActive && !notificationActive)
+            || (notificationActive && notifications.isExpanded)
+            || airDropActive
     }
     private var m: NotchMetrics {
         NotchMetrics(
@@ -625,10 +666,11 @@ struct NotchRootView: View {
                 ? vm.notch.notchRect.width : 200,
             notchH: vm.notch.notchRect.height > 0
                 ? vm.notch.notchRect.height + 0.25 : 32,
-            expanded: vm.isExpanded && !airDropActive,
-            idle: vm.isExpanded && vm.isIdle && !airDropActive,
+            expanded: vm.isExpanded && !airDropActive && !notificationActive,
+            idle: vm.isExpanded && vm.isIdle && !airDropActive
+                && !notificationActive,
             extended: (settings.extendNotch && hasTrack && !verticalHUD
-                && !airDropActive)
+                && !airDropActive && !notificationActive)
                 || sideAnnouncement,
             hudActive: hudIntegrated,
             sideAnnouncement: sideAnnouncement,
@@ -640,6 +682,10 @@ struct NotchRootView: View {
                     if case .received = airDrop.phase { return true }
                     return false
                 }(),
+            notification: notificationActive,
+            notificationExpanded: notificationActive
+                && notifications.isExpanded,
+            notificationPreview: notifications.current?.body ?? "",
             showAlbum: settings.showAlbum
                 && !vm.nowPlaying.album.isEmpty
                 && !vm.isIdle
@@ -692,6 +738,14 @@ struct NotchRootView: View {
         .animation(
             NotchViewModel.airDropSpring,
             value: airDrop.systemChooserPresented
+        )
+        .animation(
+            NotchViewModel.notchExpandSpring,
+            value: notifications.current?.id
+        )
+        .animation(
+            NotchViewModel.notchExpandSpring,
+            value: notifications.isExpanded
         )
         .animation(NotchViewModel.notchExpandSpring, value: m.height)
         .animation(NotchViewModel.notchExpandSpring, value: m.width)
@@ -786,6 +840,7 @@ struct NotchRootView: View {
                         airDropActive
                             ? 0.55
                             : ((vm.isExpanded && !vm.isIdle || hudVisible
+                                || notificationActive
                                 ? 0.55 : 0)
                                 + trackPulse * 0.35)
                     )
@@ -801,7 +856,7 @@ struct NotchRootView: View {
                     .scaleEffect(x: 1.12, y: 1.18)
                     .opacity(
                         airDropActive || vm.isExpanded && !vm.isIdle
-                            || hudVisible ? 0.55 : 0
+                            || hudVisible || notificationActive ? 0.55 : 0
                     )
                     .frame(width: m.width, height: m.height)
                 }
@@ -813,6 +868,16 @@ struct NotchRootView: View {
                             maxHeight: .infinity,
                             alignment: .top
                         )
+                } else if notificationActive {
+                    NotificationNotchContent(
+                        notifications: notifications,
+                        m: m
+                    )
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .top
+                    )
                 } else if vm.isExpanded {
                     ExpandedContent(ns: ns, m: m)
                         .frame(
@@ -852,14 +917,14 @@ struct NotchRootView: View {
                 )
             )
             .shadow(
-                color: .black.opacity(m.expanded ? 0.38 : 0),
-                radius: m.expanded ? 22 : 0,
-                y: m.expanded ? 12 : 0
+                color: .black.opacity(islandRaised ? 0.38 : 0),
+                radius: islandRaised ? 22 : 0,
+                y: islandRaised ? 12 : 0
             )
             .shadow(
-                color: .black.opacity(m.expanded ? 0.2 : 0),
-                radius: m.expanded ? 5 : 0,
-                y: m.expanded ? 2 : 0
+                color: .black.opacity(islandRaised ? 0.2 : 0),
+                radius: islandRaised ? 5 : 0,
+                y: islandRaised ? 2 : 0
             )
 
             if hudBelowExpanded, let kind = vm.hudDisplay {

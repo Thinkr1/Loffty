@@ -379,6 +379,10 @@ struct OnboardingView: View {
                 )
                 toggleRow("Bluetooth Overlay", isOn: $settings.bluetoothHUD)
                 toggleRow("AirDrop in Notch", isOn: $settings.airDropHUD)
+                toggleRow(
+                    "Notifications in Notch",
+                    isOn: $settings.notificationsHUD
+                )
                 toggleRow("Menu Bar Icon", isOn: showMenuBarIcon)
             }
             .padding(12)
