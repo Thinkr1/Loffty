@@ -74,6 +74,7 @@ Some things I'm currently working on:
   - Improve lock screen widget (+show music video option)
   - Show website for browser source
   - Full browser video thumb
+  - 1:1 marquee speed
   - Screensaver music video
   - Auto-expand on track change?
   - media-control skip Spotify ads
