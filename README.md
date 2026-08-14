@@ -70,7 +70,9 @@ Some things I'm currently working on:
   - Timer, live activities
   - Support more apps for push notifications
   - Show profile picture in push notifications
+  - Dual Discord/server image badges for notifications
   - Improve lock screen widget (+show music video option)
+  - Show website for browser source
   - Screensaver music video
   - Auto-expand on track change?
   - media-control skip Spotify ads
