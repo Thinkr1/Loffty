@@ -73,6 +73,7 @@ Some things I'm currently working on:
   - Dual Discord/server image badges for notifications
   - Improve lock screen widget (+show music video option)
   - Show website for browser source
+  - Full browser video thumb
   - Screensaver music video
   - Auto-expand on track change?
   - media-control skip Spotify ads
