@@ -21,70 +21,68 @@ struct NotificationNotchContent: View {
             }
         }
         .frame(width: m.width, height: m.height, alignment: .top)
+        .overlay {
+            if showsCompactReply {
+                compactReplyButton
+                    .position(replyCenter)
+                    .transition(
+                        .scale(scale: 0.72).combined(with: .opacity)
+                    )
+            }
+        }
         .animation(
             notifications.isExpanded
                 ? NotchViewModel.notchExpandSpring
                 : NotchViewModel.notchCollapseSpring,
             value: notifications.isExpanded
         )
+        .animation(NotchViewModel.notchExpandSpring, value: m.width)
+        .animation(NotchViewModel.notchExpandSpring, value: m.height)
+        .animation(NotchViewModel.notchExpandSpring, value: m.bottomRadius)
+        .animation(NotchViewModel.notchExpandSpring, value: notifications.draft)
     }
 
     private var compactBody: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                Color.clear
-                    .frame(width: m.side - m.gap, height: m.notchH)
-                    .padding(.trailing, m.gap)
-
-                Color.clear.frame(width: m.notchW, height: m.notchH)
-
-                Button(action: notifications.beginReply) {
-                    Image(systemName: "arrowshape.turn.up.left.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.72))
-                        .frame(width: 24, height: 24)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(NotchControlButtonStyle())
-                .notificationGlass(Circle(), interactive: true)
-                .help("Reply")
-                .frame(width: m.side - m.gap, height: m.notchH, alignment: .leading)
-                .padding(.leading, m.gap)
-            }
-            .frame(height: m.notchH)
+            Color.clear.frame(height: m.notchH)
 
             Button(action: notifications.expand) {
-                VStack(spacing: 4) {
-                    HStack(alignment: .center, spacing: 10) {
-                        NotificationAvatarView(
-                            notification: notifications.current,
-                            size: NotificationLayout.compactAvatar
-                        )
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(notifications.current?.sender ?? "")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.78))
-                                .lineLimit(1)
-                            Text(notifications.current?.body ?? "")
-                                .font(.system(size: 12.5, weight: .regular))
-                                .foregroundStyle(.white.opacity(0.5))
-                                .lineLimit(
-                                    NotificationLayout.compactMessageLines
-                                )
-                                .lineSpacing(-1)
-                                .multilineTextAlignment(.leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(
+                    alignment: .center,
+                    spacing: NotificationLayout.compactRowSpacing
+                ) {
+                    NotificationAvatarView(
+                        notification: notifications.current,
+                        size: NotificationLayout.compactAvatar
+                    )
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(notifications.current?.sender ?? "")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.78))
+                            .lineLimit(1)
+                        Text(notifications.current?.body ?? "")
+                            .font(.system(size: 12.5, weight: .regular))
+                            .foregroundStyle(.white.opacity(0.5))
+                            .lineLimit(
+                                NotificationLayout.compactMessageLines
+                            )
+                            .lineSpacing(-1)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.28))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(
+                        .trailing,
+                        NotificationLayout.replySize
+                            + NotificationLayout.replyEdgePadding
+                    )
                 }
-                .padding(.horizontal, NotificationLayout.compactHorizontalPadding)
-                .padding(.top, 6)
-                .padding(.bottom, 8)
-                .fixedSize(horizontal: false, vertical: true)
+                .padding(
+                    .horizontal,
+                    NotificationLayout.compactHorizontalPadding
+                )
+                .padding(.top, NotificationLayout.compactTopPadding)
+                .padding(.bottom, NotificationLayout.compactBottomPadding)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -93,7 +91,10 @@ struct NotificationNotchContent: View {
     }
 
     private var expandedBody: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(
+            alignment: .leading,
+            spacing: NotificationLayout.expandedStackSpacing
+        ) {
             HStack(alignment: .top, spacing: 10) {
                 Button(action: notifications.openCurrent) {
                     NotificationAvatarView(
@@ -143,17 +144,18 @@ struct NotificationNotchContent: View {
                 .buttonStyle(NotchControlButtonStyle())
                 .help("Close")
             }
-            Spacer()
             HStack(spacing: 6) {
                 TextField(
                     "",
                     text: $notifications.draft,
                     prompt: Text("Reply")
-                        .foregroundStyle(.white.opacity(0.28))
+                        .foregroundStyle(.white.opacity(0.28)),
+                    axis: .vertical
                 )
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(.white.opacity(0.78))
+                .lineLimit(1...NotificationLayout.compactMessageLines)
                 .focused($replyFocused)
                 .focusEffectDisabled()
                 .onSubmit(notifications.sendReply)
@@ -180,12 +182,15 @@ struct NotificationNotchContent: View {
             }
             .padding(.leading, 14)
             .padding(.trailing, 4)
-            .padding(.vertical, 4)
-            .notificationGlass(Capsule(), interactive: true)
+            .padding(.vertical, 5)
+            .notificationGlass(composerShape, interactive: true)
         }
-        .padding(.horizontal, NotificationLayout.compactHorizontalPadding)
-        .padding(.top, m.notchH + 6)
-        .padding(.bottom, 10)
+        .padding(
+            .horizontal,
+            NotificationLayout.composerHorizontalPadding(topRadius: m.topRadius)
+        )
+        .padding(.top, m.notchH + NotificationLayout.expandedTopPadding)
+        .padding(.bottom, NotificationLayout.composerInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             replyFocused = notifications.isReplying
@@ -196,6 +201,52 @@ struct NotificationNotchContent: View {
         .onChange(of: replyFocused) { _, focused in
             if focused { notifications.beginReply() }
         }
+    }
+
+    private var compactReplyButton: some View {
+        Button(action: notifications.beginReply) {
+            Image(systemName: "arrowshape.turn.up.left.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .frame(
+                    width: NotificationLayout.replySize,
+                    height: NotificationLayout.replySize
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(NotchControlButtonStyle())
+        .notificationGlass(Circle(), interactive: true)
+        .help("Reply")
+    }
+
+    private var showsCompactReply: Bool {
+        !notifications.isExpanded
+    }
+
+    private var replyCenter: CGPoint {
+        NotificationLayout.replyCenter(
+            in: CGSize(width: m.width, height: m.height),
+            topRadius: m.topRadius,
+            bottomRadius: m.bottomRadius
+        )
+    }
+
+    private var composerShape: UnevenRoundedRectangle {
+        let height = NotificationLayout.composerHeight(
+            draft: notifications.draft
+        )
+        let bottom = NotificationLayout.composerCornerRadius(
+            islandBottomRadius: m.bottomRadius,
+            height: height
+        )
+        let top = min(12, height / 2)
+        return UnevenRoundedRectangle(
+            topLeadingRadius: top,
+            bottomLeadingRadius: bottom,
+            bottomTrailingRadius: bottom,
+            topTrailingRadius: top,
+            style: .continuous
+        )
     }
 
     private var canSend: Bool {

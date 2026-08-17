@@ -21,6 +21,9 @@ struct NotchMetrics {
     var notification: Bool = false
     var notificationExpanded: Bool = false
     var notificationPreview: String = ""
+    var notificationSender: String = ""
+    var notificationCanReply: Bool = false
+    var notificationDraft: String = ""
     var showAlbum: Bool = false
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
@@ -28,8 +31,10 @@ struct NotchMetrics {
     let hudExtra: CGFloat = 38
     var topRadius: CGFloat {
         if airDrop { return 16 }
-        if notification, notificationExpanded { return 16 }
-        if notification { return 12 }
+        if notification, notificationExpanded {
+            return NotificationLayout.expandedTopRadius
+        }
+        if notification { return NotificationLayout.compactTopRadius }
         if expanded, idle { return 10 }
         if expanded { return 22 }
         if hudActive { return 16 }
@@ -37,8 +42,10 @@ struct NotchMetrics {
     }
     var bottomRadius: CGFloat {
         if airDrop { return 24 }
-        if notification, notificationExpanded { return 28 }
-        if notification { return 22 }
+        if notification, notificationExpanded {
+            return NotificationLayout.expandedBottomRadius
+        }
+        if notification { return NotificationLayout.compactBottomRadius }
         if expanded, idle { return 12 }
         if expanded { return 30 }
         if hudActive { return 26 }
@@ -47,11 +54,21 @@ struct NotchMetrics {
     var height: CGFloat {
         if airDrop { return airDropTransfer ? 128 : 112 }
         if notification, notificationExpanded {
-            return NotificationLayout.expandedHeight
+            return NotificationLayout.expandedHeight(
+                message: notificationPreview,
+                notchH: notchH,
+                canReply: notificationCanReply,
+                draft: notificationDraft
+            )
         }
         if notification {
             return notchH
-                + NotificationLayout.compactExtra(message: notificationPreview)
+                + NotificationLayout.compactExtra(
+                    message: notificationPreview,
+                    sender: notificationSender,
+                    notchW: notchW,
+                    canReply: notificationCanReply
+                )
         }
         if expanded, idle { return notchH }
         if expanded { return showAlbum ? 206 : 196 }
@@ -65,7 +82,7 @@ struct NotchMetrics {
     }
     var side: CGFloat {
         if notification, !notificationExpanded {
-            return edgePad + NotificationLayout.compactSideContent + gap
+            return max(edgePad, (width - notchW) / 2)
         }
         if expanded, idle {
             return edgePad + 22 + gap
@@ -81,7 +98,12 @@ struct NotchMetrics {
             return NotificationLayout.expandedWidth
         }
         if notification {
-            return notchW + 2 * side + 2 * topRadius + 20
+            return NotificationLayout.compactWidth(
+                notchW: notchW,
+                sender: notificationSender,
+                message: notificationPreview,
+                canReply: notificationCanReply
+            )
         }
         if expanded, idle {
             return notchW + 2 * side + 2 * topRadius
@@ -686,6 +708,9 @@ struct NotchRootView: View {
             notificationExpanded: notificationActive
                 && notifications.isExpanded,
             notificationPreview: notifications.current?.body ?? "",
+            notificationSender: notifications.current?.sender ?? "",
+            notificationCanReply: notifications.current != nil,
+            notificationDraft: notifications.draft,
             showAlbum: settings.showAlbum
                 && !vm.nowPlaying.album.isEmpty
                 && !vm.isIdle

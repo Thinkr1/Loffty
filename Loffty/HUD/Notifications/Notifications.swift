@@ -64,6 +64,13 @@ enum NotificationApp: String, CaseIterable, Sendable {
         case .discord: "bubble.left.and.bubble.right.fill"
         }
     }
+
+    var supportsReply: Bool {
+        switch self {
+        case .messages, .whatsApp: true
+        case .discord: false
+        }
+    }
 }
 
 enum NotificationAlertStyle: Equatable, Sendable {
@@ -219,35 +226,227 @@ enum NotificationLayout {
     static let compactMessageLines = 3
     static let compactAvatar: CGFloat = 34
     static let compactHorizontalPadding: CGFloat = 22
-    static let compactSideContent: CGFloat = 22
+    static let compactRowSpacing: CGFloat = 10
+    static let compactTopPadding: CGFloat = 6
+    static let compactBottomPadding: CGFloat = 10
+    static let compactTopRadius: CGFloat = 12
+    static let compactBottomRadius: CGFloat = 22
+    static let expandedTopRadius: CGFloat = 16
+    static let expandedBottomRadius: CGFloat = 28
     static let expandedWidth: CGFloat = 360
-    static let expandedHeight: CGFloat = 156
+    static let replySize: CGFloat = 24
+    static let replyEdgePadding: CGFloat = 6
+    private static let compactSenderHeight: CGFloat = 16
+    private static let compactSenderSpacing: CGFloat = 3
     private static let compactLineHeight: CGFloat = 15
-    private static let compactCharsPerLine = 40
+    private static let compactMessageFontSize: CGFloat = 12.5
+    private static let compactMinBleed: CGFloat = 24
+    static let expandedTopPadding: CGFloat = 6
+    static let composerInset: CGFloat = 8
+    static let expandedStackSpacing: CGFloat = 6
+    static let expandedComposerHeight: CGFloat = 36
+    private static let expandedAvatar: CGFloat = 36
+    private static let expandedClose: CGFloat = 16
+    private static let expandedHeaderSpacing: CGFloat = 10
+    private static let expandedSenderHeight: CGFloat = 16
+    private static let expandedSenderSpacing: CGFloat = 2
+    private static let expandedComposerFontSize: CGFloat = 13
 
-    static func estimatedLines(_ text: String) -> Int {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return 1 }
-        let explicit = max(
-            1,
-            trimmed.split(
-                omittingEmptySubsequences: false,
-                whereSeparator: \.isNewline
-            ).count
+    static func compactWidth(
+        notchW: CGFloat,
+        sender: String,
+        message: String,
+        canReply: Bool
+    ) -> CGFloat {
+        let minW = notchW + 2 * compactTopRadius + compactMinBleed
+        let chrome = horizontalChrome(canReply: canReply)
+        let text = max(
+            measuredWidth(sender, size: 13, weight: .semibold),
+            measuredWidth(message, size: compactMessageFontSize)
         )
-        let wrapped = max(
-            1,
-            (trimmed.count + compactCharsPerLine - 1) / compactCharsPerLine
-        )
-        return min(compactMessageLines, max(explicit, wrapped))
+        return min(expandedWidth, max(minW, chrome + text))
     }
 
-    static func compactExtra(message: String = "") -> CGFloat {
-        let lines = estimatedLines(message)
-        let bodyHeight = CGFloat(lines) * compactLineHeight
-        let textColumn: CGFloat = 16 + 3 + bodyHeight
+    static func compactExtra(
+        message: String = "",
+        sender: String = "",
+        notchW: CGFloat = 200,
+        canReply: Bool = false
+    ) -> CGFloat {
+        let width = compactWidth(
+            notchW: notchW,
+            sender: sender,
+            message: message,
+            canReply: canReply
+        )
+        return compactExtra(
+            message: message,
+            islandWidth: width,
+            canReply: canReply
+        )
+    }
+
+    static func expandedHeight(
+        message: String,
+        notchH: CGFloat,
+        canReply: Bool,
+        draft: String = ""
+    ) -> CGFloat {
+        let body =
+            CGFloat(
+                wrappedLineCount(message, width: expandedTextWidth)
+            ) * compactLineHeight
+        let header = max(
+            expandedAvatar,
+            expandedSenderHeight + expandedSenderSpacing + body
+        )
+        let composer =
+            canReply
+            ? expandedStackSpacing + composerHeight(draft: draft) : 0
+        return notchH + expandedTopPadding + header + composer
+            + composerInset
+    }
+
+    static func composerHorizontalPadding(topRadius: CGFloat) -> CGFloat {
+        topRadius + composerInset
+    }
+
+    static func composerCornerRadius(
+        islandBottomRadius: CGFloat,
+        height: CGFloat
+    ) -> CGFloat {
+        min(height / 2, max(0, islandBottomRadius - composerInset))
+    }
+
+    static func wrappedLineCount(
+        _ text: String,
+        width: CGFloat,
+        fontSize: CGFloat = compactMessageFontSize
+    ) -> Int {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 1 }
+        let font = NSFont.systemFont(ofSize: fontSize)
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = -1
+        let storage = NSTextStorage(
+            string: trimmed,
+            attributes: [.font: font, .paragraphStyle: style]
+        )
+        let manager = NSLayoutManager()
+        let container = NSTextContainer(
+            size: CGSize(
+                width: max(1, width),
+                height: .greatestFiniteMagnitude
+            )
+        )
+        container.lineFragmentPadding = 0
+        container.maximumNumberOfLines = compactMessageLines
+        manager.addTextContainer(container)
+        storage.addLayoutManager(manager)
+        manager.glyphRange(for: container)
+        var lines = 0
+        let glyphCount = manager.numberOfGlyphs
+        guard glyphCount > 0 else { return 1 }
+        manager.enumerateLineFragments(
+            forGlyphRange: NSRange(location: 0, length: glyphCount)
+        ) { _, _, _, _, _ in
+            lines += 1
+        }
+        return min(compactMessageLines, max(1, lines))
+    }
+
+    static func replyCenter(
+        in size: CGSize,
+        topRadius: CGFloat,
+        bottomRadius: CGFloat
+    ) -> CGPoint {
+        let inset = replySize / 2 + replyEdgePadding
+        let unconstrained = CGPoint(
+            x: size.width - topRadius - inset,
+            y: size.height - inset
+        )
+        let corner = CGPoint(
+            x: size.width - topRadius - bottomRadius,
+            y: size.height - bottomRadius
+        )
+        let dx = unconstrained.x - corner.x
+        let dy = unconstrained.y - corner.y
+        let dist = hypot(dx, dy)
+        let allowed = max(0, bottomRadius - inset)
+        guard dist > allowed, dist > 0, allowed > 0 else {
+            return unconstrained
+        }
+        let scale = allowed / dist
+        return CGPoint(
+            x: corner.x + dx * scale,
+            y: corner.y + dy * scale
+        )
+    }
+
+    private static func compactExtra(
+        message: String,
+        islandWidth: CGFloat,
+        canReply: Bool
+    ) -> CGFloat {
+        let textWidth = max(
+            40,
+            islandWidth - horizontalChrome(canReply: canReply)
+        )
+        let bodyHeight =
+            CGFloat(wrappedLineCount(message, width: textWidth))
+            * compactLineHeight
+        let textColumn =
+            compactSenderHeight + compactSenderSpacing + bodyHeight
         let row = max(compactAvatar, textColumn)
-        return 6 + row + 4 + 9 + 8
+        return compactTopPadding + row + compactBottomPadding
+    }
+
+    private static var expandedTextWidth: CGFloat {
+        expandedWidth
+            - 2 * composerHorizontalPadding(topRadius: expandedTopRadius)
+            - expandedAvatar
+            - expandedHeaderSpacing
+            - expandedClose
+            - 8
+    }
+
+    private static var expandedComposerTextWidth: CGFloat {
+        expandedWidth
+            - 2 * composerHorizontalPadding(topRadius: expandedTopRadius)
+            - 14
+            - 4
+            - 26
+            - 6
+    }
+
+    static func composerHeight(draft: String) -> CGFloat {
+        let lines = wrappedLineCount(
+            draft,
+            width: expandedComposerTextWidth,
+            fontSize: expandedComposerFontSize
+        )
+        return expandedComposerHeight
+            + CGFloat(max(0, lines - 1)) * compactLineHeight
+    }
+
+    private static func horizontalChrome(canReply: Bool) -> CGFloat {
+        compactHorizontalPadding * 2
+            + compactAvatar
+            + compactRowSpacing
+            + (canReply ? replySize + replyEdgePadding : 0)
+    }
+
+    private static func measuredWidth(
+        _ text: String,
+        size: CGFloat,
+        weight: NSFont.Weight = .regular
+    ) -> CGFloat {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+        let font = NSFont.systemFont(ofSize: size, weight: weight)
+        return ceil(
+            (trimmed as NSString).size(withAttributes: [.font: font]).width
+        )
     }
 }
 
@@ -712,7 +911,9 @@ final class NotificationController: ObservableObject {
         dismissTask?.cancel()
         guard current != nil, !isPinned else { return }
         dismissTask = Task {
-            try? await Task.sleep(for: .seconds(AppSettings.shared.notificationsHUDDismissDelay))
+            try? await Task.sleep(
+                for: .seconds(AppSettings.shared.notificationsHUDDismissDelay)
+            )
             guard !Task.isCancelled, !isPinned else { return }
             dismiss()
         }

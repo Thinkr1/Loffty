@@ -36,6 +36,12 @@ struct NotificationTests {
         #expect(NotificationBannerParser.app(fromName: "Mail") == nil)
     }
 
+    @Test func messagesAndWhatsAppSupportReply() {
+        #expect(NotificationApp.messages.supportsReply)
+        #expect(NotificationApp.whatsApp.supportsReply)
+        #expect(!NotificationApp.discord.supportsReply)
+    }
+
     @Test func parseUsesTitleAndBody() {
         let note = NotificationBannerParser.parse(
             title: "John Doe",
@@ -408,7 +414,9 @@ struct NotificationMetricsTests {
             extended: false,
             hudActive: false,
             notification: true,
-            notificationPreview: "its on my git"
+            notificationPreview: "its on my git",
+            notificationSender: "John Doe",
+            notificationCanReply: true
         )
         let expanded = NotchMetrics(
             notchW: 200,
@@ -418,31 +426,179 @@ struct NotificationMetricsTests {
             extended: false,
             hudActive: false,
             notification: true,
-            notificationExpanded: true
+            notificationExpanded: true,
+            notificationPreview: "its on my git",
+            notificationSender: "John Doe",
+            notificationCanReply: true
         )
         #expect(
             compact.height
                 == 32
-                + NotificationLayout.compactExtra(message: "its on my git")
+                + NotificationLayout.compactExtra(
+                    message: "its on my git",
+                    sender: "John Doe",
+                    notchW: 200,
+                    canReply: true
+                )
         )
-        #expect(NotificationLayout.estimatedLines("its on my git") == 1)
         #expect(
-            NotificationLayout.estimatedLines(String(repeating: "a", count: 90))
-                == 3
+            NotificationLayout.wrappedLineCount(
+                "its on my git",
+                width: 220
+            ) == 1
         )
         #expect(
-            NotificationLayout.compactExtra(message: "its on my git")
+            NotificationLayout.wrappedLineCount(
+                String(repeating: "a", count: 90),
+                width: 160
+            ) == 3
+        )
+        #expect(
+            NotificationLayout.compactExtra(
+                message: "its on my git",
+                sender: "John Doe",
+                canReply: true
+            )
                 < NotificationLayout.compactExtra(
-                    message: String(repeating: "a", count: 90)
+                    message: String(repeating: "a", count: 90),
+                    sender: "John Doe",
+                    canReply: true
                 )
         )
         #expect(NotificationLayout.compactMessageLines == 3)
         #expect(compact.width > collapsed.width)
+        #expect(compact.width <= NotificationLayout.expandedWidth)
         #expect(expanded.width == NotificationLayout.expandedWidth)
-        #expect(expanded.height == NotificationLayout.expandedHeight)
-        #expect(expanded.width > compact.width || expanded.height > compact.height)
-        #expect(compact.bottomRadius == 22)
-        #expect(expanded.bottomRadius == 28)
+        #expect(
+            expanded.height
+                == NotificationLayout.expandedHeight(
+                    message: "its on my git",
+                    notchH: 32,
+                    canReply: true
+                )
+        )
+        #expect(
+            expanded.width > compact.width || expanded.height > compact.height
+        )
+        #expect(
+            expanded.height
+                >= compact.height
+                + NotificationLayout.expandedComposerHeight
+        )
+        #expect(compact.bottomRadius == NotificationLayout.compactBottomRadius)
+        #expect(expanded.bottomRadius == NotificationLayout.expandedBottomRadius)
+    }
+
+    @Test func compactWidthGrowsWithContentThenCaps() {
+        let short = NotificationLayout.compactWidth(
+            notchW: 200,
+            sender: "Jo",
+            message: "hi",
+            canReply: false
+        )
+        let long = NotificationLayout.compactWidth(
+            notchW: 200,
+            sender: "A very long contact name",
+            message: String(repeating: "hello ", count: 20),
+            canReply: true
+        )
+        #expect(short >= 200 + 2 * NotificationLayout.compactTopRadius)
+        #expect(long > short)
+        #expect(long == NotificationLayout.expandedWidth)
+    }
+
+    @Test func expandedHeightGrowsWithMessageAndReply() {
+        let short = NotificationLayout.expandedHeight(
+            message: "hi",
+            notchH: 32,
+            canReply: false
+        )
+        let shortReply = NotificationLayout.expandedHeight(
+            message: "hi",
+            notchH: 32,
+            canReply: true
+        )
+        let longReply = NotificationLayout.expandedHeight(
+            message: String(repeating: "hello ", count: 24),
+            notchH: 32,
+            canReply: true
+        )
+        let longDraft = NotificationLayout.expandedHeight(
+            message: "hi",
+            notchH: 32,
+            canReply: true,
+            draft: String(repeating: "hello ", count: 24)
+        )
+        #expect(shortReply > short)
+        #expect(longReply > shortReply)
+        #expect(longDraft > shortReply)
+        #expect(
+            shortReply - short
+                >= NotificationLayout.expandedStackSpacing
+                + NotificationLayout.expandedComposerHeight
+        )
+    }
+
+    @Test func composerFollowsIslandCornersWithUniformInset() {
+        let pad = NotificationLayout.composerHorizontalPadding(
+            topRadius: NotificationLayout.expandedTopRadius
+        )
+        #expect(
+            pad
+                == NotificationLayout.expandedTopRadius
+                + NotificationLayout.composerInset
+        )
+        let height = NotificationLayout.expandedComposerHeight
+        let inner = NotificationLayout.composerCornerRadius(
+            islandBottomRadius: NotificationLayout.expandedBottomRadius,
+            height: height
+        )
+        #expect(inner <= height / 2)
+        #expect(inner == min(
+            height / 2,
+            NotificationLayout.expandedBottomRadius
+                - NotificationLayout.composerInset
+        ))
+    }
+
+    @Test func replyCenterTracksBottomRightCorner() {
+        let compact = CGSize(width: 280, height: 86)
+        let expanded = CGSize(width: 360, height: 140)
+        let a = NotificationLayout.replyCenter(
+            in: compact,
+            topRadius: NotificationLayout.compactTopRadius,
+            bottomRadius: NotificationLayout.compactBottomRadius
+        )
+        let b = NotificationLayout.replyCenter(
+            in: expanded,
+            topRadius: NotificationLayout.expandedTopRadius,
+            bottomRadius: NotificationLayout.expandedBottomRadius
+        )
+        let radius = NotificationLayout.replySize / 2
+        #expect(a.x > compact.width * 0.6)
+        #expect(a.y > compact.height * 0.5)
+        #expect(b.x > a.x)
+        #expect(b.y > a.y)
+        #expect(a.x + radius <= compact.width - NotificationLayout.compactTopRadius + 0.6)
+        #expect(a.y + radius <= compact.height + 0.6)
+        #expect(
+            b.x + radius
+                <= expanded.width - NotificationLayout.expandedTopRadius + 0.6
+        )
+        #expect(b.y + radius <= expanded.height + 0.6)
+
+        let corner = CGPoint(
+            x: compact.width
+                - NotificationLayout.compactTopRadius
+                - NotificationLayout.compactBottomRadius,
+            y: compact.height - NotificationLayout.compactBottomRadius
+        )
+        let dist = hypot(a.x - corner.x, a.y - corner.y)
+        #expect(
+            dist
+                <= NotificationLayout.compactBottomRadius
+                - NotificationLayout.replyEdgePadding + 0.6
+        )
     }
 
     @Test func airDropWinsOverNotification() {
