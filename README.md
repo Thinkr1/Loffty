@@ -68,8 +68,13 @@ Some things I'm currently working on:
   - Actual soundwaves
   - Lock screen lyrics
   - Timer, live activities
-  - WhatsApp, Messages, Discord (+more) notifications (+reply, show more)
+  - Support more apps for push notifications
+  - Show profile picture in push notifications
+  - Dual Discord/server image badges for notifications
   - Improve lock screen widget (+show music video option)
+  - Show website for browser source
+  - Full browser video thumb
+  - 1:1 marquee speed
   - Screensaver music video
   - Auto-expand on track change?
   - media-control skip Spotify ads
