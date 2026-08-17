@@ -154,6 +154,56 @@ struct SettingsTests {
         #expect(settings.notificationsHUD)
     }
 
+    @Test @MainActor func notificationsHUDDismissDelayPersists() {
+        let settings = AppSettings.shared
+        let original = settings.notificationsHUDDismissDelay
+        defer { settings.notificationsHUDDismissDelay = original }
+
+        settings.notificationsHUDDismissDelay = 3.25
+        #expect(
+            UserDefaults.standard.double(forKey: "notificationsHUDDismissDelay")
+                == 3.25
+        )
+        #expect(settings.notificationsHUDDismissDelay == 3.25)
+    }
+
+    @Test @MainActor func notificationAppTogglesPersist() {
+        let settings = AppSettings.shared
+        let original = (
+            settings.notificationMessages,
+            settings.notificationWhatsApp,
+            settings.notificationDiscord
+        )
+        defer {
+            settings.notificationMessages = original.0
+            settings.notificationWhatsApp = original.1
+            settings.notificationDiscord = original.2
+        }
+
+        settings.notificationMessages = false
+        settings.notificationWhatsApp = false
+        settings.notificationDiscord = false
+        #expect(
+            UserDefaults.standard.object(forKey: "notificationMessages")
+                as? Bool == false
+        )
+        #expect(
+            UserDefaults.standard.object(forKey: "notificationWhatsApp")
+                as? Bool == false
+        )
+        #expect(
+            UserDefaults.standard.object(forKey: "notificationDiscord")
+                as? Bool == false
+        )
+
+        settings.notificationMessages = true
+        settings.notificationWhatsApp = true
+        settings.notificationDiscord = true
+        #expect(settings.notificationMessages)
+        #expect(settings.notificationWhatsApp)
+        #expect(settings.notificationDiscord)
+    }
+
     @Test @MainActor func hasCompletedOnboardingPersists() {
         let settings = AppSettings.shared
         let original = settings.hasCompletedOnboarding

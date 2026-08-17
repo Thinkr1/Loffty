@@ -35,4 +35,10 @@ struct AppUpdaterVersionTests {
         #expect(AppUpdater.compareVersions("1.2.a", "1.2.0") == .orderedSame)
         #expect(AppUpdater.compareVersions("", "1") == .orderedAscending)
     }
+
+    @Test func betaMarketingVersionIsNotTheSameRelease() {
+        #expect(AppUpdater.normalizeVersion("v1.1.7b") == "1.1.7b")
+        #expect(AppUpdater.compareVersions("1.1.7b", "1.1.7") != .orderedSame)
+        #expect(AppUpdater.compareVersions("1.1.7b", "1.1.7b") == .orderedSame)
+    }
 }

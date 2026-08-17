@@ -261,6 +261,17 @@ struct NotificationTests {
                 identifier: "+14155550100"
             )
         )
+        #expect(
+            NotificationReplyLogic.isGroupChat(
+                guid: "iMessage;+;chat999",
+                identifier: "group"
+            )
+        )
+        #expect(NotificationReplyLogic.namedChat("  ") == nil)
+        #expect(NotificationReplyLogic.isHandleTarget("liam@icloud.com"))
+        #expect(NotificationReplyLogic.isHandleTarget("+14155550100"))
+        #expect(!NotificationReplyLogic.isHandleTarget("Liam"))
+        #expect(NotificationReplyLogic.digits(from: "+1 (415) 555-0100") == "14155550100")
         let existing = NotificationReplyLogic.messagesExistingChatScript(
             guid: "iMessage;-;chat999",
             identifier: "chat999",
@@ -411,6 +422,46 @@ struct NotificationTests {
             MessagesChatLookup.chatID(fromPlist: [
                 "req": ["titl": "Liam", "thid": "iMessage;+;chat999"]
             ]) == "iMessage;+;chat999"
+        )
+        #expect(
+            MessagesChatLookup.parseChatID("SMS;-;+14155550100")
+                == "SMS;-;+14155550100"
+        )
+        #expect(MessagesChatLookup.parseChatID("iMessage;-;") == nil)
+        #expect(
+            MessagesChatLookup.textMatches(
+                notification: "abcdefghij extra",
+                message: "abcdefghij extra words"
+            )
+        )
+        #expect(
+            !MessagesChatLookup.textMatches(
+                notification: "hi",
+                message: "history"
+            )
+        )
+        let emptyGuid = MessagesChatLookup.Candidate(
+            guid: "",
+            displayName: "Liam",
+            chatIdentifier: "+14155550100",
+            text: "hello",
+            date: now,
+            handle: "+14155550100"
+        )
+        #expect(
+            MessagesChatLookup.match(
+                candidates: [emptyGuid, oneOnOne],
+                text: "hello",
+                sender: "Liam",
+                at: now.addingTimeInterval(-3600),
+                handles: ["+14155550100"]
+            )?.guid == "iMessage;-;+14155550100"
+        )
+        let nano = MessagesChatLookup.date(
+            fromAppleTime: 1_000_000_000_000_000_000
+        )
+        #expect(
+            abs(nano.timeIntervalSinceReferenceDate - 1_000_000_000) < 1
         )
     }
 
@@ -696,6 +747,15 @@ struct NotificationMetricsTests {
                 >= NotificationLayout.expandedStackSpacing
                 + NotificationLayout.expandedComposerHeight
         )
+        #expect(
+            NotificationLayout.composerHeight(draft: "")
+                == NotificationLayout.expandedComposerHeight
+        )
+        #expect(
+            NotificationLayout.composerHeight(
+                draft: String(repeating: "hello ", count: 24)
+            ) > NotificationLayout.expandedComposerHeight
+        )
     }
 
     @Test func composerFollowsIslandCornersWithUniformInset() {
@@ -774,5 +834,108 @@ struct NotificationMetricsTests {
         )
         #expect(m.height == 112)
         #expect(m.width == 380)
+    }
+
+    @Test func expandedNotificationHeightUsesDraft() {
+        let short = NotchMetrics(
+            notchW: 200,
+            notchH: 32,
+            expanded: false,
+            idle: false,
+            extended: false,
+            hudActive: false,
+            notification: true,
+            notificationExpanded: true,
+            notificationPreview: "hi",
+            notificationSender: "John Doe",
+            notificationCanReply: true,
+            notificationDraft: ""
+        )
+        let long = NotchMetrics(
+            notchW: 200,
+            notchH: 32,
+            expanded: false,
+            idle: false,
+            extended: false,
+            hudActive: false,
+            notification: true,
+            notificationExpanded: true,
+            notificationPreview: "hi",
+            notificationSender: "John Doe",
+            notificationCanReply: true,
+            notificationDraft: String(repeating: "hello ", count: 24)
+        )
+        #expect(long.height > short.height)
+        #expect(short.topRadius == NotificationLayout.expandedTopRadius)
+    }
+}
+
+@Suite("Notification controller")
+struct NotificationControllerTests {
+    private func sampleNote(app: NotificationApp = .messages)
+        -> NotchNotification
+    {
+        NotchNotification(
+            id: "test-\(UUID().uuidString)",
+            app: app,
+            sender: "John Doe",
+            body: "helloooooo",
+            deliveredAt: Date(),
+            avatar: nil,
+            handles: []
+        )
+    }
+
+    @Test @MainActor func presentHonoursMasterAndPerAppToggles() {
+        let controller = NotificationController.shared
+        let settings = AppSettings.shared
+        let originalHUD = settings.notificationsHUD
+        let originalMessages = settings.notificationMessages
+        defer {
+            settings.notificationsHUD = originalHUD
+            settings.notificationMessages = originalMessages
+            controller.dismiss(animated: false)
+        }
+
+        settings.notificationsHUD = false
+        controller.present(sampleNote())
+        #expect(controller.current == nil)
+
+        settings.notificationsHUD = true
+        settings.notificationMessages = false
+        controller.present(sampleNote())
+        #expect(controller.current == nil)
+
+        settings.notificationMessages = true
+        controller.present(sampleNote())
+        #expect(controller.current?.sender == "John Doe")
+        #expect(controller.current?.app == .messages)
+    }
+
+    @Test @MainActor func beginReplyPinsUntilDismiss() {
+        let controller = NotificationController.shared
+        let settings = AppSettings.shared
+        let originalHUD = settings.notificationsHUD
+        defer {
+            settings.notificationsHUD = originalHUD
+            controller.dismiss(animated: false)
+        }
+
+        settings.notificationsHUD = true
+        controller.present(sampleNote())
+        controller.beginReply()
+        #expect(controller.isReplying)
+        #expect(controller.isExpanded)
+        #expect(controller.isPinned)
+        #expect(controller.wantsKeyWindow)
+
+        controller.collapse()
+        #expect(controller.isReplying)
+        #expect(controller.isExpanded)
+
+        controller.dismiss(animated: false)
+        #expect(controller.current == nil)
+        #expect(!controller.isReplying)
+        #expect(!controller.isPinned)
     }
 }
