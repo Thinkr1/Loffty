@@ -231,11 +231,90 @@ struct NotificationTests {
                 == #"He said \"hi\""#
         )
         let script = NotificationReplyLogic.messagesScript(
-            target: "Liam",
+            target: "pmanchuelle@icloud.com",
             text: "Yeah sure"
         )
-        #expect(script.contains("whose name is \"Liam\""))
-        #expect(script.contains("send \"Yeah sure\""))
+        #expect(
+            script
+                == #"tell application "Messages" to send "Yeah sure" to buddy "pmanchuelle@icloud.com""#
+        )
+        #expect(
+            NotificationReplyLogic.messagesChatScript(
+                target: "Liam",
+                text: "Yeah sure"
+            )
+                == #"tell application "Messages" to send "Yeah sure" to chat "Liam""#
+        )
+        #expect(
+            NotificationReplyLogic.namedChat("Family") == "Family"
+        )
+        #expect(NotificationReplyLogic.namedChat("") == nil)
+        #expect(
+            NotificationReplyLogic.isGroupChat(
+                guid: "iMessage;-;chat999",
+                identifier: "chat999"
+            )
+        )
+        #expect(
+            !NotificationReplyLogic.isGroupChat(
+                guid: "iMessage;-;+14155550100",
+                identifier: "+14155550100"
+            )
+        )
+        let existing = NotificationReplyLogic.messagesExistingChatScript(
+            guid: "iMessage;-;chat999",
+            identifier: "chat999",
+            name: "Family",
+            text: "Yeah sure"
+        )
+        #expect(existing.contains(#"send "Yeah sure" to c"#))
+        #expect(!existing.contains("buddy"))
+    }
+
+    @Test func preferredBuddyHandleUsesEmailOnce() {
+        #expect(
+            NotificationReplyLogic.preferredBuddyHandle(
+                chatHandle: "+1 (415) 555-0100",
+                extras: ["liam@icloud.com"]
+            ) == "liam@icloud.com"
+        )
+        #expect(
+            NotificationReplyLogic.preferredBuddyHandle(
+                chatHandle: "pmanchuelle@icloud.com",
+                extras: ["+14155550100"]
+            ) == "pmanchuelle@icloud.com"
+        )
+        #expect(
+            NotificationReplyLogic.preferredBuddyHandle(
+                chatHandle: "+14155550100",
+                extras: []
+            ) == "+14155550100"
+        )
+        #expect(
+            NotificationReplyLogic.preferredBuddyHandle(
+                chatHandle: "Liam",
+                extras: []
+            ) == nil
+        )
+    }
+
+    @Test func messagesURLUsesSmsOrIMessage() {
+        let sms = NotificationReplyLogic.messagesURL(
+            handle: "+1 (415) 555-0100",
+            text: "Yeah sure"
+        )
+        #expect(sms?.scheme == "sms")
+        #expect(sms?.absoluteString.contains("14155550100") == true)
+        #expect(sms?.absoluteString.contains("body=Yeah") == true)
+        let imessage = NotificationReplyLogic.messagesURL(
+            handle: "liam@icloud.com",
+            text: "Yeah sure"
+        )
+        #expect(imessage?.scheme == "imessage")
+        #expect(
+            NotificationReplyLogic.messagesURL(handle: "Liam", text: "x")
+                == nil
+        )
     }
 
     @Test func whatsAppURLUsesDigitsOnly() {
@@ -278,6 +357,63 @@ struct NotificationTests {
         #expect(NotificationContacts.phoneQuery(from: "123") == nil)
     }
 
+    @Test func messagesChatLookupPrefersTheReceivingThread() {
+        let now = Date()
+        let oneOnOne = MessagesChatLookup.Candidate(
+            guid: "iMessage;-;+14155550100",
+            displayName: "Liam",
+            chatIdentifier: "+14155550100",
+            text: "hello",
+            date: now.addingTimeInterval(-3600),
+            handle: "+14155550100"
+        )
+        let group = MessagesChatLookup.Candidate(
+            guid: "iMessage;-;chat999",
+            displayName: "Family",
+            chatIdentifier: "chat999",
+            text: "hello",
+            date: now,
+            handle: "+14155550100"
+        )
+        let hit = MessagesChatLookup.match(
+            candidates: [oneOnOne, group],
+            text: "hello",
+            sender: "Liam",
+            at: now,
+            handles: ["+14155550100"]
+        )
+        #expect(hit?.guid == "iMessage;-;chat999")
+
+        let named = MessagesChatLookup.match(
+            candidates: [oneOnOne, group],
+            text: "hello",
+            sender: "Family",
+            at: now,
+            handles: []
+        )
+        #expect(named?.guid == "iMessage;-;chat999")
+        #expect(
+            MessagesChatLookup.textMatches(
+                notification: "Liam: hello there",
+                message: "hello there"
+            )
+        )
+        #expect(
+            MessagesChatLookup.parseChatID("iMessage;-;chat999")
+                == "iMessage;-;chat999"
+        )
+        #expect(MessagesChatLookup.parseChatID("Liam") == nil)
+        #expect(
+            MessagesChatLookup.date(fromAppleTime: 750_000_000)
+                .timeIntervalSinceReferenceDate == 750_000_000
+        )
+        #expect(
+            MessagesChatLookup.chatID(fromPlist: [
+                "req": ["titl": "Liam", "thid": "iMessage;+;chat999"]
+            ]) == "iMessage;+;chat999"
+        )
+    }
+
     @Test func decodeRecordFromPlist() throws {
         let plist: [String: Any] = [
             "req": [
@@ -299,6 +435,29 @@ struct NotificationTests {
         #expect(note?.id == "db-9")
         #expect(note?.sender == "John Doe")
         #expect(note?.app == .whatsApp)
+    }
+
+    @Test func decodeRecordExtractsMessagesChatID() throws {
+        let plist: [String: Any] = [
+            "req": [
+                "titl": "Liam",
+                "body": "helloooooo",
+                "thid": "iMessage;-;chat999",
+            ]
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: plist,
+            format: .binary,
+            options: 0
+        )
+        let note = NotificationBannerParser.decodeRecord(
+            data: data,
+            bundleID: "com.apple.MobileSMS",
+            deliveredAt: Date(timeIntervalSince1970: 1),
+            recID: 10
+        )
+        #expect(note?.app == .messages)
+        #expect(note?.chatID == "iMessage;-;chat999")
     }
 
     @Test func alertStyleDecodesFromFlags() {

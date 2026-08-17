@@ -7,7 +7,6 @@
 
 import AppKit
 import Combine
-import Contacts
 import SwiftUI
 
 enum NotificationApp: String, CaseIterable, Sendable {
@@ -207,6 +206,8 @@ struct NotchNotification: Equatable, Identifiable, Sendable {
     let deliveredAt: Date
     var avatar: Data?
     var handles: [String]
+    var chatID: String? = nil
+    var chatName: String? = nil
 
     var fingerprint: String {
         NotificationBannerParser.fingerprint(
@@ -612,16 +613,22 @@ enum NotificationBannerParser: Sendable {
         let body = stringValue(req["body"] ?? plist["body"])
         let appName = stringValue(plist["app"]) ?? bundleID
 
-        return parse(
-            title: title,
-            subtitle: subtitle,
-            body: body,
-            bundleID: bundleID,
-            appName: appName,
-            hints: [appName, bundleID].compactMap { $0 },
-            deliveredAt: deliveredAt,
-            id: "db-\(recID)"
-        )
+        guard
+            var note = parse(
+                title: title,
+                subtitle: subtitle,
+                body: body,
+                bundleID: bundleID,
+                appName: appName,
+                hints: [appName, bundleID].compactMap { $0 },
+                deliveredAt: deliveredAt,
+                id: "db-\(recID)"
+            )
+        else { return nil }
+        if note.app == .messages {
+            note.chatID = MessagesChatLookup.chatID(fromPlist: plist)
+        }
+        return note
     }
 
     nonisolated static func relativeLabel(
@@ -707,24 +714,144 @@ enum NotificationReplyLogic: Sendable {
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
+    nonisolated static func preferredBuddyHandle(
+        chatHandle: String,
+        extras: [String]
+    ) -> String? {
+        var emails: [String] = []
+        var phones: [String] = []
+        func add(_ value: String) {
+            let trimmed = value.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard !trimmed.isEmpty else { return }
+            if trimmed.contains("@") {
+                if !emails.contains(where: {
+                    $0.caseInsensitiveCompare(trimmed) == .orderedSame
+                }) {
+                    emails.append(trimmed)
+                }
+                return
+            }
+            guard isHandleTarget(trimmed) else { return }
+            if !phones.contains(where: {
+                $0.caseInsensitiveCompare(trimmed) == .orderedSame
+            }) {
+                phones.append(trimmed)
+            }
+        }
+        add(chatHandle)
+        for extra in extras { add(extra) }
+        return emails.first ?? phones.first
+    }
+
+    nonisolated static func isHandleTarget(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("@") { return true }
+        let digits = trimmed.filter(\.isNumber)
+        let letters = trimmed.filter(\.isLetter)
+        return digits.count >= 8 && letters.count < 3
+    }
+
+    nonisolated static func namedChat(_ displayName: String) -> String? {
+        let trimmed = displayName.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    nonisolated static func isGroupChat(guid: String, identifier: String)
+        -> Bool
+    {
+        let id = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        if id.lowercased().hasPrefix("chat") { return true }
+        if guid.contains(";+;") { return true }
+        if let last = guid.split(separator: ";").last,
+            last.lowercased().hasPrefix("chat")
+        {
+            return true
+        }
+        return false
+    }
+
+    nonisolated static func messagesExistingChatScript(
+        guid: String,
+        identifier: String,
+        name: String,
+        text: String
+    ) -> String {
+        let body = escapeAppleScript(text)
+        let id = escapeAppleScript(guid)
+        let ident = escapeAppleScript(identifier)
+        let chatName = escapeAppleScript(name)
+        return """
+            tell application "Messages"
+              repeat with c in chats
+                try
+                  if (id of c as text) is "\(id)" then
+                    send "\(body)" to c
+                    return
+                  end if
+                end try
+              end repeat
+              repeat with c in chats
+                try
+                  if "\(ident)" is not "" and (id of c as text) contains "\(ident)" then
+                    send "\(body)" to c
+                    return
+                  end if
+                end try
+              end repeat
+              if "\(chatName)" is not "" then send "\(body)" to chat "\(chatName)"
+            end tell
+            """
+    }
+
+    nonisolated static func messagesChatScript(target: String, text: String)
+        -> String
+    {
+        let name = escapeAppleScript(target)
+        let body = escapeAppleScript(text)
+        return
+            "tell application \"Messages\" to send \"\(body)\" to chat \"\(name)\""
+    }
+
     nonisolated static func messagesScript(target: String, text: String)
         -> String
     {
         let name = escapeAppleScript(target)
         let body = escapeAppleScript(text)
-        return """
-            tell application "Messages"
-                try
-                    set targetBuddy to first participant whose name is "\(name)"
-                    send "\(body)" to targetBuddy
-                on error
-                    try
-                        set targetChat to first chat whose name is "\(name)"
-                        send "\(body)" to targetChat
-                    end try
-                end try
-            end tell
-            """
+        return
+            "tell application \"Messages\" to send \"\(body)\" to buddy \"\(name)\""
+    }
+
+    nonisolated static func messagesURL(handle: String, text: String) -> URL? {
+        let trimmed = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let digits = trimmed.filter(\.isNumber)
+        let letters = trimmed.filter(\.isLetter)
+        let isEmail = trimmed.contains("@")
+        let isPhone = digits.count >= 8 && letters.count < 3
+        guard isEmail || isPhone else { return nil }
+
+        let address: String
+        if isPhone {
+            address =
+                trimmed.hasPrefix("+")
+                ? "+" + digits : digits
+        } else {
+            address = trimmed
+        }
+        let encodedAddress =
+            address.addingPercentEncoding(
+                withAllowedCharacters: .urlPathAllowed
+            ) ?? address
+        let encodedBody =
+            text.addingPercentEncoding(
+                withAllowedCharacters: .urlQueryAllowed
+            ) ?? text
+        let scheme = isEmail ? "imessage" : "sms"
+        return URL(string: "\(scheme):\(encodedAddress)&body=\(encodedBody)")
     }
 
     nonisolated static func whatsAppURL(phone: String, text: String) -> URL? {
@@ -761,7 +888,6 @@ final class NotificationController: ObservableObject {
     private var dismissTask: Task<Void, Never>?
     private var watcher: NotificationBannerWatcher?
     private var started = false
-    private let contacts = CNContactStore()
 
     private init() {}
 
@@ -776,7 +902,6 @@ final class NotificationController: ObservableObject {
         }
         watcher.start()
         self.watcher = watcher
-        requestContactsIfNeeded()
     }
 
     func stop() {
@@ -871,9 +996,11 @@ final class NotificationController: ObservableObject {
             guard !Task.isCancelled else { return }
             if sent {
                 dismiss()
-            } else {
+            } else if note.app != .messages {
                 sending = false
                 NotificationReply.open(note)
+            } else {
+                sending = false
             }
         }
     }
@@ -922,23 +1049,47 @@ final class NotificationController: ObservableObject {
     private func enrich(_ note: NotchNotification) {
         Task {
             let sender = note.sender
-            let (avatar, handles) = await Task.detached(
+            let body = note.body
+            let deliveredAt = note.deliveredAt
+            let app = note.app
+            let knownHandles = note.handles
+            let (avatar, handles, chat) = await Task.detached(
                 priority: .userInitiated
             ) {
-                NotificationContacts.lookup(name: sender)
+                if app == .messages {
+                    let chat = MessagesChatLookup.lookup(
+                        text: body,
+                        sender: sender,
+                        at: deliveredAt,
+                        handles: knownHandles
+                    )
+                    var handles = knownHandles
+                    if let handle = chat?.handle, !handle.isEmpty,
+                        !handles.contains(where: {
+                            $0.caseInsensitiveCompare(handle) == .orderedSame
+                        })
+                    {
+                        handles.insert(handle, at: 0)
+                    }
+                    return (nil as Data?, handles, chat)
+                }
+                return (
+                    nil as Data?, knownHandles,
+                    nil as MessagesChatLookup.Candidate?
+                )
             }.value
             guard current?.id == note.id else { return }
             var updated = note
             updated.avatar = avatar
             updated.handles = handles
+            if let chat {
+                updated.chatID = chat.guid
+                if !chat.displayName.isEmpty {
+                    updated.chatName = chat.displayName
+                }
+            }
             current = updated
         }
-    }
-
-    private func requestContactsIfNeeded() {
-        let status = CNContactStore.authorizationStatus(for: .contacts)
-        guard status == .notDetermined else { return }
-        contacts.requestAccess(for: .contacts) { _, _ in }
     }
 }
 
@@ -977,16 +1128,40 @@ enum NotificationReply {
     private static func sendMessages(_ text: String, to note: NotchNotification)
         async -> Bool
     {
-        let targets = ([note.sender] + note.handles).filter { !$0.isEmpty }
-        for target in targets {
-            let script = NotificationReplyLogic.messagesScript(
-                target: target,
+        let hit = await Task.detached(priority: .userInitiated) {
+            MessagesChatLookup.lookup(
+                text: note.body,
+                sender: note.sender,
+                at: note.deliveredAt,
+                handles: note.handles
+            )
+        }.value
+
+        if let hit {
+            if await runAppleScript(
+                NotificationReplyLogic.messagesExistingChatScript(
+                    guid: hit.guid,
+                    identifier: hit.chatIdentifier,
+                    name: hit.displayName,
+                    text: text
+                )
+            ) {
+                return true
+            }
+        }
+
+        guard
+            let handle = NotificationReplyLogic.preferredBuddyHandle(
+                chatHandle: hit?.handle ?? note.sender,
+                extras: note.handles
+            )
+        else { return false }
+        return await runAppleScript(
+            NotificationReplyLogic.messagesScript(
+                target: handle,
                 text: text
             )
-            if await runAppleScript(script) { return true }
-        }
-        open(note)
-        return false
+        )
     }
 
     private static func sendWhatsApp(_ text: String, to note: NotchNotification)
@@ -1006,58 +1181,66 @@ enum NotificationReply {
     }
 
     private static func runAppleScript(_ source: String) async -> Bool {
-        await Task.detached(priority: .userInitiated) {
-            var error: NSDictionary?
-            let script = NSAppleScript(source: source)
-            _ = script?.executeAndReturnError(&error)
-            return error == nil
+        if await runUserAppleScript(source) { return true }
+        return await Task.detached(priority: .userInitiated) {
+            runOsascript(source)
         }.value
+    }
+
+    private static func runUserAppleScript(_ source: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            do {
+                let url = try writeReplyScript(source)
+                let task = try NSUserAppleScriptTask(url: url)
+                task.execute(withAppleEvent: nil) { _, error in
+                    withExtendedLifetime(task) {
+                        try? FileManager.default.removeItem(at: url)
+                        continuation.resume(returning: error == nil)
+                    }
+                }
+            } catch {
+                continuation.resume(returning: false)
+            }
+        }
+    }
+
+    nonisolated private static func writeReplyScript(_ source: String) throws
+        -> URL
+    {
+        let bundleID =
+            Bundle.main.bundleIdentifier ?? "com.plmls-team.Loffty"
+        let folder = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Scripts")
+            .appendingPathComponent(bundleID)
+        try FileManager.default.createDirectory(
+            at: folder,
+            withIntermediateDirectories: true
+        )
+        let url = folder.appendingPathComponent(
+            "reply-\(UUID().uuidString).applescript"
+        )
+        try source.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    nonisolated private static func runOsascript(_ source: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", source]
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 }
 
 enum NotificationContacts {
-    nonisolated static func lookup(name: String) -> (Data?, [String]) {
-        guard canReadContacts else { return (nil, []) }
-        let store = CNContactStore()
-        let keys: [CNKeyDescriptor] = [
-            CNContactThumbnailImageDataKey as CNKeyDescriptor,
-            CNContactImageDataKey as CNKeyDescriptor,
-            CNContactGivenNameKey as CNKeyDescriptor,
-            CNContactFamilyNameKey as CNKeyDescriptor,
-            CNContactNicknameKey as CNKeyDescriptor,
-            CNContactPhoneNumbersKey as CNKeyDescriptor,
-            CNContactEmailAddressesKey as CNKeyDescriptor,
-        ]
-
-        var matches: [CNContact] = []
-        if let phone = phoneQuery(from: name) {
-            let number = CNPhoneNumber(stringValue: phone)
-            let found =
-                (try? store.unifiedContacts(
-                    matching: CNContact.predicateForContacts(matching: number),
-                    keysToFetch: keys
-                )) ?? []
-            matches.append(contentsOf: found)
-        }
-        if matches.isEmpty {
-            for term in searchTerms(from: name) {
-                let found =
-                    (try? store.unifiedContacts(
-                        matching: CNContact.predicateForContacts(
-                            matchingName: term
-                        ),
-                        keysToFetch: keys
-                    )) ?? []
-                if !found.isEmpty {
-                    matches = found
-                    break
-                }
-            }
-        }
-        guard let contact = preferred(matches) else { return (nil, []) }
-        return (imageData(from: contact), handles(from: contact))
-    }
-
     nonisolated static func searchTerms(from sender: String) -> [String] {
         var text = sender.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.hasPrefix("~") {
@@ -1099,42 +1282,5 @@ enum NotificationContacts {
         let digits = sender.filter(\.isNumber)
         guard digits.count >= 8, letters.count < 3 else { return nil }
         return digits
-    }
-
-    nonisolated private static var canReadContacts: Bool {
-        CNContactStore.authorizationStatus(for: .contacts) == .authorized
-    }
-
-    nonisolated private static func preferred(_ contacts: [CNContact])
-        -> CNContact?
-    {
-        contacts.first { imageData(from: $0) != nil } ?? contacts.first
-    }
-
-    nonisolated private static func imageData(from contact: CNContact) -> Data?
-    {
-        if contact.isKeyAvailable(CNContactThumbnailImageDataKey) {
-            if let data = contact.thumbnailImageData { return data }
-        }
-        if contact.isKeyAvailable(CNContactImageDataKey) {
-            return contact.imageData
-        }
-        return nil
-    }
-
-    nonisolated private static func handles(from contact: CNContact) -> [String]
-    {
-        var values: [String] = []
-        if contact.isKeyAvailable(CNContactEmailAddressesKey) {
-            values.append(
-                contentsOf: contact.emailAddresses.map { $0.value as String }
-            )
-        }
-        if contact.isKeyAvailable(CNContactPhoneNumbersKey) {
-            values.append(
-                contentsOf: contact.phoneNumbers.map(\.value.stringValue)
-            )
-        }
-        return values
     }
 }
