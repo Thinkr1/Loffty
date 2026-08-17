@@ -376,7 +376,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.1.7;
+				MARKETING_VERSION = 1.1.7b;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.plmls-team.Loffty";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -419,7 +419,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.1.7;
+				MARKETING_VERSION = 1.1.7b;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.plmls-team.Loffty";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
