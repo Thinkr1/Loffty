@@ -244,6 +244,34 @@ struct NotificationTests {
         )
     }
 
+    @Test func contactSearchTermsStripWhatsAppAndGroupNoise() {
+        #expect(
+            NotificationContacts.searchTerms(from: "Jane Smith")
+                == ["Jane Smith"]
+        )
+        #expect(
+            NotificationContacts.searchTerms(from: "~Jane Smith")
+                == ["Jane Smith"]
+        )
+        #expect(
+            NotificationContacts.searchTerms(from: "Jane Smith and 2 others")
+                == ["Jane Smith"]
+        )
+        #expect(
+            NotificationContacts.searchTerms(from: "Jane, Bob")
+                == ["Jane, Bob", "Jane"]
+        )
+    }
+
+    @Test func contactPhoneQueryUsesMostlyDigits() {
+        #expect(
+            NotificationContacts.phoneQuery(from: "+1 (415) 555-0100")
+                == "14155550100"
+        )
+        #expect(NotificationContacts.phoneQuery(from: "Jane Smith") == nil)
+        #expect(NotificationContacts.phoneQuery(from: "123") == nil)
+    }
+
     @Test func decodeRecordFromPlist() throws {
         let plist: [String: Any] = [
             "req": [
@@ -265,6 +293,99 @@ struct NotificationTests {
         #expect(note?.id == "db-9")
         #expect(note?.sender == "John Doe")
         #expect(note?.app == .whatsApp)
+    }
+
+    @Test func alertStyleDecodesFromFlags() {
+        let none = NotificationStyleCheck.allowFlag
+        #expect(NotificationStyleCheck.alertStyle(flags: none) == .none)
+        #expect(!NotificationStyleCheck.showsOnDesktop(flags: none))
+        #expect(NotificationStyleCheck.hidesSystemBanner(flags: none))
+
+        let banners =
+            NotificationStyleCheck.allowFlag | NotificationStyleCheck.bannerFlag
+        #expect(NotificationStyleCheck.alertStyle(flags: banners) == .banners)
+        #expect(NotificationStyleCheck.showsOnDesktop(flags: banners))
+        #expect(!NotificationStyleCheck.hidesSystemBanner(flags: banners))
+
+        let alerts =
+            NotificationStyleCheck.allowFlag | NotificationStyleCheck.alertFlag
+        #expect(NotificationStyleCheck.alertStyle(flags: alerts) == .alerts)
+        #expect(NotificationStyleCheck.showsOnDesktop(flags: alerts))
+        #expect(!NotificationStyleCheck.hidesSystemBanner(flags: alerts))
+    }
+
+    @Test func hidesSystemBannerRequiresAllowNotifications() {
+        #expect(NotificationStyleCheck.alertStyle(flags: 0) == .none)
+        #expect(!NotificationStyleCheck.hidesSystemBanner(flags: 0))
+        #expect(!NotificationStyleCheck.allowsNotifications(flags: 0))
+        #expect(
+            NotificationStyleCheck.allowsNotifications(
+                flags: NotificationStyleCheck.allowFlag
+            )
+        )
+    }
+
+    @Test func currentFlagsFindsBundleAndIgnoresOthers() {
+        let apps: [[String: Any]] = [
+            ["bundle-id": "com.apple.Safari", "flags": 8],
+            [
+                "bundle-id": "com.apple.MobileSMS",
+                "flags": NotificationStyleCheck.allowFlag,
+            ],
+        ]
+        #expect(
+            NotificationStyleCheck.currentFlags(
+                bundleID: "com.apple.MobileSMS",
+                apps: apps
+            ) == NotificationStyleCheck.allowFlag
+        )
+        #expect(
+            NotificationStyleCheck.currentFlags(
+                bundleID: "net.whatsapp.WhatsApp",
+                apps: apps
+            ) == nil
+        )
+    }
+
+    @Test func systemCenterPrefixIsStrippedFromBundleIDs() {
+        #expect(
+            NotificationStyleCheck.normalizedBundleID(
+                "_SYSTEM_CENTER_:com.apple.MobileSMS"
+            ) == "com.apple.MobileSMS"
+        )
+        let apps: [[String: Any]] = [
+            [
+                "bundle-id": "_SYSTEM_CENTER_:net.whatsapp.WhatsApp",
+                "flags": NotificationStyleCheck.allowFlag,
+            ]
+        ]
+        #expect(
+            NotificationStyleCheck.hidesSystemBanner(
+                for: .whatsApp,
+                apps: apps
+            )
+        )
+        #expect(
+            !NotificationStyleCheck.hidesSystemBanner(
+                for: .messages,
+                apps: apps
+            )
+        )
+    }
+
+    @Test func hidesSystemBannerChecksAlternateBundleIDs() {
+        let apps: [[String: Any]] = [
+            [
+                "bundle-id": "net.whatsapp.WhatsAppDesktop",
+                "flags": NotificationStyleCheck.allowFlag,
+            ]
+        ]
+        #expect(
+            NotificationStyleCheck.hidesSystemBanner(
+                for: .whatsApp,
+                apps: apps
+            )
+        )
     }
 }
 

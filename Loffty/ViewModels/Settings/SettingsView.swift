@@ -162,6 +162,7 @@ struct SettingsView: View {
         SettingsPage.general.rawValue
     @State private var query = ""
     @FocusState private var searchFocused: Bool
+    @State private var notificationPrefsStamp = 0
 
     private var page: SettingsPage {
         SettingsPage(rawValue: storedPage) ?? .general
@@ -207,6 +208,8 @@ struct SettingsView: View {
             )
         ) { _ in
             settings.refreshLaunchAtLogin()
+            NotificationStyleCheck.synchronize()
+            notificationPrefsStamp += 1
         }
     }
 
@@ -666,7 +669,7 @@ struct SettingsView: View {
                 page: .notifications,
                 title: "Notifications",
                 note:
-                    "Incoming Messages, WhatsApp and Discord appear on the notch. Accessibility is required; Full Disk Access helps if banners are turned off.",
+                    "Incoming Messages, WhatsApp and Discord appear on the notch. Turn off Desktop for those apps to hide the system banner. Accessibility is required; Full Disk Access is needed when banners are off.",
                 entries: [
                     SettingsEntry(
                         "notificationsHUD",
@@ -705,19 +708,64 @@ struct SettingsView: View {
                     SettingsEntry(
                         "notificationFullDiskAccess",
                         title: "Full Disk Access",
-                        detail:
-                            "Needed to read notifications when banners are hidden.",
+                        detail: NotificationDatabaseReader.canReadDatabase()
+                            ? "Granted. Loffty can read hidden notifications."
+                            : "Needed to read notifications when banners are hidden.",
                         keywords: ["permission", "privacy", "database"]
                     ) {
-                        Button("Open") {
-                            PrivacyAccess.openFullDiskAccessSettings()
+                        if NotificationDatabaseReader.canReadDatabase() {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Button("Open") {
+                                PrivacyAccess.openFullDiskAccessSettings()
+                            }
+                            .controlSize(.small)
+                            .settingsButton()
                         }
-                        .controlSize(.small)
-                        .settingsButton()
                     },
                 ]
             ),
+            SettingsGroup(
+                page: .notifications,
+                title: "System banners",
+                note:
+                    "Keep Allow Notifications and Notification Centre on. Turning off Desktop hides the system banner so the notch can show them instead.",
+                entries: notificationBannerEntries
+            ),
         ]
+    }
+
+    private var notificationBannerEntries: [SettingsEntry] {
+        _ = notificationPrefsStamp
+        return NotificationApp.allCases.map { app in
+            let hidden = NotificationStyleCheck.hidesSystemBanner(for: app)
+            return SettingsEntry(
+                "notificationAlertStyle.\(app.rawValue)",
+                title: app.displayName,
+                detail: hidden
+                    ? "Desktop is off"
+                    : "Turn off Desktop",
+                keywords: [
+                    "banner", "desktop", "alert style",
+                    app.displayName.lowercased(),
+                ],
+                isEnabled: settings.notificationsHUD
+            ) {
+                if hidden {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Open") {
+                        NotificationSettingsLink.openNotificationSettings(
+                            for: app
+                        )
+                    }
+                    .controlSize(.small)
+                    .settingsButton()
+                }
+            }
+        }
     }
 
     private var lockScreenGroups: [SettingsGroup] {

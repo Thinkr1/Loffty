@@ -25,17 +25,33 @@ struct OnboardingTests {
 
     @Test func stepOrderAdvancesAndRetreats() {
         #expect(OnboardingFlow.next(.welcome) == .setup)
-        #expect(OnboardingFlow.next(.setup) == .ready)
+        #expect(OnboardingFlow.next(.setup) == .alerts)
+        #expect(OnboardingFlow.next(.alerts) == .ready)
         #expect(OnboardingFlow.next(.ready) == nil)
 
-        #expect(OnboardingFlow.previous(.ready) == .setup)
+        #expect(OnboardingFlow.previous(.ready) == .alerts)
+        #expect(OnboardingFlow.previous(.alerts) == .setup)
         #expect(OnboardingFlow.previous(.setup) == .welcome)
         #expect(OnboardingFlow.previous(.welcome) == nil)
+    }
+
+    @Test func alertStepIsSkippedWhenNotificationsAreOff() {
+        #expect(
+            OnboardingFlow.next(.setup, notificationsEnabled: false) == .ready
+        )
+        #expect(
+            OnboardingFlow.previous(.ready, notificationsEnabled: false)
+                == .setup
+        )
+        #expect(
+            OnboardingFlow.next(.setup, notificationsEnabled: true) == .alerts
+        )
     }
 
     @Test func transitionGroupsStayStablePerScreen() {
         #expect(OnboardingFlow.transitionGroup(for: .welcome) == "welcome")
         #expect(OnboardingFlow.transitionGroup(for: .setup) == "setup")
+        #expect(OnboardingFlow.transitionGroup(for: .alerts) == "alerts")
         #expect(OnboardingFlow.transitionGroup(for: .ready) == "ready")
         #expect(
             OnboardingFlow.transitionGroup(for: .setup)
@@ -46,12 +62,14 @@ struct OnboardingTests {
     @Test func primaryTitlesMatchFlow() {
         #expect(OnboardingFlow.primaryTitle(for: .welcome) == "Get Started")
         #expect(OnboardingFlow.primaryTitle(for: .setup) == "Continue")
+        #expect(OnboardingFlow.primaryTitle(for: .alerts) == "Continue")
         #expect(OnboardingFlow.primaryTitle(for: .ready) == "Start Loffty")
     }
 
     @Test func onlyReadyFinishesOnPrimaryAction() {
         #expect(!OnboardingFlow.finishesOnPrimaryAction(.welcome))
         #expect(!OnboardingFlow.finishesOnPrimaryAction(.setup))
+        #expect(!OnboardingFlow.finishesOnPrimaryAction(.alerts))
         #expect(OnboardingFlow.finishesOnPrimaryAction(.ready))
     }
 
@@ -89,6 +107,31 @@ struct OnboardingTests {
         for url in urls {
             #expect(URL(string: url) != nil)
         }
+    }
+
+    @Test func notificationSettingsURLsIncludeModernAndLegacy() {
+        let urls = NotificationSettingsLink.settingsURLCandidates()
+        #expect(
+            urls.contains(
+                "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+            )
+        )
+        #expect(
+            urls.contains(
+                "x-apple.systempreferences:com.apple.preference.notifications"
+            )
+        )
+        for url in urls {
+            #expect(URL(string: url) != nil)
+        }
+    }
+
+    @Test func notificationSettingsURLsCanTargetABundle() {
+        let urls = NotificationSettingsLink.settingsURLCandidates(
+            bundleID: "com.apple.MobileSMS"
+        )
+        #expect(urls.first?.contains("id=com.apple.MobileSMS") == true)
+        #expect(urls.count == 3)
     }
 
     @Test func privacySettingsURLCandidatesCoverBluetoothAndLocalNetwork() {

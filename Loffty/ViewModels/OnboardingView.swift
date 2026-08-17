@@ -144,6 +144,7 @@ enum OnboardingFlow {
     enum Step: Int, CaseIterable, Identifiable {
         case welcome
         case setup
+        case alerts
         case ready
 
         var id: Int { rawValue }
@@ -159,6 +160,7 @@ enum OnboardingFlow {
         switch step {
         case .welcome: "welcome"
         case .setup: "setup"
+        case .alerts: "alerts"
         case .ready: "ready"
         }
     }
@@ -167,16 +169,35 @@ enum OnboardingFlow {
         switch step {
         case .welcome: "Get Started"
         case .setup: "Continue"
+        case .alerts: "Continue"
         case .ready: "Start Loffty"
         }
     }
 
-    nonisolated static func next(_ step: Step) -> Step? {
-        Step(rawValue: step.rawValue + 1)
+    nonisolated static func next(
+        _ step: Step,
+        notificationsEnabled: Bool = true
+    ) -> Step? {
+        guard let candidate = Step(rawValue: step.rawValue + 1) else {
+            return nil
+        }
+        if candidate == .alerts, !notificationsEnabled {
+            return Step(rawValue: candidate.rawValue + 1)
+        }
+        return candidate
     }
 
-    nonisolated static func previous(_ step: Step) -> Step? {
-        Step(rawValue: step.rawValue - 1)
+    nonisolated static func previous(
+        _ step: Step,
+        notificationsEnabled: Bool = true
+    ) -> Step? {
+        guard let candidate = Step(rawValue: step.rawValue - 1) else {
+            return nil
+        }
+        if candidate == .alerts, !notificationsEnabled {
+            return Step(rawValue: candidate.rawValue - 1)
+        }
+        return candidate
     }
 
     nonisolated static func finishesOnPrimaryAction(_ step: Step) -> Bool {
@@ -208,6 +229,7 @@ struct OnboardingView: View {
     @State private var accessibilityTrusted = PrivacyAccess
         .isAccessibilityTrusted
     @State private var appeared = false
+    @State private var notificationPrefsStamp = 0
 
     private let version = AppUpdater.shared.currentVersion
     private let morph = Animation.spring(response: 0.58, dampingFraction: 0.86)
@@ -263,6 +285,8 @@ struct OnboardingView: View {
         ) { _ in
             accessibilityTrusted = PrivacyAccess.isAccessibilityTrusted
             settings.refreshLaunchAtLogin()
+            NotificationStyleCheck.synchronize()
+            notificationPrefsStamp += 1
         }
     }
 
@@ -320,6 +344,8 @@ struct OnboardingView: View {
             welcomeBody
         case .setup:
             setupBody
+        case .alerts:
+            alertsBody
         case .ready:
             readyBody
         }
@@ -416,6 +442,76 @@ struct OnboardingView: View {
             maxHeight: .infinity,
             alignment: .topLeading
         )
+    }
+
+    private var alertsBody: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 8) {
+                Text("Hide System Banners")
+                    .font(.system(size: 22, weight: .bold))
+                Image(systemName: "bell.slash.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 4)
+
+            Text(
+                "Turn off Desktop for each app so banners don’t appear on screen. Keep Allow Notifications and Notification Centre on."
+            )
+            .font(.system(size: 13))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 8) {
+                ForEach(NotificationApp.allCases, id: \.self) { app in
+                    AlertStyleOnboardingStep(
+                        app: app,
+                        isComplete: hidesSystemBanner(app),
+                        scheme: scheme
+                    )
+                }
+            }
+            .padding(12)
+            .onboardingGlass(
+                RoundedRectangle(cornerRadius: 22, style: .continuous),
+                interactive: false,
+                scheme: scheme,
+                clear: true
+            )
+            .onboardingGlassID("mainCard", in: glassNamespace)
+            .onboardingGlassTransition(.matchedGeometry)
+
+            HStack(spacing: 8) {
+                Text(
+                    NotificationDatabaseReader.canReadDatabase()
+                        ? "Full Disk Access is granted."
+                        : "Full Disk Access is needed once banners are hidden."
+                )
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                if !NotificationDatabaseReader.canReadDatabase() {
+                    Button("Open") {
+                        PrivacyAccess.openFullDiskAccessSettings()
+                    }
+                    .controlSize(.small)
+                    .settingsButton()
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
+    }
+
+    private func hidesSystemBanner(_ app: NotificationApp) -> Bool {
+        _ = notificationPrefsStamp
+        return NotificationStyleCheck.hidesSystemBanner(for: app)
     }
 
     private var permissionsStrip: some View {
@@ -556,7 +652,12 @@ struct OnboardingView: View {
     }
 
     private func goForward() {
-        guard let next = OnboardingFlow.next(step) else {
+        guard
+            let next = OnboardingFlow.next(
+                step,
+                notificationsEnabled: settings.notificationsHUD
+            )
+        else {
             onFinished()
             return
         }
@@ -564,8 +665,50 @@ struct OnboardingView: View {
     }
 
     private func goBack() {
-        guard let previous = OnboardingFlow.previous(step) else { return }
+        guard
+            let previous = OnboardingFlow.previous(
+                step,
+                notificationsEnabled: settings.notificationsHUD
+            )
+        else { return }
         withAnimation(morph) { step = previous }
+    }
+}
+
+private struct AlertStyleOnboardingStep: View {
+    let app: NotificationApp
+    let isComplete: Bool
+    var scheme: ColorScheme
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(
+                systemName: isComplete
+                    ? "checkmark.circle.fill" : "circle"
+            )
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(isComplete ? Color.accentColor : .secondary)
+            Text("Turn off Desktop for \(app.displayName)")
+                .font(.system(size: 13.5, weight: .medium))
+            Spacer(minLength: 8)
+            if !isComplete {
+                Button("Open Settings") {
+                    NotificationSettingsLink.openNotificationSettings(
+                        for: app
+                    )
+                }
+                .controlSize(.small)
+                .settingsButton()
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .onboardingGlass(
+            RoundedRectangle(cornerRadius: 14, style: .continuous),
+            interactive: true,
+            scheme: scheme,
+            clear: true
+        )
     }
 }
 

@@ -66,6 +66,132 @@ enum NotificationApp: String, CaseIterable, Sendable {
     }
 }
 
+enum NotificationAlertStyle: Equatable, Sendable {
+    case none
+    case banners
+    case alerts
+}
+
+enum NotificationSettingsLink {
+    nonisolated static func settingsURLCandidates(bundleID: String? = nil)
+        -> [String]
+    {
+        var urls: [String] = []
+        if let bundleID, !bundleID.isEmpty {
+            urls.append(
+                "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(bundleID)"
+            )
+        }
+        urls.append(
+            "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+        )
+        urls.append(
+            "x-apple.systempreferences:com.apple.preference.notifications"
+        )
+        return urls
+    }
+
+    @MainActor
+    static func openNotificationSettings(bundleID: String? = nil) {
+        for candidate in settingsURLCandidates(bundleID: bundleID) {
+            guard let url = URL(string: candidate) else { continue }
+            if NSWorkspace.shared.open(url) { return }
+        }
+    }
+
+    @MainActor
+    static func openNotificationSettings(for app: NotificationApp) {
+        openNotificationSettings(bundleID: app.primaryBundleID)
+    }
+}
+
+enum NotificationStyleCheck: Sendable {
+    nonisolated static let bannerFlag = 1 << 3
+    nonisolated static let alertFlag = 1 << 4
+    nonisolated static let allowFlag = 1 << 25
+
+    nonisolated static func synchronize() {
+        CFPreferencesAppSynchronize("com.apple.ncprefs" as CFString)
+    }
+
+    nonisolated static func currentFlags(
+        bundleID: String,
+        apps: [[String: Any]]? = nil
+    ) -> Int? {
+        let key = normalizedBundleID(bundleID)
+        guard !key.isEmpty else { return nil }
+        for entry in apps ?? loadApps() {
+            guard let raw = entry["bundle-id"] as? String else { continue }
+            if normalizedBundleID(raw).caseInsensitiveCompare(key)
+                == .orderedSame
+            {
+                return intValue(entry["flags"])
+            }
+        }
+        return nil
+    }
+
+    nonisolated static func alertStyle(flags: Int) -> NotificationAlertStyle {
+        if flags & alertFlag != 0 { return .alerts }
+        if flags & bannerFlag != 0 { return .banners }
+        return .none
+    }
+
+    nonisolated static func allowsNotifications(flags: Int) -> Bool {
+        flags & allowFlag != 0
+    }
+
+    nonisolated static func showsOnDesktop(flags: Int) -> Bool {
+        flags & bannerFlag != 0 || flags & alertFlag != 0
+    }
+
+    nonisolated static func hidesSystemBanner(flags: Int) -> Bool {
+        allowsNotifications(flags: flags) && !showsOnDesktop(flags: flags)
+    }
+
+    nonisolated static func hidesSystemBanner(
+        for app: NotificationApp,
+        apps: [[String: Any]]? = nil
+    ) -> Bool {
+        let list = apps ?? loadApps()
+        return app.bundleIDs.contains { id in
+            guard let flags = currentFlags(bundleID: id, apps: list) else {
+                return false
+            }
+            return hidesSystemBanner(flags: flags)
+        }
+    }
+
+    nonisolated static func loadApps() -> [[String: Any]] {
+        synchronize()
+        guard
+            let value = CFPreferencesCopyAppValue(
+                "apps" as CFString,
+                "com.apple.ncprefs" as CFString
+            )
+        else { return [] }
+        return (value as? [[String: Any]]) ?? []
+    }
+
+    nonisolated static func normalizedBundleID(_ id: String) -> String {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = "_SYSTEM_CENTER_:"
+        if trimmed.hasPrefix(prefix) {
+            return String(trimmed.dropFirst(prefix.count))
+        }
+        return trimmed
+    }
+
+    nonisolated private static func intValue(_ value: Any?) -> Int? {
+        if let number = value as? Int { return number }
+        if let number = value as? Int64 {
+            return Int(truncatingIfNeeded: number)
+        }
+        if let number = value as? NSNumber { return number.intValue }
+        return nil
+    }
+}
+
 struct NotchNotification: Equatable, Identifiable, Sendable {
     let id: String
     let app: NotificationApp
@@ -586,7 +712,7 @@ final class NotificationController: ObservableObject {
         dismissTask?.cancel()
         guard current != nil, !isPinned else { return }
         dismissTask = Task {
-            try? await Task.sleep(for: .seconds(6.5))
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled, !isPinned else { return }
             dismiss()
         }
@@ -594,16 +720,17 @@ final class NotificationController: ObservableObject {
 
     private func enrich(_ note: NotchNotification) {
         Task {
-            let (avatar, handles) = NotificationContacts.lookup(
-                name: note.sender
-            )
-            await MainActor.run {
-                guard current?.id == note.id else { return }
-                var updated = note
-                updated.avatar = avatar
-                updated.handles = handles
-                current = updated
-            }
+            let sender = note.sender
+            let (avatar, handles) = await Task.detached(
+                priority: .userInitiated
+            ) {
+                NotificationContacts.lookup(name: sender)
+            }.value
+            guard current?.id == note.id else { return }
+            var updated = note
+            updated.avatar = avatar
+            updated.handles = handles
+            current = updated
         }
     }
 
@@ -688,35 +815,125 @@ enum NotificationReply {
 }
 
 enum NotificationContacts {
-    static func lookup(name: String) -> (Data?, [String]) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return (nil, []) }
-        let status = CNContactStore.authorizationStatus(for: .contacts)
-        guard status == .authorized else { return (nil, []) }
-
+    nonisolated static func lookup(name: String) -> (Data?, [String]) {
+        guard canReadContacts else { return (nil, []) }
         let store = CNContactStore()
         let keys: [CNKeyDescriptor] = [
             CNContactThumbnailImageDataKey as CNKeyDescriptor,
             CNContactImageDataKey as CNKeyDescriptor,
             CNContactGivenNameKey as CNKeyDescriptor,
             CNContactFamilyNameKey as CNKeyDescriptor,
+            CNContactNicknameKey as CNKeyDescriptor,
             CNContactPhoneNumbersKey as CNKeyDescriptor,
             CNContactEmailAddressesKey as CNKeyDescriptor,
         ]
-        let predicate = CNContact.predicateForContacts(matchingName: trimmed)
-        let contacts =
-            (try? store.unifiedContacts(matching: predicate, keysToFetch: keys))
-            ?? []
-        guard let contact = contacts.first else { return (nil, []) }
 
-        var handles: [String] = []
-        handles.append(
-            contentsOf: contact.emailAddresses.map { $0.value as String }
-        )
-        handles.append(
-            contentsOf: contact.phoneNumbers.map(\.value.stringValue)
-        )
-        let avatar = contact.thumbnailImageData ?? contact.imageData
-        return (avatar, handles)
+        var matches: [CNContact] = []
+        if let phone = phoneQuery(from: name) {
+            let number = CNPhoneNumber(stringValue: phone)
+            let found =
+                (try? store.unifiedContacts(
+                    matching: CNContact.predicateForContacts(matching: number),
+                    keysToFetch: keys
+                )) ?? []
+            matches.append(contentsOf: found)
+        }
+        if matches.isEmpty {
+            for term in searchTerms(from: name) {
+                let found =
+                    (try? store.unifiedContacts(
+                        matching: CNContact.predicateForContacts(
+                            matchingName: term
+                        ),
+                        keysToFetch: keys
+                    )) ?? []
+                if !found.isEmpty {
+                    matches = found
+                    break
+                }
+            }
+        }
+        guard let contact = preferred(matches) else { return (nil, []) }
+        return (imageData(from: contact), handles(from: contact))
+    }
+
+    nonisolated static func searchTerms(from sender: String) -> [String] {
+        var text = sender.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.hasPrefix("~") {
+            text.removeFirst()
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let extras = text.range(
+            of: #" and \d+ others?$"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) {
+            text = String(text[..<extras.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !text.isEmpty else { return [] }
+
+        var terms: [String] = []
+        func add(_ value: String) {
+            let trimmed = value.trimmingCharacters(
+                in: .whitespacesAndNewlines.union(.punctuationCharacters)
+            )
+            guard trimmed.count >= 2 else { return }
+            guard
+                !terms.contains(where: {
+                    $0.caseInsensitiveCompare(trimmed) == .orderedSame
+                })
+            else { return }
+            terms.append(trimmed)
+        }
+
+        add(text)
+        if let comma = text.split(separator: ",", maxSplits: 1).first {
+            add(String(comma))
+        }
+        return terms
+    }
+
+    nonisolated static func phoneQuery(from sender: String) -> String? {
+        let letters = sender.filter(\.isLetter)
+        let digits = sender.filter(\.isNumber)
+        guard digits.count >= 8, letters.count < 3 else { return nil }
+        return digits
+    }
+
+    nonisolated private static var canReadContacts: Bool {
+        CNContactStore.authorizationStatus(for: .contacts) == .authorized
+    }
+
+    nonisolated private static func preferred(_ contacts: [CNContact])
+        -> CNContact?
+    {
+        contacts.first { imageData(from: $0) != nil } ?? contacts.first
+    }
+
+    nonisolated private static func imageData(from contact: CNContact) -> Data?
+    {
+        if contact.isKeyAvailable(CNContactThumbnailImageDataKey) {
+            if let data = contact.thumbnailImageData { return data }
+        }
+        if contact.isKeyAvailable(CNContactImageDataKey) {
+            return contact.imageData
+        }
+        return nil
+    }
+
+    nonisolated private static func handles(from contact: CNContact) -> [String]
+    {
+        var values: [String] = []
+        if contact.isKeyAvailable(CNContactEmailAddressesKey) {
+            values.append(
+                contentsOf: contact.emailAddresses.map { $0.value as String }
+            )
+        }
+        if contact.isKeyAvailable(CNContactPhoneNumbersKey) {
+            values.append(
+                contentsOf: contact.phoneNumbers.map(\.value.stringValue)
+            )
+        }
+        return values
     }
 }

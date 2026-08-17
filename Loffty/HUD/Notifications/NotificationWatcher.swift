@@ -448,6 +448,12 @@ enum NotificationDatabaseReader: Sendable {
             )
     }
 
+    nonisolated static func canReadDatabase() -> Bool {
+        FileManager.default.isReadableFile(
+            atPath: databaseDirectory().appendingPathComponent("db").path
+        )
+    }
+
     nonisolated static func modificationDate() -> Date? {
         let dir = databaseDirectory()
         let wal = dir.appendingPathComponent("db-wal")
