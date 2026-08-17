@@ -108,6 +108,8 @@ final class AppSettings: ObservableObject {
     private static let focusHUDKey = "focusHUD"
     private static let airDropHUDKey = "airDropHUD"
     private static let notificationsHUDKey = "notificationsHUD"
+    private static let notificationsHUDDismissDelayKey =
+        "notificationsHUDDismissDelay"
     private static let notificationMessagesKey = "notificationMessages"
     private static let notificationWhatsAppKey = "notificationWhatsApp"
     private static let notificationDiscordKey = "notificationDiscord"
@@ -209,6 +211,15 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.set(
                 notificationsHUD,
                 forKey: Self.notificationsHUDKey
+            )
+        }
+    }
+
+    @Published var notificationsHUDDismissDelay: Double {
+        didSet {
+            UserDefaults.standard.set(
+                notificationsHUDDismissDelay,
+                forKey: Self.notificationsHUDDismissDelayKey
             )
         }
     }
@@ -454,6 +465,10 @@ final class AppSettings: ObservableObject {
         notificationsHUD =
             UserDefaults.standard.object(forKey: Self.notificationsHUDKey)
             as? Bool ?? true
+        notificationsHUDDismissDelay =
+            UserDefaults.standard.object(
+                forKey: Self.notificationsHUDDismissDelayKey
+            ) as? Double ?? 2.0
         notificationMessages =
             UserDefaults.standard.object(forKey: Self.notificationMessagesKey)
             as? Bool ?? true

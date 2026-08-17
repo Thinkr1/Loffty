@@ -706,6 +706,34 @@ struct SettingsView: View {
                         SettingsToggle(isOn: $settings.notificationDiscord)
                     },
                     SettingsEntry(
+                        "notificationsHUDDismissDelay",
+                        title: "Notification dismiss delay",
+                        keywords: [
+                            "messages", "whatsapp", "discord", "reply",
+                            "banner", "dismiss",
+                        ],
+                        isEnabled: settings.notificationsHUD
+                    ) {
+                        HStack(spacing: 10) {
+                            SettingsSlider(
+                                value: $settings.notificationsHUDDismissDelay,
+                                range: 0.5...5,
+                                step: 0.25
+                            )
+                            .frame(width: 120)
+                            Text(
+                                String(
+                                    format: "%.2fs",
+                                    settings.notificationsHUDDismissDelay
+                                )
+                            )
+                            .font(.system(size: 11.5))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                        }
+                    },
+                    SettingsEntry(
                         "notificationFullDiskAccess",
                         title: "Full Disk Access",
                         detail: NotificationDatabaseReader.canReadDatabase()

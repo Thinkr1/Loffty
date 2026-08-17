@@ -712,7 +712,7 @@ final class NotificationController: ObservableObject {
         dismissTask?.cancel()
         guard current != nil, !isPinned else { return }
         dismissTask = Task {
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .seconds(AppSettings.shared.notificationsHUDDismissDelay))
             guard !Task.isCancelled, !isPinned else { return }
             dismiss()
         }
