@@ -76,6 +76,164 @@ enum NotchEdgeStyle: String, CaseIterable, Identifiable {
     }
 }
 
+enum SoundwaveMotion: String, CaseIterable, Identifiable {
+    case live
+    case decorative
+    case off
+
+    static let storageKey = "soundwaveMotion"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .live: "Live"
+        case .decorative: "Decorative"
+        case .off: "Off"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .live: "Bars follow what is actually playing."
+        case .decorative: "Animated bars, without listening to system audio."
+        case .off: "Shows a pause icon while something is playing."
+        }
+    }
+
+    var usesLiveAudio: Bool { self == .live }
+
+    var showsAnimatedBars: Bool { self != .off }
+
+    func shouldCapture(isPlaying: Bool, idle: Bool) -> Bool {
+        usesLiveAudio && isPlaying && !idle
+    }
+
+    static var current: SoundwaveMotion {
+        guard
+            let raw = UserDefaults.standard.string(forKey: storageKey),
+            let motion = SoundwaveMotion(rawValue: raw)
+        else { return .live }
+        return motion
+    }
+}
+
+enum SoundwaveFeel: String, CaseIterable, Identifiable {
+    case calm
+    case balanced
+    case snappy
+
+    static let storageKey = "soundwaveFeel"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .calm: "Calm"
+        case .balanced: "Balanced"
+        case .snappy: "Snappy"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .calm: "Smoother bars that ease between peaks."
+        case .balanced: "Follows the music without looking frantic."
+        case .snappy: "Reacts quickly to beats and transients."
+        }
+    }
+
+    var attack: Float {
+        switch self {
+        case .calm: 0.34
+        case .balanced: 0.62
+        case .snappy: 0.88
+        }
+    }
+
+    var release: Float {
+        switch self {
+        case .calm: 0.12
+        case .balanced: 0.28
+        case .snappy: 0.52
+        }
+    }
+
+    var peakDecay: Float {
+        switch self {
+        case .calm: 0.93
+        case .balanced: 0.86
+        case .snappy: 0.74
+        }
+    }
+
+    var mockSpeed: Double {
+        switch self {
+        case .calm: 3.4
+        case .balanced: 6.0
+        case .snappy: 9.2
+        }
+    }
+
+    static var current: SoundwaveFeel {
+        guard
+            let raw = UserDefaults.standard.string(forKey: storageKey),
+            let feel = SoundwaveFeel(rawValue: raw)
+        else { return .balanced }
+        return feel
+    }
+}
+
+enum SoundwaveTone: String, CaseIterable, Identifiable {
+    case warm
+    case balanced
+    case bright
+
+    static let storageKey = "soundwaveTone"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .warm: "Warm"
+        case .balanced: "Balanced"
+        case .bright: "Bright"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .warm: "Gives more weight to bass."
+        case .balanced: "A mix of low and high frequencies."
+        case .bright: "Keeps the left bars from sitting full."
+        }
+    }
+
+    var minFrequency: Double {
+        switch self {
+        case .warm: 80
+        case .balanced: 120
+        case .bright: 160
+        }
+    }
+
+    var tilt: Float {
+        switch self {
+        case .warm: 0.28
+        case .balanced: 0.45
+        case .bright: 0.62
+        }
+    }
+
+    static var current: SoundwaveTone {
+        guard
+            let raw = UserDefaults.standard.string(forKey: storageKey),
+            let tone = SoundwaveTone(rawValue: raw)
+        else { return .bright }
+        return tone
+    }
+}
+
 enum ArtistEnrichmentMode: String, CaseIterable, Identifiable {
     case never
     case wifiOnly
@@ -386,6 +544,33 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var soundwaveMotion: SoundwaveMotion {
+        didSet {
+            UserDefaults.standard.set(
+                soundwaveMotion.rawValue,
+                forKey: SoundwaveMotion.storageKey
+            )
+        }
+    }
+
+    @Published var soundwaveFeel: SoundwaveFeel {
+        didSet {
+            UserDefaults.standard.set(
+                soundwaveFeel.rawValue,
+                forKey: SoundwaveFeel.storageKey
+            )
+        }
+    }
+
+    @Published var soundwaveTone: SoundwaveTone {
+        didSet {
+            UserDefaults.standard.set(
+                soundwaveTone.rawValue,
+                forKey: SoundwaveTone.storageKey
+            )
+        }
+    }
+
     @Published var marqueeEnabled: Bool {
         didSet {
             UserDefaults.standard.set(
@@ -588,6 +773,27 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.collapsedWaveformsAccentKey
             ) as? Bool ?? false
+        if let raw = UserDefaults.standard.string(
+            forKey: SoundwaveMotion.storageKey
+        ), let motion = SoundwaveMotion(rawValue: raw) {
+            soundwaveMotion = motion
+        } else {
+            soundwaveMotion = .live
+        }
+        if let raw = UserDefaults.standard.string(
+            forKey: SoundwaveFeel.storageKey
+        ), let feel = SoundwaveFeel(rawValue: raw) {
+            soundwaveFeel = feel
+        } else {
+            soundwaveFeel = .balanced
+        }
+        if let raw = UserDefaults.standard.string(
+            forKey: SoundwaveTone.storageKey
+        ), let tone = SoundwaveTone(rawValue: raw) {
+            soundwaveTone = tone
+        } else {
+            soundwaveTone = .bright
+        }
         marqueeEnabled =
             UserDefaults.standard.object(forKey: Self.marqueeEnabledKey)
             as? Bool ?? true

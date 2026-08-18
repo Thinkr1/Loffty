@@ -627,14 +627,6 @@ struct SettingsView: View {
                         SettingsToggle(isOn: $settings.showAirPlayButton)
                     },
                     SettingsEntry(
-                        "collapsedWaveformsAccent",
-                        title: "Tint collapsed soundwaves",
-                        detail: "Uses the accent colour of the album cover.",
-                        keywords: ["waveform", "colour", "color", "accent"]
-                    ) {
-                        SettingsToggle(isOn: $settings.collapsedWaveformsAccent)
-                    },
-                    SettingsEntry(
                         "notchEdgeStyle",
                         title: "Notch outline",
                         detail: settings.notchEdgeStyle.detail,
@@ -652,6 +644,80 @@ struct SettingsView: View {
                         .pickerStyle(.menu)
                         .controlSize(.small)
                         .fixedSize()
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .media,
+                title: "Soundwaves",
+                note:
+                    "Live soundwaves listen to system audio. macOS may ask for Screen & System Audio Recording.",
+                entries: [
+                    SettingsEntry(
+                        "soundwaveMotion",
+                        title: "Motion",
+                        detail: settings.soundwaveMotion.detail,
+                        keywords: [
+                            "waveform", "bars", "visualiser", "live",
+                            "decorative", "audio",
+                        ]
+                    ) {
+                        Picker("", selection: $settings.soundwaveMotion) {
+                            ForEach(SoundwaveMotion.allCases) { motion in
+                                Text(motion.title).tag(motion)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    },
+                    SettingsEntry(
+                        "soundwaveFeel",
+                        title: "Feel",
+                        detail: settings.soundwaveFeel.detail,
+                        keywords: [
+                            "waveform", "bars", "smooth", "snappy", "calm",
+                        ],
+                        isEnabled: settings.soundwaveMotion.showsAnimatedBars
+                    ) {
+                        Picker("", selection: $settings.soundwaveFeel) {
+                            ForEach(SoundwaveFeel.allCases) { feel in
+                                Text(feel.title).tag(feel)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    },
+                    SettingsEntry(
+                        "soundwaveTone",
+                        title: "Tone",
+                        detail: settings.soundwaveTone.detail,
+                        keywords: [
+                            "waveform", "bass", "bright", "warm", "frequency",
+                        ],
+                        isEnabled: settings.soundwaveMotion.usesLiveAudio
+                    ) {
+                        Picker("", selection: $settings.soundwaveTone) {
+                            ForEach(SoundwaveTone.allCases) { tone in
+                                Text(tone.title).tag(tone)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    },
+                    SettingsEntry(
+                        "collapsedWaveformsAccent",
+                        title: "Tint with album colour",
+                        detail: "Uses the accent colour of the album cover.",
+                        keywords: ["waveform", "colour", "color", "accent"],
+                        isEnabled: settings.soundwaveMotion.showsAnimatedBars
+                    ) {
+                        SettingsToggle(isOn: $settings.collapsedWaveformsAccent)
                     },
                 ]
             ),
@@ -927,6 +993,8 @@ struct SettingsView: View {
                     SettingsEntry(
                         "lockScreenWaveforms",
                         title: "Show soundwaves",
+                        detail:
+                            "Uses the motion, feel, and tone from Media.",
                         keywords: ["waveform", "bars", "visualiser"]
                     ) {
                         SettingsToggle(isOn: $settings.lockScreenWaveforms)
@@ -934,7 +1002,6 @@ struct SettingsView: View {
                     SettingsEntry(
                         "lockScreenWaveformsAccent",
                         title: "Tint soundwaves",
-                        detail: "Uses the accent colour of the album cover.",
                         keywords: ["waveform", "colour", "color", "accent"],
                         isEnabled: settings.lockScreenWaveforms
                     ) {

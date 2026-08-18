@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Loffty listens to system audio so the notch soundwaves match what is actually playing</string>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Loffty intercepts volume and brightness keys to replace system HUD for these settings, and reads notification banners for the notch</string>
 	<key>NSAppleEventsUsageDescription</key>

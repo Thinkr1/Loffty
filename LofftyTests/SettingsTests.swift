@@ -292,4 +292,103 @@ struct SettingsTests {
         #expect(UserDefaults.standard.string(forKey: "notchEdgeStyle") == "off")
         #expect(settings.notchEdgeStyle == .off)
     }
+
+    @Test func soundwaveMotionCaptureAndTitles() {
+        for motion in SoundwaveMotion.allCases {
+            #expect(SoundwaveMotion(rawValue: motion.rawValue) == motion)
+        }
+        #expect(SoundwaveMotion.live.title == "Live")
+        #expect(SoundwaveMotion.decorative.title == "Decorative")
+        #expect(SoundwaveMotion.off.title == "Off")
+        #expect(SoundwaveMotion.live.usesLiveAudio)
+        #expect(!SoundwaveMotion.decorative.usesLiveAudio)
+        #expect(SoundwaveMotion.live.showsAnimatedBars)
+        #expect(!SoundwaveMotion.off.showsAnimatedBars)
+        #expect(
+            SoundwaveMotion.live.shouldCapture(isPlaying: true, idle: false)
+        )
+        #expect(
+            !SoundwaveMotion.live.shouldCapture(isPlaying: true, idle: true)
+        )
+        #expect(
+            !SoundwaveMotion.decorative.shouldCapture(
+                isPlaying: true,
+                idle: false
+            )
+        )
+        #expect(
+            !SoundwaveMotion.off.shouldCapture(isPlaying: true, idle: false)
+        )
+    }
+
+    @Test func soundwaveFeelPresetsGetSnappier() {
+        #expect(SoundwaveFeel.snappy.attack > SoundwaveFeel.balanced.attack)
+        #expect(SoundwaveFeel.balanced.attack > SoundwaveFeel.calm.attack)
+        #expect(SoundwaveFeel.snappy.release > SoundwaveFeel.balanced.release)
+        #expect(SoundwaveFeel.balanced.release > SoundwaveFeel.calm.release)
+        #expect(SoundwaveFeel.snappy.peakDecay < SoundwaveFeel.balanced.peakDecay)
+        #expect(SoundwaveFeel.balanced.peakDecay < SoundwaveFeel.calm.peakDecay)
+        #expect(SoundwaveFeel.snappy.mockSpeed > SoundwaveFeel.balanced.mockSpeed)
+        #expect(SoundwaveFeel.calm.title == "Calm")
+        #expect(SoundwaveFeel.balanced.title == "Balanced")
+        #expect(SoundwaveFeel.snappy.title == "Snappy")
+    }
+
+    @Test func soundwaveTonePresetsGetBrighter() {
+        #expect(SoundwaveTone.bright.tilt > SoundwaveTone.balanced.tilt)
+        #expect(SoundwaveTone.balanced.tilt > SoundwaveTone.warm.tilt)
+        #expect(
+            SoundwaveTone.bright.minFrequency
+                > SoundwaveTone.balanced.minFrequency
+        )
+        #expect(
+            SoundwaveTone.balanced.minFrequency > SoundwaveTone.warm.minFrequency
+        )
+        #expect(SoundwaveTone.warm.title == "Warm")
+        #expect(SoundwaveTone.balanced.title == "Balanced")
+        #expect(SoundwaveTone.bright.title == "Bright")
+    }
+
+    @Test @MainActor func soundwaveSettingsPersist() {
+        let settings = AppSettings.shared
+        let original = (
+            settings.soundwaveMotion,
+            settings.soundwaveFeel,
+            settings.soundwaveTone,
+            settings.collapsedWaveformsAccent
+        )
+        defer {
+            settings.soundwaveMotion = original.0
+            settings.soundwaveFeel = original.1
+            settings.soundwaveTone = original.2
+            settings.collapsedWaveformsAccent = original.3
+        }
+
+        settings.soundwaveMotion = .decorative
+        settings.soundwaveFeel = .snappy
+        settings.soundwaveTone = .warm
+        settings.collapsedWaveformsAccent = true
+        #expect(
+            UserDefaults.standard.string(forKey: "soundwaveMotion")
+                == "decorative"
+        )
+        #expect(
+            UserDefaults.standard.string(forKey: "soundwaveFeel") == "snappy"
+        )
+        #expect(UserDefaults.standard.string(forKey: "soundwaveTone") == "warm")
+        #expect(
+            UserDefaults.standard.object(forKey: "collapsedWaveformsAccent")
+                as? Bool == true
+        )
+        #expect(settings.soundwaveMotion == .decorative)
+        #expect(settings.soundwaveFeel == .snappy)
+        #expect(settings.soundwaveTone == .warm)
+        #expect(settings.collapsedWaveformsAccent)
+
+        settings.soundwaveMotion = .live
+        settings.soundwaveFeel = .balanced
+        settings.soundwaveTone = .bright
+        settings.collapsedWaveformsAccent = false
+        #expect(settings.soundwaveMotion == .live)
+    }
 }

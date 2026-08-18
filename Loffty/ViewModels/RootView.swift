@@ -304,6 +304,45 @@ final class NotchViewModel: ObservableObject {
         syncBatteryWatcher()
         if AppSettings.shared.bluetoothHUD { bluetooth.start() }
         if AppSettings.shared.focusHUD { focus.start() }
+
+        AppSettings.shared.$soundwaveMotion
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncSoundwaves()
+            }
+            .store(in: &cancellables)
+        AppSettings.shared.$soundwaveFeel
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncSoundwaves()
+            }
+            .store(in: &cancellables)
+        AppSettings.shared.$soundwaveTone
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncSoundwaves()
+            }
+            .store(in: &cancellables)
+        syncSoundwaves()
+    }
+
+    private func syncSoundwaves() {
+        let settings = AppSettings.shared
+        let feel = settings.soundwaveFeel
+        let tone = settings.soundwaveTone
+        AudioSpectrum.shared.setAnalysis(
+            attack: feel.attack,
+            release: feel.release,
+            peakDecay: feel.peakDecay,
+            minFrequency: tone.minFrequency,
+            tilt: tone.tilt
+        )
+        AudioSpectrum.shared.setCapturing(
+            settings.soundwaveMotion.shouldCapture(
+                isPlaying: nowPlaying.isPlaying,
+                idle: isIdle
+            )
+        )
     }
 
     private func syncBrightnessWatcher() {
@@ -437,6 +476,7 @@ final class NotchViewModel: ObservableObject {
                 accentColor = Self.defaultAccent
             }
         }
+        syncSoundwaves()
         if trackChanged {
             let now = Date()
             isRapidSkipping = now.timeIntervalSince(lastTrackChangeAt) < 0.25
