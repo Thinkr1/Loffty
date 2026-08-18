@@ -827,7 +827,7 @@ struct SettingsView: View {
                 page: .notifications,
                 title: "Notifications",
                 note:
-                    "Incoming Messages, WhatsApp and Discord appear on the notch. Turn off Desktop for those apps to hide the system banner. Accessibility is required; Full Disk Access is needed when banners are off.",
+                    "Incoming Messages, WhatsApp and Discord notifications appear on the notch. Turn off Desktop for those apps to hide the system banner. Accessibility is required; Full Disk Access is needed when banners are off.",
                 entries: [
                     SettingsEntry(
                         "notificationsHUD",
