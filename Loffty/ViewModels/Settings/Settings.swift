@@ -42,6 +42,40 @@ enum LaunchAtLogin {
     }
 }
 
+enum NotchEdgeStyle: String, CaseIterable, Identifiable {
+    case off
+    case subtle
+    case accent
+
+    static let storageKey = "notchEdgeStyle"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: "Off"
+        case .subtle: "Subtle line"
+        case .accent: "Album accent"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .off: "No outline around the island."
+        case .subtle: "A faint line around the island."
+        case .accent: "Uses the accent colour of the album cover."
+        }
+    }
+
+    static var current: NotchEdgeStyle {
+        guard
+            let raw = UserDefaults.standard.string(forKey: storageKey),
+            let style = NotchEdgeStyle(rawValue: raw)
+        else { return .off }
+        return style
+    }
+}
+
 enum ArtistEnrichmentMode: String, CaseIterable, Identifiable {
     case never
     case wifiOnly
@@ -130,6 +164,8 @@ final class AppSettings: ObservableObject {
     private static let automaticUpdatesKey = "automaticUpdates"
     private static let showAirPlayButtonKey = "showAirPlayButton"
     private static let hasCompletedOnboardingKey = "hasCompletedOnboarding"
+    private static let hideNotchInFullScreenKey = "hideNotchInFullScreen"
+    private static let hideNotchFullScreenAppsKey = "hideNotchFullScreenApps"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -392,6 +428,47 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var hideNotchInFullScreen: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                hideNotchInFullScreen,
+                forKey: Self.hideNotchInFullScreenKey
+            )
+        }
+    }
+
+    @Published var hideNotchFullScreenApps: [String] {
+        didSet {
+            UserDefaults.standard.set(
+                hideNotchFullScreenApps,
+                forKey: Self.hideNotchFullScreenAppsKey
+            )
+        }
+    }
+
+    @Published var notchEdgeStyle: NotchEdgeStyle {
+        didSet {
+            UserDefaults.standard.set(
+                notchEdgeStyle.rawValue,
+                forKey: NotchEdgeStyle.storageKey
+            )
+        }
+    }
+
+    var watchesFullScreenApps: Bool {
+        hideNotchInFullScreen || !hideNotchFullScreenApps.isEmpty
+    }
+
+    func addHideNotchFullScreenApp(_ bundleID: String) {
+        let id = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty, !hideNotchFullScreenApps.contains(id) else { return }
+        hideNotchFullScreenApps.append(id)
+    }
+
+    func removeHideNotchFullScreenApp(_ bundleID: String) {
+        hideNotchFullScreenApps.removeAll { $0 == bundleID }
+    }
+
     @Published var launchAtLogin: Bool {
         didSet { applyLaunchAtLogin() }
     }
@@ -526,12 +603,26 @@ final class AppSettings: ObservableObject {
         hasCompletedOnboarding = UserDefaults.standard.bool(
             forKey: Self.hasCompletedOnboardingKey
         )
+        hideNotchInFullScreen = UserDefaults.standard.bool(
+            forKey: Self.hideNotchInFullScreenKey
+        )
+        hideNotchFullScreenApps =
+            UserDefaults.standard.stringArray(
+                forKey: Self.hideNotchFullScreenAppsKey
+            ) ?? []
         if let raw = UserDefaults.standard.string(
             forKey: ArtistEnrichmentMode.storageKey
         ), let mode = ArtistEnrichmentMode(rawValue: raw) {
             artistEnrichment = mode
         } else {
             artistEnrichment = .always
+        }
+        if let raw = UserDefaults.standard.string(
+            forKey: NotchEdgeStyle.storageKey
+        ), let style = NotchEdgeStyle(rawValue: raw) {
+            notchEdgeStyle = style
+        } else {
+            notchEdgeStyle = .off
         }
         launchAtLogin = LaunchAtLogin.isEnabled
         launchAtLoginNeedsApproval = LaunchAtLogin.requiresApproval

@@ -221,4 +221,75 @@ struct SettingsTests {
         )
         #expect(!settings.hasCompletedOnboarding)
     }
+
+    @Test @MainActor func hideNotchInFullScreenPersists() {
+        let settings = AppSettings.shared
+        let original = settings.hideNotchInFullScreen
+        defer { settings.hideNotchInFullScreen = original }
+
+        settings.hideNotchInFullScreen = true
+        #expect(
+            UserDefaults.standard.bool(forKey: "hideNotchInFullScreen")
+        )
+        #expect(settings.hideNotchInFullScreen)
+        #expect(settings.watchesFullScreenApps)
+
+        settings.hideNotchInFullScreen = false
+        #expect(
+            !UserDefaults.standard.bool(forKey: "hideNotchInFullScreen")
+        )
+        #expect(!settings.hideNotchInFullScreen)
+    }
+
+    @Test @MainActor func hideNotchFullScreenAppsPersistAndDedupe() {
+        let settings = AppSettings.shared
+        let original = settings.hideNotchFullScreenApps
+        defer { settings.hideNotchFullScreenApps = original }
+
+        settings.hideNotchFullScreenApps = []
+        settings.addHideNotchFullScreenApp("org.videolan.vlc")
+        settings.addHideNotchFullScreenApp(" org.videolan.vlc ")
+        settings.addHideNotchFullScreenApp("")
+        settings.addHideNotchFullScreenApp("com.apple.QuickTimePlayerX")
+        #expect(
+            settings.hideNotchFullScreenApps == [
+                "org.videolan.vlc", "com.apple.QuickTimePlayerX",
+            ]
+        )
+        #expect(
+            UserDefaults.standard.stringArray(forKey: "hideNotchFullScreenApps")
+                == ["org.videolan.vlc", "com.apple.QuickTimePlayerX"]
+        )
+        #expect(settings.watchesFullScreenApps)
+
+        settings.removeHideNotchFullScreenApp("org.videolan.vlc")
+        #expect(
+            settings.hideNotchFullScreenApps == ["com.apple.QuickTimePlayerX"]
+        )
+        settings.removeHideNotchFullScreenApp("com.apple.QuickTimePlayerX")
+        #expect(settings.hideNotchFullScreenApps.isEmpty)
+        #expect(!settings.watchesFullScreenApps)
+    }
+
+    @Test @MainActor func notchEdgeStylePersists() {
+        let settings = AppSettings.shared
+        let original = settings.notchEdgeStyle
+        defer { settings.notchEdgeStyle = original }
+
+        settings.notchEdgeStyle = .accent
+        #expect(
+            UserDefaults.standard.string(forKey: "notchEdgeStyle") == "accent"
+        )
+        #expect(settings.notchEdgeStyle == .accent)
+
+        settings.notchEdgeStyle = .subtle
+        #expect(
+            UserDefaults.standard.string(forKey: "notchEdgeStyle") == "subtle"
+        )
+        #expect(settings.notchEdgeStyle == .subtle)
+
+        settings.notchEdgeStyle = .off
+        #expect(UserDefaults.standard.string(forKey: "notchEdgeStyle") == "off")
+        #expect(settings.notchEdgeStyle == .off)
+    }
 }

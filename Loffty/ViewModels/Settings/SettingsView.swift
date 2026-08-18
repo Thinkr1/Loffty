@@ -8,6 +8,7 @@
 import AppKit
 import ServiceManagement
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum SettingsPage: String, CaseIterable, Identifiable {
     case general
@@ -469,7 +470,79 @@ struct SettingsView: View {
                     },
                 ]
             ),
+            SettingsGroup(
+                page: .general,
+                title: "Full Screen",
+                note:
+                    "The notch hides while a matching full screen app is in front. Volume, brightness and other overlays still appear.",
+                entries: fullScreenHideEntries
+            ),
         ]
+    }
+
+    private var fullScreenHideEntries: [SettingsEntry] {
+        [
+            SettingsEntry(
+                "hideNotchInFullScreen",
+                title: "Hide in any full screen app",
+                keywords: [
+                    "fullscreen", "full screen", "movie", "video", "hide",
+                ]
+            ) {
+                SettingsToggle(isOn: $settings.hideNotchInFullScreen)
+            },
+            SettingsEntry(
+                "hideNotchFullScreenApps.add",
+                title: "Hide in selected apps",
+                detail: settings.hideNotchFullScreenApps.isEmpty
+                    ? "Choose apps such as QuickTime Player or VLC."
+                    : "\(settings.hideNotchFullScreenApps.count) selected",
+                keywords: [
+                    "fullscreen", "quicktime", "vlc", "player", "movie",
+                    "video",
+                ]
+            ) {
+                Button("Add") { addFullScreenHideApps() }
+                    .controlSize(.small)
+                    .settingsButton()
+            },
+        ]
+            + settings.hideNotchFullScreenApps.map { bundleID in
+                SettingsEntry(
+                    "hideNotchFullScreenApps.\(bundleID)",
+                    title: FullScreenDetection.displayName(bundleID: bundleID),
+                    detail: bundleID,
+                    keywords: [
+                        "fullscreen", "full screen", "hide",
+                        FullScreenDetection.displayName(bundleID: bundleID)
+                            .lowercased(),
+                    ]
+                ) {
+                    Button("Remove") {
+                        settings.removeHideNotchFullScreenApp(bundleID)
+                    }
+                    .controlSize(.small)
+                    .settingsButton()
+                }
+            }
+    }
+
+    private func addFullScreenHideApps() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.prompt = "Add"
+        panel.message =
+            "Choose apps that should hide the notch when they are full screen."
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            if let id = FullScreenDetection.bundleIdentifier(at: url) {
+                settings.addHideNotchFullScreenApp(id)
+            }
+        }
     }
 
     private var mediaGroups: [SettingsGroup] {
@@ -560,6 +633,25 @@ struct SettingsView: View {
                         keywords: ["waveform", "colour", "color", "accent"]
                     ) {
                         SettingsToggle(isOn: $settings.collapsedWaveformsAccent)
+                    },
+                    SettingsEntry(
+                        "notchEdgeStyle",
+                        title: "Notch outline",
+                        detail: settings.notchEdgeStyle.detail,
+                        keywords: [
+                            "edge", "outline", "border", "line", "accent",
+                            "colour", "color",
+                        ]
+                    ) {
+                        Picker("", selection: $settings.notchEdgeStyle) {
+                            ForEach(NotchEdgeStyle.allCases) { style in
+                                Text(style.title).tag(style)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
                     },
                 ]
             ),

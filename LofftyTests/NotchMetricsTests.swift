@@ -4,6 +4,7 @@
 //
 
 import CoreGraphics
+import SwiftUI
 import Testing
 
 @testable import Loffty
@@ -91,5 +92,57 @@ struct NotchMetricsTests {
         let m = base(hudActive: true)
         #expect(m.bottomRadius == 26)
         #expect(m.topRadius == 16)
+    }
+}
+
+@Suite("Notch bottom edge")
+struct NotchBottomEdgeTests {
+    @Test func pathRunsFromScreenTopToScreenTop() {
+        let rect = CGRect(x: 0, y: 0, width: 220, height: 32)
+        let points = pathPoints(
+            NotchBottomEdge.path(in: rect, topRadius: 10, bottomRadius: 12)
+        )
+        #expect(points.first == CGPoint(x: rect.minX, y: rect.minY))
+        #expect(points.last == CGPoint(x: rect.maxX, y: rect.minY))
+        #expect(points.contains { $0.y == rect.maxY })
+    }
+
+    @Test func pathFollowsTopCornersWithoutClosingAcrossTheTop() {
+        let rect = CGRect(x: 0, y: 0, width: 220, height: 32)
+        let path = NotchBottomEdge.path(
+            in: rect,
+            topRadius: 10,
+            bottomRadius: 12
+        )
+        let points = pathPoints(path)
+        #expect(points.contains(CGPoint(x: 10, y: 10)))
+        #expect(points.contains(CGPoint(x: 210, y: 10)))
+
+        var closed = false
+        path.cgPath.applyWithBlock { element in
+            if element.pointee.type == .closeSubpath { closed = true }
+        }
+        #expect(!closed)
+    }
+
+    private func pathPoints(_ path: Path) -> [CGPoint] {
+        var points: [CGPoint] = []
+        path.cgPath.applyWithBlock { element in
+            let pts = element.pointee.points
+            switch element.pointee.type {
+            case .moveToPoint, .addLineToPoint:
+                points.append(pts[0])
+            case .addQuadCurveToPoint:
+                points.append(pts[0])
+                points.append(pts[1])
+            case .addCurveToPoint:
+                points.append(pts[0])
+                points.append(pts[1])
+                points.append(pts[2])
+            default:
+                break
+            }
+        }
+        return points
     }
 }

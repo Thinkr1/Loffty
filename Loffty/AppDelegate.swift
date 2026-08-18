@@ -204,6 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var expandedZone = CGRect.zero
     private var airDropZone = CGRect.zero
     private var cancellables = Set<AnyCancellable>()
+    private let fullScreen = FullScreenWatcher()
 
     private nonisolated static var isRunningTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"]
@@ -264,6 +265,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        fullScreen.onChange = { [weak self] _, _ in
+            self?.syncFullScreenVisibility()
+        }
+        AppSettings.shared.$hideNotchInFullScreen
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncFullScreenMonitoring()
+            }
+            .store(in: &cancellables)
+        AppSettings.shared.$hideNotchFullScreenApps
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncFullScreenMonitoring()
+            }
+            .store(in: &cancellables)
+        vm.$hudDisplay
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncFullScreenVisibility()
+            }
+            .store(in: &cancellables)
+
         if OnboardingFlow.shouldPresentOnboarding(
             hasCompletedOnboarding: AppSettings.shared.hasCompletedOnboarding
         ) {
@@ -280,6 +305,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lockWidget.start()
         syncAirDropHUD(enabled: AppSettings.shared.airDropHUD)
         syncNotificationsHUD(enabled: AppSettings.shared.notificationsHUD)
+        syncFullScreenMonitoring()
         Task {
             try? await Task.sleep(for: .milliseconds(800))
             SettingsOpener.shared.prewarm()
@@ -395,6 +421,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func applyWindowInteraction(interactive: Bool? = nil) {
+        if shouldSuppressNotchForFullScreen {
+            window.ignoresMouseEvents = true
+            window.acceptsInteraction = false
+            if window.isKeyWindow { window.resignKey() }
+            fadeNotch(to: 0)
+            return
+        }
+
+        fadeNotch(to: 1)
         let notes = NotificationController.shared
         let airDropActive = AirDropController.shared.phase.isActive
         let shouldInteract =
@@ -496,6 +531,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.resetAirDropCatch()
                     self.applyWindowInteraction()
                 }
+                self.syncFullScreenVisibility()
             }
             .store(in: &cancellables)
 
@@ -503,6 +539,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.updateHoverState()
+                self?.syncFullScreenVisibility()
             }
             .store(in: &cancellables)
 
@@ -603,6 +640,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateHoverState() {
         if AirDropController.shared.phase.isActive { return }
         if vm.isLocked, !Self.lockScreenExpandAllowed { return }
+        if shouldHidePersistentNotch, !NotificationController.shared.isActive {
+            if hoverExpanded { setHoverExpanded(false) }
+            applyWindowInteraction()
+            return
+        }
 
         let notes = NotificationController.shared
         if notes.isActive {
@@ -647,6 +689,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setHoverExpanded(_ expanded: Bool) {
         guard hoverExpanded != expanded else { return }
         if expanded, vm.isLocked, !Self.lockScreenExpandAllowed { return }
+        if expanded, shouldHidePersistentNotch { return }
         hoverExpanded = expanded
 
         if vm.isLocked {
@@ -657,5 +700,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             applyWindowInteraction()
         }
         vm.setExpanded(expanded)
+    }
+
+    private var shouldHidePersistentNotch: Bool {
+        guard !vm.isLocked else { return false }
+        return FullScreenPolicy.shouldHideNotch(
+            hideInAnyFullScreen: AppSettings.shared.hideNotchInFullScreen,
+            selectedBundleIDs: AppSettings.shared.hideNotchFullScreenApps,
+            frontmostBundleID: fullScreen.frontmostBundleID,
+            isFullScreen: fullScreen.isFullScreen
+        )
+    }
+
+    private var overlayForcesNotchVisible: Bool {
+        vm.hudDisplay != nil
+            || AirDropController.shared.phase.isActive
+            || NotificationController.shared.isActive
+    }
+
+    private var shouldSuppressNotchForFullScreen: Bool {
+        shouldHidePersistentNotch && !overlayForcesNotchVisible
+    }
+
+    private func syncFullScreenMonitoring() {
+        if AppSettings.shared.watchesFullScreenApps {
+            fullScreen.start { [weak self] in
+                self?.vm.notch.screen
+            }
+        } else {
+            fullScreen.stop()
+        }
+        syncFullScreenVisibility()
+    }
+
+    private func syncFullScreenVisibility() {
+        if shouldHidePersistentNotch, hoverExpanded {
+            setHoverExpanded(false)
+        }
+        applyWindowInteraction()
+    }
+
+    private func fadeNotch(to alpha: CGFloat) {
+        guard abs(window.alphaValue - alpha) > 0.01 else { return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.2
+            window.animator().alphaValue = alpha
+        }
     }
 }

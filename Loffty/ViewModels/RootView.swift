@@ -645,6 +645,53 @@ struct NotchShape: Shape {
     }
 }
 
+struct NotchBottomEdge: Shape {
+    var topRadius: CGFloat = 20
+    var bottomRadius: CGFloat = 30
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(topRadius, bottomRadius) }
+        set {
+            topRadius = newValue.first
+            bottomRadius = newValue.second
+        }
+    }
+
+    func path(in r: CGRect) -> Path {
+        Self.path(in: r, topRadius: topRadius, bottomRadius: bottomRadius)
+    }
+
+    nonisolated static func path(
+        in r: CGRect,
+        topRadius: CGFloat,
+        bottomRadius: CGFloat
+    ) -> Path {
+        var p = Path()
+        let tr = topRadius
+        let br = bottomRadius
+        p.move(to: CGPoint(x: r.minX, y: r.minY))
+        p.addQuadCurve(
+            to: CGPoint(x: r.minX + tr, y: r.minY + tr),
+            control: CGPoint(x: r.minX + tr, y: r.minY)
+        )
+        p.addLine(to: CGPoint(x: r.minX + tr, y: r.maxY - br))
+        p.addQuadCurve(
+            to: CGPoint(x: r.minX + tr + br, y: r.maxY),
+            control: CGPoint(x: r.minX + tr, y: r.maxY)
+        )
+        p.addLine(to: CGPoint(x: r.maxX - tr - br, y: r.maxY))
+        p.addQuadCurve(
+            to: CGPoint(x: r.maxX - tr, y: r.maxY - br),
+            control: CGPoint(x: r.maxX - tr, y: r.maxY)
+        )
+        p.addLine(to: CGPoint(x: r.maxX - tr, y: r.minY + tr))
+        p.addQuadCurve(
+            to: CGPoint(x: r.maxX, y: r.minY),
+            control: CGPoint(x: r.maxX - tr, y: r.minY)
+        )
+        return p
+    }
+}
+
 struct NotchRootView: View {
     @EnvironmentObject var vm: NotchViewModel
     @ObservedObject private var settings = AppSettings.shared
@@ -716,6 +763,19 @@ struct NotchRootView: View {
                 && !vm.isIdle
         )
     }
+    private var persistentEdgeColor: Color? {
+        switch settings.notchEdgeStyle {
+        case .off:
+            nil
+        case .subtle:
+            Color.white.opacity(0.16)
+        case .accent:
+            vm.isIdle
+                ? Color.white.opacity(0.16)
+                : vm.accentColor.opacity(0.55)
+        }
+    }
+
     private var hudTailMetrics: NotchMetrics {
         NotchMetrics(
             notchW: vm.notch.notchRect.width > 0
@@ -774,6 +834,7 @@ struct NotchRootView: View {
         )
         .animation(NotchViewModel.notchExpandSpring, value: m.height)
         .animation(NotchViewModel.notchExpandSpring, value: m.width)
+        .animation(.easeInOut(duration: 0.35), value: settings.notchEdgeStyle)
         .onChange(of: vm.trackChangeToken) { _, token in
             guard token > 0, !vm.isRapidSkipping else { return }
             withAnimation(.easeOut(duration: 0.16)) { trackPulse = 1 }
@@ -941,6 +1002,15 @@ struct NotchRootView: View {
                     bottomRadius: m.bottomRadius
                 )
             )
+            .overlay {
+                if let edge = persistentEdgeColor {
+                    NotchBottomEdge(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                    .stroke(edge, lineWidth: 1)
+                }
+            }
             .shadow(
                 color: .black.opacity(islandRaised ? 0.38 : 0),
                 radius: islandRaised ? 22 : 0,
