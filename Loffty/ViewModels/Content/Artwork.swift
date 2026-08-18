@@ -15,11 +15,21 @@ enum ArtworkProcessor {
     static let maxFullPixel: CGFloat = 680
 
     static func thumbnailData(from data: Data) -> Data {
-        resizedData(from: data, maxPixel: maxPixel, quality: 0.82)
+        let limit =
+            aspectRatio(from: data) >= MediaParsing.minVideoArtworkAspect
+            ? 180 : maxPixel
+        return resizedData(from: data, maxPixel: limit, quality: 0.82)
     }
 
     static func fullResData(from data: Data) -> Data {
         resizedData(from: data, maxPixel: maxFullPixel, quality: 0.9)
+    }
+
+    static func aspectRatio(from data: Data) -> CGFloat {
+        guard let img = CIImage(data: data), img.extent.height > 0 else {
+            return 1
+        }
+        return img.extent.width / img.extent.height
     }
 
     private static func resizedData(
@@ -160,6 +170,8 @@ struct ArtworkThumbnail: View {
     var bundleIdentifier: String = ""
     var showPlayerBadge: Bool = false
     var showsShadow: Bool = true
+    var aspectRatio: CGFloat = 1
+    var websiteHost: String = ""
 
     private var resolvedBundleID: String {
         if !bundleIdentifier.isEmpty { return bundleIdentifier }
@@ -174,27 +186,40 @@ struct ArtworkThumbnail: View {
         max(12, min(20, size * 0.34))
     }
 
+    private var artWidth: CGFloat { size * max(aspectRatio, 1) }
+    private var artHeight: CGFloat { size }
+
+    private var showWebsiteBadge: Bool {
+        showPlayerBadge && !websiteHost.isEmpty
+    }
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             ArtworkCrossfade(
                 artwork: artwork,
                 unavailable: unavailable,
                 trackKey: trackKey,
-                size: size,
+                width: artWidth,
+                height: artHeight,
                 cornerRadius: cornerRadius,
                 showsShadow: showsShadow
             )
 
             if showPlayerBadge {
-                PlayerAppBadge(
-                    bundleIdentifier: resolvedBundleID,
-                    size: badgeSize
-                )
+                HStack(spacing: badgeSize * 0.14) {
+                    if showWebsiteBadge {
+                        WebsiteFaviconBadge(host: websiteHost, size: badgeSize)
+                    }
+                    PlayerAppBadge(
+                        bundleIdentifier: resolvedBundleID,
+                        size: badgeSize
+                    )
+                }
                 .offset(x: badgeSize * 0.2, y: badgeSize * 0.2)
                 .allowsHitTesting(false)
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: artWidth, height: artHeight)
         .applyMatchedGeometry(id: matchedGeometryID, in: namespace)
     }
 }
@@ -204,7 +229,8 @@ private struct ArtworkCrossfade: View {
     let artwork: Data?
     let unavailable: Bool
     let trackKey: String
-    let size: CGFloat
+    let width: CGFloat
+    let height: CGFloat
     let cornerRadius: CGFloat
     let showsShadow: Bool
 
@@ -240,7 +266,7 @@ private struct ArtworkCrossfade: View {
                     placeholder
                 }
             }
-            .frame(width: size, height: size)
+            .frame(width: width, height: height)
             .clipShape(
                 RoundedRectangle(
                     cornerRadius: cornerRadius,
@@ -453,5 +479,84 @@ private struct PlayerAppBadge: View {
 
     private func loadIcon() {
         icon = PlayerAppIconStore.icon(forBundleIdentifier: bundleIdentifier)
+    }
+}
+
+private actor WebsiteFaviconStore {
+    static let shared = WebsiteFaviconStore()
+    private var cache: [String: NSImage] = [:]
+
+    func icon(for host: String) async -> NSImage? {
+        if let cached = cache[host] { return cached }
+        guard let image = await Self.fetch(host: host) else { return nil }
+        cache[host] = image
+        return image
+    }
+
+    private static func fetch(host: String) async -> NSImage? {
+        let encoded =
+            host.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+            ?? host
+        let urls = [
+            URL(
+                string:
+                    "https://www.google.com/s2/favicons?sz=64&domain=\(encoded)"
+            ),
+            URL(string: "https://icons.duckduckgo.com/ip3/\(encoded).ico"),
+        ]
+        for url in urls.compactMap({ $0 }) {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 6
+            guard
+                let (data, response) = try? await URLSession.shared.data(
+                    for: request
+                ),
+                let http = response as? HTTPURLResponse,
+                (200...299).contains(http.statusCode),
+                let image = NSImage(data: data),
+                image.size.width > 1
+            else { continue }
+            return image
+        }
+        return nil
+    }
+}
+
+private struct WebsiteFaviconBadge: View {
+    let host: String
+    let size: CGFloat
+
+    @State private var icon: NSImage?
+
+    private var cornerRadius: CGFloat { size * 0.28 }
+
+    var body: some View {
+        Group {
+            if let icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .padding(size * 0.08)
+            } else {
+                Image(systemName: "globe")
+                    .font(.system(size: size * 0.48, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+        }
+        .frame(width: size, height: size)
+        .background(Color.black.opacity(0.42))
+        .clipShape(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
+        }
+        .task(id: host) { await loadIcon() }
+    }
+
+    private func loadIcon() async {
+        icon = await WebsiteFaviconStore.shared.icon(for: host)
     }
 }

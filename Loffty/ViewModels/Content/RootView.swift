@@ -25,6 +25,7 @@ struct NotchMetrics {
     var notificationCanReply: Bool = false
     var notificationDraft: String = ""
     var showAlbum: Bool = false
+    var artAspectRatio: CGFloat = 1
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
     let barsW: CGFloat = 18
@@ -76,6 +77,9 @@ struct NotchMetrics {
         return notchH
     }
     var artSize: CGFloat { notchH - 11 }
+    var artWidth: CGFloat {
+        artSize * MediaParsing.clampedArtworkAspect(max(artAspectRatio, 1))
+    }
     var gap: CGFloat {
         extended || sideAnnouncement || notification || (expanded && idle)
             ? gapExtended : 6
@@ -90,7 +94,7 @@ struct NotchMetrics {
         if sideAnnouncement {
             return edgePad + 26 + gap
         }
-        return extended ? edgePad + max(artSize, barsW) + gap : 50
+        return extended ? edgePad + max(artWidth, barsW) + gap : 50
     }
     var width: CGFloat {
         if airDrop { return max(notchW + 160, 380) }
@@ -384,6 +388,10 @@ final class NotchViewModel: ObservableObject {
             || (np.artwork == nil) != (nowPlaying.artwork == nil)
             || np.isPlaying != nowPlaying.isPlaying
             || np.isLive != nowPlaying.isLive
+            || np.isVideo != nowPlaying.isVideo
+            || np.websiteHost != nowPlaying.websiteHost
+            || abs(np.artworkAspectRatio - nowPlaying.artworkAspectRatio)
+                >= 0.01
             || np.duration != nowPlaying.duration
             || elapsedJump
 
@@ -416,11 +424,17 @@ final class NotchViewModel: ObservableObject {
             && np.artist == nowPlaying.artist
             && np.album == nowPlaying.album
             && np.bundleIdentifier == nowPlaying.bundleIdentifier
+            && np.parentApplicationBundleIdentifier
+                == nowPlaying.parentApplicationBundleIdentifier
             && np.artworkUnavailable == nowPlaying.artworkUnavailable
             && (np.artwork == nil) == (nowPlaying.artwork == nil)
             && np.artwork?.count == nowPlaying.artwork?.count
             && np.isPlaying == nowPlaying.isPlaying
             && np.isLive == nowPlaying.isLive
+            && np.isVideo == nowPlaying.isVideo
+            && np.websiteHost == nowPlaying.websiteHost
+            && abs(np.artworkAspectRatio - nowPlaying.artworkAspectRatio)
+                < 0.01
             && np.duration == nowPlaying.duration
             && np.playbackRate == nowPlaying.playbackRate
     }
@@ -444,6 +458,10 @@ final class NotchViewModel: ObservableObject {
             incoming.duration = 0
             incoming.elapsed = 0
             incoming.isLive = false
+            incoming.isVideo = false
+            incoming.websiteHost = ""
+            incoming.artworkAspectRatio = 1
+            incoming.parentApplicationBundleIdentifier = ""
         }
         if let target = pendingSeekTime, let at = pendingSeekAt,
             Date().timeIntervalSince(at) < 4
@@ -800,7 +818,8 @@ struct NotchRootView: View {
             notificationDraft: notifications.draft,
             showAlbum: settings.showAlbum
                 && !vm.nowPlaying.album.isEmpty
-                && !vm.isIdle
+                && !vm.isIdle,
+            artAspectRatio: vm.nowPlaying.displayArtworkAspect
         )
     }
     private var persistentEdgeColor: Color? {

@@ -70,7 +70,6 @@ struct LockMorphCardView: View {
             let art = artRect(in: size)
             let text = textRect(in: size)
             let controls = controlsRect(in: size)
-            let artSide = art.width
             let artCorner =
                 compactArtCorner
                 + (expandedArtCorner - compactArtCorner) * t
@@ -96,14 +95,16 @@ struct LockMorphCardView: View {
                 ArtworkThumbnail(
                     artwork: vm.nowPlaying.fullArtwork ?? vm.nowPlaying.artwork,
                     unavailable: vm.nowPlaying.artworkUnavailable,
-                    size: artSide,
+                    size: art.height,
                     cornerRadius: artCorner,
                     trackKey: vm.nowPlaying.trackKey,
-                    bundleIdentifier: vm.nowPlaying.bundleIdentifier,
-                    showPlayerBadge: settings.playerBadgeLockScreen
+                    bundleIdentifier: vm.nowPlaying.resolvedBundleIdentifier,
+                    showPlayerBadge: settings.playerBadgeLockScreen,
+                    aspectRatio: art.height > 0 ? art.width / art.height : 1,
+                    websiteHost: vm.nowPlaying.websiteHost
                 )
                 .environmentObject(vm)
-                .frame(width: artSide, height: artSide)
+                .frame(width: art.width, height: art.height)
                 .shadow(
                     color: .black.opacity(0.28 + 0.12 * t),
                     radius: 10 + 16 * t,
@@ -184,12 +185,16 @@ struct LockMorphCardView: View {
         lerp(resolvedCompactRect(in: size), expandedCardRect(in: size), t)
     }
 
+    private var artworkAspect: CGFloat {
+        vm.nowPlaying.displayArtworkAspect
+    }
+
     private func compactArtRect(in size: CGSize) -> CGRect {
         let c = resolvedCompactRect(in: size)
         return CGRect(
             x: c.minX + compactPadX,
             y: c.minY + compactPadTop,
-            width: compactArtSize,
+            width: compactArtSize * artworkAspect,
             height: compactArtSize
         )
     }
@@ -201,11 +206,14 @@ struct LockMorphCardView: View {
             card.height - expandedVerticalPad * 2,
             card.width - expandedHorizontalPad * 2
         )
+        let ratio = max(artworkAspect, 1)
+        let width = side
+        let height = side / ratio
         return CGRect(
             x: card.minX + expandedHorizontalPad,
-            y: card.minY + (card.height - side) / 2,
-            width: side,
-            height: side
+            y: card.minY + (card.height - height) / 2,
+            width: width,
+            height: height
         )
     }
 

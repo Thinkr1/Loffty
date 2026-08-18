@@ -574,7 +574,7 @@ struct SettingsView: View {
                 page: .media,
                 title: "Player Badge",
                 note:
-                    "The badge shows the icon of the app that is playing on top of the album cover.",
+                    "The badge shows the icon of the app that is playing on top of the album cover. For browser videos, a website icon appears next to it. That needs Automation access for the browser.",
                 entries: [
                     SettingsEntry(
                         "playerBadgeExpanded",
@@ -596,6 +596,22 @@ struct SettingsView: View {
                         keywords: ["badge", "app icon"]
                     ) {
                         SettingsToggle(isOn: $settings.playerBadgeLockScreen)
+                    },
+                    SettingsEntry(
+                        "playerBadgeAutomation",
+                        title: "Browser automation",
+                        detail:
+                            "If you refused access for Firefox, Safari or Chrome, turn that app back on here.",
+                        keywords: [
+                            "permission", "privacy", "firefox", "safari",
+                            "chrome", "website", "badge",
+                        ]
+                    ) {
+                        Button("Open") {
+                            PrivacyAccess.openAutomationSettings()
+                        }
+                        .controlSize(.small)
+                        .settingsButton()
                     },
                 ]
             ),

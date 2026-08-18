@@ -93,6 +93,22 @@ struct NotchMetricsTests {
         #expect(m.bottomRadius == 26)
         #expect(m.topRadius == 16)
     }
+
+    @Test func videoArtworkWidensExtendedSides() {
+        let square = base(extended: true)
+        let video = NotchMetrics(
+            notchW: 200,
+            notchH: 32,
+            expanded: false,
+            idle: false,
+            extended: true,
+            hudActive: false,
+            artAspectRatio: 16 / 9
+        )
+        #expect(video.artWidth > square.artWidth)
+        #expect(video.side > square.side)
+        #expect(abs(video.artWidth - square.artSize * 16 / 9) < 0.01)
+    }
 }
 
 @Suite("Notch bottom edge")

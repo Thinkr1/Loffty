@@ -96,6 +96,7 @@ struct ExpandedContent: View {
 
     private var activeContent: some View {
         let artSize: CGFloat = 48
+        let artAspect = vm.nowPlaying.displayArtworkAspect
         let titleBlockHeight: CGFloat =
             18 + (vm.nowPlaying.artist.isEmpty ? 0 : 2 + 16)
         let textTopInset =
@@ -113,8 +114,11 @@ struct ExpandedContent: View {
                         cornerRadius: 14,
                         trackKey: vm.nowPlaying.trackKey,
                         namespace: ns,
-                        bundleIdentifier: vm.nowPlaying.bundleIdentifier,
-                        showPlayerBadge: settings.playerBadgeExpanded
+                        bundleIdentifier: vm.nowPlaying
+                            .resolvedBundleIdentifier,
+                        showPlayerBadge: settings.playerBadgeExpanded,
+                        aspectRatio: artAspect,
+                        websiteHost: vm.nowPlaying.websiteHost
                     )
                 }
 
@@ -216,9 +220,11 @@ struct CollapsedContent: View {
                     cornerRadius: 4,
                     trackKey: vm.nowPlaying.trackKey,
                     namespace: ns,
-                    bundleIdentifier: vm.nowPlaying.bundleIdentifier,
+                    bundleIdentifier: vm.nowPlaying.resolvedBundleIdentifier,
                     showPlayerBadge: settings.playerBadgeCollapsed,
-                    showsShadow: false
+                    showsShadow: false,
+                    aspectRatio: vm.nowPlaying.displayArtworkAspect,
+                    websiteHost: vm.nowPlaying.websiteHost
                 )
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))

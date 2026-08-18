@@ -580,8 +580,11 @@ struct LockCardBody: View {
                         trackKey: vm.nowPlaying.trackKey,
                         namespace: namespace,
                         matchedGeometryID: LockCardMatchID.artwork,
-                        bundleIdentifier: vm.nowPlaying.bundleIdentifier,
-                        showPlayerBadge: settings.playerBadgeLockScreen
+                        bundleIdentifier: vm.nowPlaying
+                            .resolvedBundleIdentifier,
+                        showPlayerBadge: settings.playerBadgeLockScreen,
+                        aspectRatio: vm.nowPlaying.displayArtworkAspect,
+                        websiteHost: vm.nowPlaying.websiteHost
                     )
                     .shadow(
                         color: .black.opacity(0.28),
@@ -592,7 +595,10 @@ struct LockCardBody: View {
                     .onTapGesture(perform: onArtworkTap)
                 } else if !showsArtwork {
                     Color.clear
-                        .frame(width: 58, height: 58)
+                        .frame(
+                            width: 58 * vm.nowPlaying.displayArtworkAspect,
+                            height: 58
+                        )
                 }
 
                 VStack(alignment: .leading, spacing: 3) {

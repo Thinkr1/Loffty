@@ -79,6 +79,10 @@ enum PrivacyAccess {
         openPrivacyPane("Privacy_AllFiles")
     }
 
+    static func openAutomationSettings() {
+        openPrivacyPane("Privacy_Automation")
+    }
+
     nonisolated static func privacySettingsURLCandidates(anchor: String)
         -> [String]
     {

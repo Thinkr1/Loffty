@@ -80,6 +80,8 @@ final class PerformanceTests: XCTestCase {
                 _ = MediaParsing.parseArtistNames(from: html)
                 _ = MediaParsing.parseArtist(from: info)
                 _ = MediaParsing.parseIsLive(from: info)
+                _ = MediaParsing.parseIsVideo(from: info, artworkAspect: 1)
+                _ = MediaParsing.websiteHost(title: "Song - YouTube")
                 _ = MediaParsing.isIdlePayload(info, isDiff: false)
                 _ = MediaParsing.isElapsedOnlyDiff(elapsedOnly)
                 _ = MediaParsing.trackKey(
@@ -116,6 +118,7 @@ final class PerformanceTests: XCTestCase {
                 _ = m.side
                 _ = m.topRadius
                 _ = m.bottomRadius
+                _ = m.artWidth
             }
         }
         run()

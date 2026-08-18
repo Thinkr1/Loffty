@@ -367,7 +367,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Loffty;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Loffty sends quick replies to Messages from the notch";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Loffty controls Messages to send replies from the notch, and controls your browser to identify the website of the video now playing so it can show that site’s icon";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Loffty receives new bluetooth connections to display them in the notch";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Loffty discovers nearby AirDrop devices to send files from the notch";
@@ -410,7 +410,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Loffty;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Loffty sends quick replies to Messages from the notch";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Loffty controls Messages to send replies from the notch, and controls your browser to identify the website of the video now playing so it can show that site’s icon";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Loffty receives new bluetooth connections to display them in the notch";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Loffty discovers nearby AirDrop devices to send files from the notch";

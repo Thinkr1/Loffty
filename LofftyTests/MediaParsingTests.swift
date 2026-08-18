@@ -54,6 +54,179 @@ struct MediaParsingTests {
         )
     }
 
+    @Test func parseIsVideoUsesMediaTypeAndArtworkAspect() {
+        #expect(
+            MediaParsing.parseIsVideo(from: [
+                "mediaType": "MRMediaRemoteMediaTypeVideo"
+            ])
+        )
+        #expect(
+            !MediaParsing.parseIsVideo(from: [
+                "mediaType": "MRMediaRemoteMediaTypeMusic"
+            ])
+        )
+        #expect(
+            MediaParsing.parseIsVideo(
+                from: ["mediaType": "kMRMediaRemoteNowPlayingInfoTypeAudio"],
+                artworkAspect: 16 / 9
+            )
+        )
+        #expect(
+            !MediaParsing.parseIsVideo(
+                from: ["isMusicApp": true],
+                artworkAspect: 1.8
+            )
+        )
+        #expect(
+            MediaParsing.parseIsVideo(
+                from: [:],
+                currentIsVideo: true,
+                isDiff: true
+            )
+        )
+    }
+
+    @Test func websiteHostFromURLAndLabels() {
+        #expect(
+            MediaParsing.websiteHost(
+                uniqueIdentifier: "https://www.youtube.com/watch?v=abc"
+            ) == "youtube.com"
+        )
+        #expect(
+            MediaParsing.websiteHost(
+                contentItemIdentifier: "https://youtu.be/abc"
+            ) == "youtube.com"
+        )
+        #expect(
+            MediaParsing.websiteHost(title: "SVJ At 18. - YouTube")
+                == "youtube.com"
+        )
+        #expect(
+            MediaParsing.websiteHost(album: "Netflix") == "netflix.com"
+        )
+        #expect(
+            MediaParsing.websiteHost(artist: "Twitch") == "twitch.tv"
+        )
+        #expect(MediaParsing.websiteHost(title: "Just a song") == nil)
+        #expect(
+            MediaParsing.host(fromPossibleURL: "www.netflix.com/title/1")
+                == "netflix.com"
+        )
+        #expect(MediaParsing.host(fromPossibleURL: "not-a-url") == nil)
+        #expect(MediaParsing.host(fromPossibleURL: "com.apple.Safari") == nil)
+        #expect(
+            MediaParsing.looksLikeBundleIdentifier("com.google.Chrome")
+        )
+    }
+
+    @Test func displayArtworkAspectUsesVideoRatio() {
+        #expect(
+            MediaParsing.displayArtworkAspect(isVideo: false, raw: 1.8) == 1
+        )
+        #expect(
+            MediaParsing.displayArtworkAspect(isVideo: true, raw: 1)
+                == MediaParsing.videoAspectRatio
+        )
+        #expect(
+            MediaParsing.displayArtworkAspect(isVideo: true, raw: 1.9)
+                == 1.9
+        )
+        #expect(
+            MediaParsing.displayArtworkAspect(isVideo: true, raw: 4)
+                == MediaParsing.maxArtworkAspect
+        )
+    }
+
+    @Test func browserBundleDetection() {
+        #expect(MediaParsing.isBrowserBundle("com.apple.Safari"))
+        #expect(MediaParsing.isBrowserBundle("com.google.Chrome"))
+        #expect(
+            MediaParsing.isBrowserBundle(
+                "com.apple.Safari.WebApp.ABC123"
+            )
+        )
+        #expect(!MediaParsing.isBrowserBundle("com.spotify.client"))
+        #expect(
+            MediaParsing.appleScriptApplication(
+                forBundle: "com.apple.WebKit.WebContent"
+            ) == "Safari"
+        )
+        #expect(
+            MediaParsing.scriptingBundleID(
+                for: "com.apple.WebKit.WebContent"
+            ) == "com.apple.Safari"
+        )
+        #expect(
+            MediaParsing.scriptingBundleID(
+                for: "com.google.Chrome.app.youtube"
+            ) == "com.google.Chrome"
+        )
+    }
+
+    @Test func websiteHostFromPayloadAndTabMatch() {
+        #expect(
+            MediaParsing.websiteHost(
+                fromPayload: [
+                    "uniqueIdentifier": 12_345,
+                    "title": "SVJ At 18. - YouTube",
+                ],
+                title: "SVJ At 18. - YouTube",
+                album: "",
+                artist: "Josh Zitman"
+            ) == "youtube.com"
+        )
+        #expect(
+            MediaParsing.websiteHost(
+                fromPayload: [
+                    "uniqueIdentifier":
+                        "https://www.youtube.com/watch?v=abc",
+                    "artworkData": "aaaa",
+                ],
+                title: "SVJ At 18.",
+                album: "",
+                artist: ""
+            ) == "youtube.com"
+        )
+        let tabs = MediaParsing.parseTabDump(
+            """
+            *\tSVJ At 18. · I Bought A Lambo - YouTube\thttps://www.youtube.com/watch?v=abc
+            Inbox - Gmail\thttps://mail.google.com/mail
+            """
+        )
+        #expect(tabs.count == 2)
+        #expect(tabs[0].isCurrent)
+        #expect(
+            MediaParsing.websiteHost(
+                matching: "SVJ At 18.",
+                tabs: tabs
+            ) == "youtube.com"
+        )
+        #expect(
+            MediaParsing.stringValue(NSNumber(value: 99)) == "99"
+        )
+        #expect(
+            MediaParsing.websiteHost(
+                fromBrowserTitle:
+                    "SVJ At 18. · I Bought A Lambo - YouTube — Mozilla Firefox"
+            ) == "youtube.com"
+        )
+        #expect(
+            MediaParsing.websiteHost(
+                matching: "SVJ At 18.",
+                tabs: [
+                    .init(
+                        title:
+                            "SVJ At 18. · I Bought A Lambo - YouTube — Mozilla Firefox",
+                        url: "",
+                        isCurrent: true
+                    )
+                ]
+            ) == "youtube.com"
+        )
+        #expect(MediaParsing.prefersAccessibilityTabs("org.mozilla.firefox"))
+        #expect(!MediaParsing.prefersAccessibilityTabs("com.google.Chrome"))
+    }
+
     @Test func isIdlePayloadDiffAndFull() {
         #expect(MediaParsing.isIdlePayload(["title": NSNull()], isDiff: true))
         #expect(MediaParsing.isIdlePayload(["title": ""], isDiff: false))

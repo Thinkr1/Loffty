@@ -156,5 +156,12 @@ struct OnboardingTests {
                 $0.hasSuffix("Privacy_AllFiles")
             }
         )
+        #expect(
+            PrivacyAccess.privacySettingsURLCandidates(
+                anchor: "Privacy_Automation"
+            ).contains {
+                $0.hasSuffix("Privacy_Automation")
+            }
+        )
     }
 }
