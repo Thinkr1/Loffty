@@ -734,6 +734,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func syncFullScreenVisibility() {
+        vm.isInFullScreen = fullScreen.isFullScreen
         if shouldHidePersistentNotch, hoverExpanded {
             setHoverExpanded(false)
         }

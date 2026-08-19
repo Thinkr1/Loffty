@@ -135,6 +135,7 @@ final class NotchViewModel: ObservableObject {
     @Published private(set) var trackChangeToken: UInt = 0
     @Published var accentColor: Color = NotchViewModel.defaultAccent
     @Published var isLocked = false
+    @Published var isInFullScreen = false
     @Published var lockScreenArtExpanded = false
     @Published var hud: HUDKind? = nil
     @Published var hudDisplay: HUDKind? = nil
@@ -1062,7 +1063,17 @@ struct NotchRootView: View {
                 )
             )
             .overlay {
-                if let edge = persistentEdgeColor {
+                if vm.isInFullScreen {
+                    NotchBottomEdge(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                    .stroke(
+                        persistentEdgeColor
+                            ?? Color.white.opacity(0.16),
+                        lineWidth: 1
+                    )
+                } else if let edge = persistentEdgeColor {
                     NotchBottomEdge(
                         topRadius: m.topRadius,
                         bottomRadius: m.bottomRadius
@@ -1070,16 +1081,19 @@ struct NotchRootView: View {
                     .stroke(edge, lineWidth: 1)
                 }
             }
-            .shadow(
-                color: .black.opacity(islandRaised ? 0.38 : 0),
-                radius: islandRaised ? 22 : 0,
-                y: islandRaised ? 12 : 0
-            )
-            .shadow(
-                color: .black.opacity(islandRaised ? 0.2 : 0),
-                radius: islandRaised ? 5 : 0,
-                y: islandRaised ? 2 : 0
-            )
+            .background {
+                if islandRaised {
+                    NotchShape(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                    .fill(.ultraThinMaterial)
+                    .blur(radius: 24)
+                    .scaleEffect(x: 1.15, y: 1.25)
+                    .opacity(0.7)
+                    .frame(width: m.width, height: m.height)
+                }
+            }
 
             if hudBelowExpanded, let kind = vm.hudDisplay {
                 ZStack {
