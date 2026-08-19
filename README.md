@@ -65,7 +65,6 @@ Some things I'm currently working on:
 - Features/improvements
   - Add queue?
   - Add more controls (shuffle, repeat, etc)
-  - Actual soundwaves
   - Lock screen lyrics
   - Timer, live activities
   - Support more apps for push notifications
