@@ -189,4 +189,35 @@ struct NotchEdgeStyleTests {
         #expect(NotchEdgeStyle.subtle.title == "Subtle line")
         #expect(NotchEdgeStyle.accent.title == "Album accent")
     }
+
+    @Test func shouldDrawFollowsFullScreenOnlyWhenSettingIsOff() {
+        #expect(
+            !NotchEdgeStyle.shouldDraw(
+                style: .off,
+                showWhenNotFullScreen: true,
+                isFullScreen: true
+            )
+        )
+        #expect(
+            NotchEdgeStyle.shouldDraw(
+                style: .subtle,
+                showWhenNotFullScreen: true,
+                isFullScreen: false
+            )
+        )
+        #expect(
+            !NotchEdgeStyle.shouldDraw(
+                style: .subtle,
+                showWhenNotFullScreen: false,
+                isFullScreen: false
+            )
+        )
+        #expect(
+            NotchEdgeStyle.shouldDraw(
+                style: .accent,
+                showWhenNotFullScreen: false,
+                isFullScreen: true
+            )
+        )
+    }
 }

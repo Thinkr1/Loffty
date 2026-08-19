@@ -293,6 +293,51 @@ struct SettingsTests {
         #expect(settings.notchEdgeStyle == .off)
     }
 
+    @Test @MainActor func notchOutlineWhenNotFullScreenPersists() {
+        let settings = AppSettings.shared
+        let original = settings.notchOutlineWhenNotFullScreen
+        defer { settings.notchOutlineWhenNotFullScreen = original }
+
+        settings.notchOutlineWhenNotFullScreen = false
+        #expect(
+            UserDefaults.standard.object(forKey: "notchOutlineWhenNotFullScreen")
+                as? Bool == false
+        )
+        #expect(!settings.notchOutlineWhenNotFullScreen)
+
+        settings.notchOutlineWhenNotFullScreen = true
+        #expect(
+            UserDefaults.standard.bool(forKey: "notchOutlineWhenNotFullScreen")
+        )
+        #expect(settings.notchOutlineWhenNotFullScreen)
+    }
+
+    @Test @MainActor func watchesFullScreenAppsForOutlineWhenNotFullScreen() {
+        let settings = AppSettings.shared
+        let originalStyle = settings.notchEdgeStyle
+        let originalOutline = settings.notchOutlineWhenNotFullScreen
+        let originalHide = settings.hideNotchInFullScreen
+        let originalApps = settings.hideNotchFullScreenApps
+        defer {
+            settings.notchEdgeStyle = originalStyle
+            settings.notchOutlineWhenNotFullScreen = originalOutline
+            settings.hideNotchInFullScreen = originalHide
+            settings.hideNotchFullScreenApps = originalApps
+        }
+
+        settings.hideNotchInFullScreen = false
+        settings.hideNotchFullScreenApps = []
+        settings.notchEdgeStyle = .off
+        settings.notchOutlineWhenNotFullScreen = false
+        #expect(!settings.watchesFullScreenApps)
+
+        settings.notchEdgeStyle = .subtle
+        #expect(settings.watchesFullScreenApps)
+
+        settings.notchOutlineWhenNotFullScreen = true
+        #expect(!settings.watchesFullScreenApps)
+    }
+
     @Test func soundwaveMotionCaptureAndTitles() {
         for motion in SoundwaveMotion.allCases {
             #expect(SoundwaveMotion(rawValue: motion.rawValue) == motion)

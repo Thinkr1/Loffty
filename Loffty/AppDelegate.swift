@@ -265,7 +265,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        fullScreen.onChange = { [weak self] _, _ in
+        fullScreen.onChange = { [weak self] isFullScreen, _ in
+            self?.vm.isFullScreen = isFullScreen
             self?.syncFullScreenVisibility()
         }
         AppSettings.shared.$hideNotchInFullScreen
@@ -276,6 +277,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
         AppSettings.shared.$hideNotchFullScreenApps
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncFullScreenMonitoring()
+            }
+            .store(in: &cancellables)
+        AppSettings.shared.$notchEdgeStyle
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncFullScreenMonitoring()
+            }
+            .store(in: &cancellables)
+        AppSettings.shared.$notchOutlineWhenNotFullScreen
             .dropFirst()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in

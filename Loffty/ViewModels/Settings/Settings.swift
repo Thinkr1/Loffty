@@ -67,6 +67,15 @@ enum NotchEdgeStyle: String, CaseIterable, Identifiable {
         }
     }
 
+    nonisolated static func shouldDraw(
+        style: NotchEdgeStyle,
+        showWhenNotFullScreen: Bool,
+        isFullScreen: Bool
+    ) -> Bool {
+        guard style != .off else { return false }
+        return showWhenNotFullScreen || isFullScreen
+    }
+
     static var current: NotchEdgeStyle {
         guard
             let raw = UserDefaults.standard.string(forKey: storageKey),
@@ -324,6 +333,8 @@ final class AppSettings: ObservableObject {
     private static let hasCompletedOnboardingKey = "hasCompletedOnboarding"
     private static let hideNotchInFullScreenKey = "hideNotchInFullScreen"
     private static let hideNotchFullScreenAppsKey = "hideNotchFullScreenApps"
+    private static let notchOutlineWhenNotFullScreenKey =
+        "notchOutlineWhenNotFullScreen"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -640,8 +651,18 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var notchOutlineWhenNotFullScreen: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                notchOutlineWhenNotFullScreen,
+                forKey: Self.notchOutlineWhenNotFullScreenKey
+            )
+        }
+    }
+
     var watchesFullScreenApps: Bool {
         hideNotchInFullScreen || !hideNotchFullScreenApps.isEmpty
+            || (notchEdgeStyle != .off && !notchOutlineWhenNotFullScreen)
     }
 
     func addHideNotchFullScreenApp(_ bundleID: String) {
@@ -830,6 +851,10 @@ final class AppSettings: ObservableObject {
         } else {
             notchEdgeStyle = .off
         }
+        notchOutlineWhenNotFullScreen =
+            UserDefaults.standard.object(
+                forKey: Self.notchOutlineWhenNotFullScreenKey
+            ) as? Bool ?? true
         launchAtLogin = LaunchAtLogin.isEnabled
         launchAtLoginNeedsApproval = LaunchAtLogin.requiresApproval
     }

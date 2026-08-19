@@ -135,6 +135,7 @@ final class NotchViewModel: ObservableObject {
     @Published private(set) var trackChangeToken: UInt = 0
     @Published var accentColor: Color = NotchViewModel.defaultAccent
     @Published var isLocked = false
+    @Published var isFullScreen = false
     @Published var lockScreenArtExpanded = false
     @Published var hud: HUDKind? = nil
     @Published var hudDisplay: HUDKind? = nil
@@ -823,13 +824,20 @@ struct NotchRootView: View {
         )
     }
     private var persistentEdgeColor: Color? {
+        guard
+            NotchEdgeStyle.shouldDraw(
+                style: settings.notchEdgeStyle,
+                showWhenNotFullScreen: settings.notchOutlineWhenNotFullScreen,
+                isFullScreen: vm.isFullScreen
+            )
+        else { return nil }
         switch settings.notchEdgeStyle {
         case .off:
-            nil
+            return nil
         case .subtle:
-            Color.white.opacity(0.16)
+            return Color.white.opacity(0.16)
         case .accent:
-            vm.isIdle
+            return vm.isIdle
                 ? Color.white.opacity(0.16)
                 : vm.accentColor.opacity(0.55)
         }
@@ -894,6 +902,11 @@ struct NotchRootView: View {
         .animation(NotchViewModel.notchExpandSpring, value: m.height)
         .animation(NotchViewModel.notchExpandSpring, value: m.width)
         .animation(.easeInOut(duration: 0.35), value: settings.notchEdgeStyle)
+        .animation(
+            .easeInOut(duration: 0.35),
+            value: settings.notchOutlineWhenNotFullScreen
+        )
+        .animation(.easeInOut(duration: 0.35), value: vm.isFullScreen)
         .onChange(of: vm.trackChangeToken) { _, token in
             guard token > 0, !vm.isRapidSkipping else { return }
             withAnimation(.easeOut(duration: 0.16)) { trackPulse = 1 }

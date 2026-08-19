@@ -661,6 +661,21 @@ struct SettingsView: View {
                         .controlSize(.small)
                         .fixedSize()
                     },
+                    SettingsEntry(
+                        "notchOutlineWhenNotFullScreen",
+                        title: "Outline when not full screen",
+                        detail:
+                            "When off, the outline only appears in full screen.",
+                        keywords: [
+                            "edge", "outline", "border", "desktop",
+                            "fullscreen", "full screen",
+                        ],
+                        isEnabled: settings.notchEdgeStyle != .off
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.notchOutlineWhenNotFullScreen
+                        )
+                    },
                 ]
             ),
             SettingsGroup(
