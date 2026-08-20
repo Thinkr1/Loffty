@@ -10,12 +10,14 @@ import SwiftUI
 struct ExpandedContent: View {
     @EnvironmentObject var vm: NotchViewModel
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var toolbar =
+        MediaToolbarCustomizer.shared
     let ns: Namespace.ID
     let m: NotchMetrics
 
     var body: some View {
         Group {
-            if vm.isIdle {
+            if vm.isIdle, !toolbar.isCustomizing {
                 idleContent
             } else {
                 activeContent
@@ -27,6 +29,10 @@ struct ExpandedContent: View {
             }
         }
         .animation(.easeInOut(duration: 0.22), value: vm.isIdle)
+        .animation(
+            NotchViewModel.notchExpandSpring,
+            value: toolbar.isCustomizing
+        )
     }
 
     private var notchFlankWidth: CGFloat {
@@ -169,8 +175,15 @@ struct ExpandedContent: View {
             }
             MediaProgressRow(accent: vm.accentColor)
                 .frame(maxWidth: .infinity)
-            MediaTransportControls()
-                .padding(.top, 2)
+            if toolbar.isCustomizing {
+                MediaToolbarCustomizeRow()
+                    .padding(.top, 2)
+                MediaToolbarCustomizeChrome()
+                    .padding(.top, 8)
+            } else {
+                MediaTransportControls()
+                    .padding(.top, 2)
+            }
         }
         .padding(.horizontal, 44)
         .padding(.top, m.notchH + 8)

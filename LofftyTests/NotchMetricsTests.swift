@@ -35,6 +35,27 @@ struct NotchMetricsTests {
         )
     }
 
+    @Test func customizingToolbarGrowsTheNotch() {
+        let playing = base(expanded: true, showAlbum: false)
+        let customizing = NotchMetrics(
+            notchW: 200,
+            notchH: 32,
+            expanded: true,
+            idle: false,
+            extended: false,
+            hudActive: false,
+            showAlbum: false,
+            customizingToolbar: true
+        )
+        #expect(customizing.width == MediaToolbarCustomizeLayout.width)
+        #expect(
+            customizing.height
+                == MediaToolbarCustomizeLayout.expandedHeight(showAlbum: false)
+        )
+        #expect(customizing.height > playing.height)
+        #expect(customizing.width > playing.width)
+    }
+
     @Test func collapsedSize() {
         let m = base()
         #expect(m.height == 32)

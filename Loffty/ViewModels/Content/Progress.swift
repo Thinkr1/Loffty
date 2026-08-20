@@ -271,6 +271,7 @@ struct LiveProgressIndicator: View {
 }
 
 struct LiveEdgeButton: View {
+    var enabled: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -286,11 +287,16 @@ struct LiveEdgeButton: View {
             .background(Capsule().fill(.white.opacity(0.14)))
         }
         .buttonStyle(NotchControlButtonStyle())
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.38)
     }
 }
 
 struct MediaTransportControls: View {
     @EnvironmentObject var vm: NotchViewModel
+    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var toolbar =
+        MediaToolbarCustomizer.shared
 
     var body: some View {
         Group {
@@ -305,46 +311,82 @@ struct MediaTransportControls: View {
     }
 
     private func transportControls(behindLive: Bool) -> some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
+            ForEach(
+                Array(settings.mediaToolbarItems.enumerated()),
+                id: \.offset
+            ) { _, item in
+                toolbarItem(item, behindLive: behindLive)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .contextMenu {
+            if toolbar.isCustomizing {
+                Button("Done") {
+                    MediaToolbarEditorOpener.shared.close()
+                }
+            } else {
+                Button("Customise Toolbar...") {
+                    MediaToolbarEditorOpener.shared.open()
+                }
+            }
+        }
+        .animation(.smooth(duration: 0.2), value: behindLive)
+        .animation(.smooth(duration: 0.2), value: vm.showsLikeButton)
+        .animation(
+            .smooth(duration: 0.2),
+            value: settings.mediaToolbarItems.map(\.rawValue)
+        )
+    }
+
+    @ViewBuilder
+    private func toolbarItem(_ item: MediaToolbarItem, behindLive: Bool)
+        -> some View
+    {
+        switch item {
+        case .space:
+            Spacer(minLength: 0)
+        case .like:
             if vm.showsLikeButton {
                 LikeTrackButton()
             }
+        case .skipBack:
             ControlButton(
-                systemName: "gobackward.10",
-                size: 18,
+                systemName: item.symbol,
+                size: item.controlSize,
                 tint: .white.opacity(0.5),
                 enabled: !vm.nowPlaying.isLive
             ) { vm.seek(by: -10) }
-            Spacer(minLength: 0)
-            HStack(spacing: 18) {
-                ControlButton(
-                    systemName: "backward.fill",
-                    size: 20,
-                    tint: .white
-                ) { vm.prev() }
-                ControlButton(
-                    systemName: vm.nowPlaying.isPlaying
-                        ? "pause.fill" : "play.fill",
-                    size: 26,
-                    tint: .white
-                ) { vm.playPause() }
-                ControlButton(
-                    systemName: "forward.fill",
-                    size: 20,
-                    tint: .white
-                ) { vm.next() }
-            }
-            Spacer(minLength: 0)
+        case .previous:
             ControlButton(
-                systemName: "goforward.10",
-                size: 18,
+                systemName: item.symbol,
+                size: item.controlSize,
+                tint: .white
+            ) { vm.prev() }
+        case .playPause:
+            ControlButton(
+                systemName: vm.nowPlaying.isPlaying
+                    ? "pause.fill" : "play.fill",
+                size: item.controlSize,
+                tint: .white
+            ) { vm.playPause() }
+        case .next:
+            ControlButton(
+                systemName: item.symbol,
+                size: item.controlSize,
+                tint: .white
+            ) { vm.next() }
+        case .skipForward:
+            ControlButton(
+                systemName: item.symbol,
+                size: item.controlSize,
                 tint: .white.opacity(0.5),
                 enabled: !vm.nowPlaying.isLive
             ) { vm.seek(by: 10) }
+        case .goLive:
+            LiveEdgeButton(enabled: behindLive) { vm.seekToLive() }
         }
-        .frame(maxWidth: .infinity)
-        .animation(.smooth(duration: 0.2), value: behindLive)
-        .animation(.smooth(duration: 0.2), value: vm.showsLikeButton)
     }
 }
 

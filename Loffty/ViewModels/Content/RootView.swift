@@ -26,6 +26,7 @@ struct NotchMetrics {
     var notificationDraft: String = ""
     var showAlbum: Bool = false
     var artAspectRatio: CGFloat = 1
+    var customizingToolbar: Bool = false
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
     let barsW: CGFloat = 18
@@ -36,6 +37,7 @@ struct NotchMetrics {
             return NotificationLayout.expandedTopRadius
         }
         if notification { return NotificationLayout.compactTopRadius }
+        if customizingToolbar { return 22 }
         if expanded, idle { return 10 }
         if expanded { return 22 }
         if hudActive { return 16 }
@@ -47,6 +49,7 @@ struct NotchMetrics {
             return NotificationLayout.expandedBottomRadius
         }
         if notification { return NotificationLayout.compactBottomRadius }
+        if customizingToolbar { return 30 }
         if expanded, idle { return 12 }
         if expanded { return 30 }
         if hudActive { return 26 }
@@ -70,6 +73,11 @@ struct NotchMetrics {
                     notchW: notchW,
                     canReply: notificationCanReply
                 )
+        }
+        if customizingToolbar {
+            return MediaToolbarCustomizeLayout.expandedHeight(
+                showAlbum: showAlbum
+            )
         }
         if expanded, idle { return notchH }
         if expanded { return showAlbum ? 206 : 196 }
@@ -109,6 +117,7 @@ struct NotchMetrics {
                 canReply: notificationCanReply
             )
         }
+        if customizingToolbar { return MediaToolbarCustomizeLayout.width }
         if expanded, idle {
             return notchW + 2 * side + 2 * topRadius
         }
@@ -207,6 +216,12 @@ final class NotchViewModel: ObservableObject {
             .store(in: &cancellables)
 
         AppSettings.shared.$showSpotifyLikeButton
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshLikeState()
+            }
+            .store(in: &cancellables)
+        AppSettings.shared.$mediaToolbarItems
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refreshLikeState()
@@ -610,6 +625,7 @@ final class NotchViewModel: ObservableObject {
     }
 
     func setExpanded(_ v: Bool) {
+        if !v, MediaToolbarCustomizer.shared.isCustomizing { return }
         if !v, AirDropController.shared.phase.isActive { return }
         if !v, NotificationController.shared.isPinned { return }
         guard v != isExpanded else { return }
@@ -680,7 +696,8 @@ final class NotchViewModel: ObservableObject {
 
     var showsLikeButton: Bool {
         Self.showsLikeButton(
-            enabled: AppSettings.shared.showSpotifyLikeButton,
+            toolbarContainsLike: AppSettings.shared.mediaToolbarItems
+                .contains(.like),
             bundleID: nowPlaying.resolvedBundleIdentifier,
             idle: isIdle
         )
@@ -695,11 +712,23 @@ final class NotchViewModel: ObservableObject {
     }
 
     nonisolated static func showsLikeButton(
+        toolbarContainsLike: Bool,
+        bundleID: String,
+        idle: Bool
+    ) -> Bool {
+        toolbarContainsLike && !idle && likeSource(bundleID: bundleID) != nil
+    }
+
+    nonisolated static func showsLikeButton(
         enabled: Bool,
         bundleID: String,
         idle: Bool
     ) -> Bool {
-        enabled && !idle && likeSource(bundleID: bundleID) != nil
+        showsLikeButton(
+            toolbarContainsLike: enabled,
+            bundleID: bundleID,
+            idle: idle
+        )
     }
 
     func toggleLike() {
@@ -897,6 +926,8 @@ struct NotchRootView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var airDrop = AirDropController.shared
     @ObservedObject private var notifications = NotificationController.shared
+    @ObservedObject private var toolbar =
+        MediaToolbarCustomizer.shared
     @Namespace private var ns
     @State private var trackPulse: CGFloat = 0
     @State private var airDropPulse: CGFloat = 0
@@ -926,6 +957,7 @@ struct NotchRootView: View {
     }
     private var islandRaised: Bool {
         (vm.isExpanded && !vm.isIdle && !airDropActive && !notificationActive)
+            || toolbar.isCustomizing
             || (notificationActive && notifications.isExpanded)
             || airDropActive
     }
@@ -935,8 +967,10 @@ struct NotchRootView: View {
                 ? vm.notch.notchRect.width : 200,
             notchH: vm.notch.notchRect.height > 0
                 ? vm.notch.notchRect.height + 0.25 : 32,
-            expanded: vm.isExpanded && !airDropActive && !notificationActive,
-            idle: vm.isExpanded && vm.isIdle && !airDropActive
+            expanded: (vm.isExpanded || toolbar.isCustomizing)
+                && !airDropActive && !notificationActive,
+            idle: vm.isExpanded && vm.isIdle && !toolbar.isCustomizing
+                && !airDropActive
                 && !notificationActive,
             extended: (settings.extendNotch && hasTrack && !verticalHUD
                 && !airDropActive && !notificationActive)
@@ -961,7 +995,8 @@ struct NotchRootView: View {
             showAlbum: settings.showAlbum
                 && !vm.nowPlaying.album.isEmpty
                 && !vm.isIdle,
-            artAspectRatio: vm.nowPlaying.displayArtworkAspect
+            artAspectRatio: vm.nowPlaying.displayArtworkAspect,
+            customizingToolbar: toolbar.isCustomizing
         )
     }
     private var persistentEdgeColor: Color? {
@@ -1042,6 +1077,10 @@ struct NotchRootView: View {
         )
         .animation(NotchViewModel.notchExpandSpring, value: m.height)
         .animation(NotchViewModel.notchExpandSpring, value: m.width)
+        .animation(
+            NotchViewModel.notchExpandSpring,
+            value: toolbar.isCustomizing
+        )
         .animation(.easeInOut(duration: 0.35), value: settings.notchEdgeStyle)
         .animation(
             .easeInOut(duration: 0.35),
@@ -1177,7 +1216,7 @@ struct NotchRootView: View {
                         maxHeight: .infinity,
                         alignment: .top
                     )
-                } else if vm.isExpanded {
+                } else if vm.isExpanded || toolbar.isCustomizing {
                     ExpandedContent(ns: ns, m: m)
                         .frame(
                             maxWidth: .infinity,

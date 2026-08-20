@@ -321,6 +321,25 @@ struct SettingsTests {
         #expect(settings.showSpotifyLikeButton)
     }
 
+    @Test @MainActor func mediaToolbarItemsPersistAndSanitize() {
+        let settings = AppSettings.shared
+        let original = settings.mediaToolbarItems
+        defer { settings.mediaToolbarItems = original }
+
+        settings.mediaToolbarItems = [.playPause, .playPause, .next]
+        #expect(settings.mediaToolbarItems == [.playPause, .next])
+        #expect(
+            UserDefaults.standard.stringArray(forKey: "mediaToolbarItems")
+                == ["playPause", "next"]
+        )
+
+        settings.mediaToolbarItems = MediaToolbarItem.defaultLayout()
+        #expect(
+            settings.mediaToolbarItems
+                == MediaToolbarItem.defaultLayout()
+        )
+    }
+
     @Test @MainActor func notchOutlineWhenNotFullScreenPersists() {
         let settings = AppSettings.shared
         let original = settings.notchOutlineWhenNotFullScreen

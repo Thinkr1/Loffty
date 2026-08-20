@@ -123,6 +123,7 @@ struct SettingsGroup: Identifiable {
     let page: SettingsPage
     let title: String
     let note: String?
+    let accessory: AnyView?
     let entries: [SettingsEntry]
 
     var id: String { "\(page.rawValue).\(title)" }
@@ -131,11 +132,13 @@ struct SettingsGroup: Identifiable {
         page: SettingsPage,
         title: String,
         note: String? = nil,
+        accessory: AnyView? = nil,
         entries: [SettingsEntry]
     ) {
         self.page = page
         self.title = title
         self.note = note
+        self.accessory = accessory
         self.entries = entries
     }
 
@@ -150,6 +153,7 @@ struct SettingsGroup: Identifiable {
             page: page,
             title: title,
             note: note,
+            accessory: accessory,
             entries: matched
         )
     }
@@ -190,7 +194,7 @@ struct SettingsView: View {
             Divider().opacity(0.5)
             detail
         }
-        .frame(minWidth: 700, minHeight: 560)
+        .frame(minWidth: 720, minHeight: 580)
         .background(
             VisualEffectBackground(material: .hudWindow)
                 .ignoresSafeArea()
@@ -224,13 +228,8 @@ struct SettingsView: View {
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 34, height: 34)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Loffty")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Settings")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
+                Text("Settings")
+                    .font(.system(size: 14, weight: .semibold))
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12)
@@ -239,21 +238,15 @@ struct SettingsView: View {
             SearchField(text: $query)
                 .focused($searchFocused)
                 .padding(.horizontal, 10)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
 
             ScrollView {
                 GlassStack {
                     VStack(alignment: .leading, spacing: 2) {
+                        sidebarSection("General", top: 4)
                         ForEach(pages(in: .app)) { sidebarRow($0) }
 
-                        Text("Overlays")
-                            .font(.system(size: 10, weight: .semibold))
-                            .tracking(0.5)
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 18)
-                            .padding(.top, 14)
-                            .padding(.bottom, 4)
-
+                        sidebarSection("Overlays")
                         ForEach(pages(in: .overlays)) { sidebarRow($0) }
                     }
                 }
@@ -262,7 +255,7 @@ struct SettingsView: View {
             }
             .scrollIndicators(.never)
 
-            Divider().opacity(0.4).padding(.horizontal, 10)
+            Divider().opacity(0.35).padding(.horizontal, 12)
 
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(pages(in: .footer)) { sidebarRow($0) }
@@ -274,22 +267,34 @@ struct SettingsView: View {
                             .font(.system(size: 12, weight: .semibold))
                             .frame(width: 18)
                         Text("Quit Loffty")
-                            .font(.system(size: 12.5))
+                            .font(.system(size: 13))
                         Spacer(minLength: 0)
                     }
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 9)
-                    .frame(height: 28)
+                    .padding(.horizontal, 10)
+                    .frame(height: 32)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut("q", modifiers: .command)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-        }.padding(.top, -30)
-            .frame(width: 208)
-            .background(VisualEffectBackground(material: .hudWindow))
+            .padding(.vertical, 10)
+        }
+        .padding(.top, -30)
+        .frame(width: 208)
+        .background(VisualEffectBackground(material: .hudWindow))
+    }
+
+    private func sidebarSection(_ title: String, top: CGFloat = 16) -> some View
+    {
+        Text(title.uppercased())
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(0.8)
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 12)
+            .padding(.top, top)
+            .padding(.bottom, 6)
     }
 
     private func pages(in region: SettingsPage.Region) -> [SettingsPage] {
@@ -331,21 +336,19 @@ struct SettingsView: View {
 
     private var detailPage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Color.clear.frame(height: 26)
+            Color.clear.frame(height: 22)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(isSearching ? "Search" : page.title)
-                    .font(.system(size: 24, weight: .bold))
-            }
-            .padding(.horizontal, 22)
-            .padding(.bottom, 16)
+            Text(isSearching ? "Search" : page.title)
+                .font(.system(size: 28, weight: .bold))
+                .padding(.horizontal, 26)
+                .padding(.bottom, 18)
 
             if results.isEmpty {
                 emptyResults
             } else {
                 ScrollView {
                     GlassStack {
-                        LazyVStack(alignment: .leading, spacing: 18) {
+                        LazyVStack(alignment: .leading, spacing: 22) {
                             ForEach(results) { group in
                                 SettingsCard(
                                     group: group,
@@ -355,8 +358,8 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 26)
+                    .padding(.horizontal, 26)
+                    .padding(.bottom, 28)
                 }
                 .scrollIndicators(.automatic)
             }
@@ -566,43 +569,28 @@ struct SettingsView: View {
         [
             SettingsGroup(
                 page: .media,
-                title: "Artists",
+                title: "Player Toolbar",
                 note:
-                    "Spotify only reports the first artist to macOS. Loffty can look up the full list over the network.",
+                    "The row under the progress bar. Right-click it to customise. The heart only works in Music.",
+                accessory: AnyView(
+                    MediaToolbarLiveRow(items: settings.mediaToolbarItems)
+                ),
                 entries: [
                     SettingsEntry(
-                        "artistEnrichment",
-                        title: "Spotify artists",
-                        keywords: ["network", "wifi", "lookup", "featuring"]
-                    ) {
-                        Picker("", selection: $settings.artistEnrichment) {
-                            ForEach(ArtistEnrichmentMode.allCases) { mode in
-                                Text(mode.title).tag(mode)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
-                        .fixedSize()
-                    }
-                ]
-            ),
-            SettingsGroup(
-                page: .media,
-                title: "Like",
-                note:
-                    "The heart favourites the current track in Music.",
-                entries: [
-                    SettingsEntry(
-                        "showSpotifyLikeButton",
-                        title: "Show like button",
+                        "mediaToolbarItems",
+                        title: "Customise toolbar",
+                        detail: "Add, remove and rearrange playback controls.",
                         keywords: [
-                            "apple music", "heart", "favourite", "favorite",
-                            "love",
-                            "library",
+                            "toolbar", "customise", "customize", "buttons",
+                            "heart", "favourite", "favorite", "like", "skip",
+                            "live", "playback", "layout",
                         ]
                     ) {
-                        SettingsToggle(isOn: $settings.showSpotifyLikeButton)
+                        Button("Customise...") {
+                            MediaToolbarEditorOpener.shared.open()
+                        }
+                        .controlSize(.small)
+                        .settingsButton(prominent: true)
                     }
                     //                     SettingsEntry(
                     //                         "spotifyLibraryAccount",
@@ -631,6 +619,29 @@ struct SettingsView: View {
                     //                             .disabled(SpotifyConfig.resolvedClientID.isEmpty)
                     //                         }
                     //                     },
+                ]
+            ),
+            SettingsGroup(
+                page: .media,
+                title: "Artists",
+                note:
+                    "Spotify only reports the first artist to macOS. Loffty can look up the full list over the network.",
+                entries: [
+                    SettingsEntry(
+                        "artistEnrichment",
+                        title: "Spotify artists",
+                        keywords: ["network", "wifi", "lookup", "featuring"]
+                    ) {
+                        Picker("", selection: $settings.artistEnrichment) {
+                            ForEach(ArtistEnrichmentMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    }
                 ]
             ),
             SettingsGroup(
@@ -1216,13 +1227,13 @@ private struct SidebarRow: View {
                 HStack(spacing: 9) {
                     Image(systemName: page.symbol)
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(page.tint)
-                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(isSelected ? Color.primary : page.tint)
+                        .font(.system(size: 13, weight: .semibold))
                         .frame(width: 18)
                     Text(page.title)
                         .font(
                             .system(
-                                size: 12.5,
+                                size: 13,
                                 weight: isSelected ? .semibold : .regular
                             )
                         )
@@ -1239,8 +1250,8 @@ private struct SidebarRow: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
-                .padding(.horizontal, 9)
-                .frame(height: 30)
+                .padding(.horizontal, 10)
+                .frame(height: 32)
             )
             .contentShape(shape)
         }
@@ -1249,7 +1260,7 @@ private struct SidebarRow: View {
     }
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
     }
 
     @ViewBuilder
@@ -1277,14 +1288,25 @@ private struct SettingsCard: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(caption)
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(0.6)
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
 
             VStack(spacing: 0) {
+                if let accessory = group.accessory {
+                    accessory
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 10)
+                    if !group.entries.isEmpty {
+                        Rectangle()
+                            .fill(SettingsChrome.cardStroke(scheme))
+                            .frame(height: 1)
+                            .padding(.leading, 16)
+                    }
+                }
                 ForEach(Array(group.entries.enumerated()), id: \.element.id) {
                     index,
                     entry in
@@ -1292,7 +1314,7 @@ private struct SettingsCard: View {
                         Rectangle()
                             .fill(SettingsChrome.cardStroke(scheme))
                             .frame(height: 1)
-                            .padding(.leading, 14)
+                            .padding(.leading, 16)
                     }
                     SettingsRowView(entry: entry)
                 }
@@ -1301,11 +1323,11 @@ private struct SettingsCard: View {
 
             if showsNote, let note = group.note {
                 Text(note)
-                    .font(.system(size: 10.5))
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
-                    .padding(.top, 1)
+                    .padding(.top, 2)
             }
         }
     }
@@ -1315,11 +1337,11 @@ private struct SettingsCard: View {
             showsPage
             ? "\(group.page.title) · \(group.title)"
             : group.title
-        return text.uppercased()
+        return text
     }
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 11, style: .continuous)
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
     }
 }
 
@@ -1328,12 +1350,12 @@ private struct SettingsRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                 if let detail = entry.detail {
                     Text(detail)
-                        .font(.system(size: 10.5))
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1342,9 +1364,9 @@ private struct SettingsRowView: View {
             entry.control
                 .controlSize(.small)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .frame(minHeight: 42)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .frame(minHeight: 46)
         .opacity(entry.isEnabled ? 1 : 0.4)
         .disabled(!entry.isEnabled)
     }
@@ -1401,14 +1423,14 @@ private struct SearchField: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 28)
+        .padding(.horizontal, 9)
+        .frame(height: 30)
         .settingsSurface(shape, scheme: scheme, interactive: true)
         .onExitCommand { text = "" }
     }
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
     }
 }
 
@@ -1503,8 +1525,8 @@ struct GlassStack<Content: View>: View {
 enum SettingsChrome {
     static func cardFill(_ scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color.white.opacity(0.045)
-            : Color.white.opacity(0.35)
+            ? Color.white.opacity(0.06)
+            : Color.white.opacity(0.42)
     }
 
     static func cardStroke(_ scheme: ColorScheme) -> Color {
@@ -1515,14 +1537,14 @@ enum SettingsChrome {
 
     static func selectionFill(_ scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color.white.opacity(0.09)
-            : Color.white.opacity(0.50)
+            ? Color.white.opacity(0.14)
+            : Color.white.opacity(0.62)
     }
 
     static func hoverFill(_ scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color.white.opacity(0.04)
-            : Color.black.opacity(0.03)
+            ? Color.white.opacity(0.055)
+            : Color.black.opacity(0.04)
     }
 }
 

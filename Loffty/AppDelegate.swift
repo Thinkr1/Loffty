@@ -41,8 +41,10 @@ final class NotchWindow: NSPanel {
 @MainActor
 final class SettingsOpener {
     static let shared = SettingsOpener()
-    static let contentSize = NSSize(width: 700, height: 580)
+    static let contentSize = NSSize(width: 720, height: 600)
     private var window: NSWindow?
+
+    var hostedWindow: NSWindow? { window }
 
     func prewarm() {
         ensureWindow()
@@ -55,7 +57,9 @@ final class SettingsOpener {
     func open() {
         ensureWindow()
         guard let window else { return }
-        window.center()
+        if !window.isVisible {
+            window.center()
+        }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
@@ -82,10 +86,10 @@ final class SettingsOpener {
         let hosting = NSHostingView(rootView: SettingsView())
         hosting.frame = NSRect(origin: .zero, size: Self.contentSize)
         w.contentView = hosting
-        w.contentMinSize = NSSize(width: 700, height: 560)
+        w.contentMinSize = NSSize(width: 720, height: 580)
         w.isReleasedWhenClosed = false
         w.level = .floating
-        w.animationBehavior = .none
+        w.animationBehavior = .documentWindow
         w.isRestorable = false
         w.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window = w
@@ -223,8 +227,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         vm = NotchViewModel()
         let info = detectNotch(on: screen)
         vm.notch = info
-        let bandw: CGFloat = 600
-        let bandh: CGFloat = 300
+        let bandw: CGFloat = 720
+        let bandh: CGFloat = 520
         let rect = NSRect(
             x: info.notchRect.midX - bandw / 2,
             y: screen.frame.maxY - bandh,
@@ -241,6 +245,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         installHoverMonitor(screen: screen, notch: info.notchRect)
         lockWidget = LockScreenWidget(vm: vm, notchWindow: window)
+        MediaToolbarCustomizer.shared.$isCustomizing
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] customizing in
+                guard let self else { return }
+                self.refreshExpandedZone(screen: screen, notch: info.notchRect)
+                if customizing {
+                    self.setHoverExpanded(true)
+                    self.applyWindowInteraction(interactive: true)
+                    self.window.makeKey()
+                    NSApp.activate(ignoringOtherApps: true)
+                } else {
+                    self.applyWindowInteraction()
+                    self.updateHoverState()
+                }
+            }
+            .store(in: &cancellables)
         vm.$isLocked
             .receive(on: RunLoop.main)
             .sink { [weak self] locked in
@@ -450,7 +471,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let shouldInteract =
             interactive
             ?? (hoverExpanded || airDropActive
-                || notes.wantsKeyWindow)
+                || notes.wantsKeyWindow
+                || MediaToolbarCustomizer.shared.isCustomizing)
 
         if vm.isLocked {
             window.ignoresMouseEvents = true
@@ -612,15 +634,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             width: notch.width + pad * 2,
             height: screen.frame.maxY - (notch.minY - pad)
         )
-        let panelW: CGFloat = 392
-        let panelH: CGFloat = 206
-        let margin: CGFloat = 36
-        expandedZone = CGRect(
-            x: notch.midX - panelW / 2 - margin,
-            y: screen.frame.maxY - panelH - margin,
-            width: panelW + margin * 2,
-            height: panelH + margin
-        )
+        refreshExpandedZone(screen: screen, notch: notch)
 
         let mouseHandler: (NSEvent) -> Void = { [weak self] _ in
             Task { @MainActor in
@@ -646,14 +660,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .leftMouseUp, .rightMouseUp,
         ]) { [weak self] _ in
             Task { @MainActor in
-                self?.mouseButtonDown = false
-                self?.updateHoverState()
+                self?.handleMouseUp()
             }
         }
+        NSEvent.addLocalMonitorForEvents(matching: [
+            .leftMouseUp, .rightMouseUp,
+        ]) { [weak self] event in
+            Task { @MainActor in
+                self?.handleMouseUp()
+            }
+            return event
+        }
+    }
+
+    private func handleMouseUp() {
+        mouseButtonDown = false
+        if MediaToolbarCustomizer.shared.isDragging {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(80))
+                MediaToolbarCustomizer.shared.finishIfNeeded()
+            }
+        }
+        updateHoverState()
+    }
+
+    private func refreshExpandedZone(screen: NSScreen, notch: CGRect) {
+        let customizing = MediaToolbarCustomizer.shared.isCustomizing
+        let panelW: CGFloat =
+            customizing ? MediaToolbarCustomizeLayout.width : 392
+        let panelH: CGFloat =
+            customizing
+            ? MediaToolbarCustomizeLayout.expandedHeight(showAlbum: true)
+            : 206
+        let margin: CGFloat = 36
+        expandedZone = CGRect(
+            x: notch.midX - panelW / 2 - margin,
+            y: screen.frame.maxY - panelH - margin,
+            width: panelW + margin * 2,
+            height: panelH + margin
+        )
     }
 
     private func updateHoverState() {
         if AirDropController.shared.phase.isActive { return }
+        if MediaToolbarCustomizer.shared.isCustomizing {
+            if !hoverExpanded { setHoverExpanded(true) }
+            applyWindowInteraction(interactive: true)
+            return
+        }
         if vm.isLocked, !Self.lockScreenExpandAllowed { return }
         if shouldHidePersistentNotch, !NotificationController.shared.isActive {
             if hoverExpanded { setHoverExpanded(false) }
@@ -704,7 +758,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setHoverExpanded(_ expanded: Bool) {
         guard hoverExpanded != expanded else { return }
         if expanded, vm.isLocked, !Self.lockScreenExpandAllowed { return }
-        if expanded, shouldHidePersistentNotch { return }
+        if expanded, shouldHidePersistentNotch,
+            !MediaToolbarCustomizer.shared.isCustomizing
+        {
+            return
+        }
         hoverExpanded = expanded
 
         if vm.isLocked {

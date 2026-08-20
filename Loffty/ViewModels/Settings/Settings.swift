@@ -331,6 +331,7 @@ final class AppSettings: ObservableObject {
     private static let automaticUpdatesKey = "automaticUpdates"
     private static let showAirPlayButtonKey = "showAirPlayButton"
     private static let showSpotifyLikeButtonKey = "showSpotifyLikeButton"
+    private static let mediaToolbarItemsKey = "mediaToolbarItems"
     private static let spotifyLibraryTokenExpirationKey =
         "spotifyLibraryTokenExpiration"
     private static let hasCompletedOnboardingKey = "hasCompletedOnboarding"
@@ -627,6 +628,20 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var mediaToolbarItems: [MediaToolbarItem] {
+        didSet {
+            let items = MediaToolbarItem.sanitize(mediaToolbarItems)
+            if items != mediaToolbarItems {
+                mediaToolbarItems = items
+                return
+            }
+            UserDefaults.standard.set(
+                items.map(\.rawValue),
+                forKey: Self.mediaToolbarItemsKey
+            )
+        }
+    }
+
     @Published var spotifyLibraryTokenExpiration: TimeInterval {
         didSet {
             UserDefaults.standard.set(
@@ -851,6 +866,19 @@ final class AppSettings: ObservableObject {
         showSpotifyLikeButton =
             UserDefaults.standard.object(forKey: Self.showSpotifyLikeButtonKey)
             as? Bool ?? true
+        if let stored = MediaToolbarItem.decode(
+            UserDefaults.standard.stringArray(forKey: Self.mediaToolbarItemsKey)
+        ) {
+            mediaToolbarItems = stored
+        } else {
+            let includeLike =
+                UserDefaults.standard.object(
+                    forKey: Self.showSpotifyLikeButtonKey
+                ) as? Bool ?? true
+            mediaToolbarItems = MediaToolbarItem.defaultLayout(
+                includeLike: includeLike
+            )
+        }
         spotifyLibraryTokenExpiration =
             UserDefaults.standard.object(
                 forKey: Self.spotifyLibraryTokenExpirationKey
