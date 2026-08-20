@@ -71,8 +71,6 @@ Some things I'm currently working on:
   - Show profile picture in push notifications
   - Dual Discord/server image badges for notifications
   - Improve lock screen widget (+show music video option)
-  - Show website for browser source
-  - Full browser video thumb
   - 1:1 marquee speed
   - Screensaver music video
   - Auto-expand on track change?
