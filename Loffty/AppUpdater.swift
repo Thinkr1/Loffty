@@ -400,7 +400,7 @@ final class AppUpdater: ObservableObject {
         alert.informativeText = """
             You have \(currentVersion). Download, verify, and replace this app?
 
-            Because Loffty is not notarized, macOS may ask you to allow the new build once after relaunch (Open Anyway / clear quarantine).
+            Because Loffty is not notarised, macOS may ask you to allow the new build once after relaunch (Open Anyway / clear quarantine).
             """
         alert.addButton(withTitle: "Install & Relaunch")
         alert.addButton(withTitle: "Later")

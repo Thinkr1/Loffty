@@ -591,13 +591,14 @@ struct SettingsView: View {
                 page: .media,
                 title: "Like",
                 note:
-                    "The heart favorites the current track in Music.",
+                    "The heart favourites the current track in Music.",
                 entries: [
                     SettingsEntry(
                         "showSpotifyLikeButton",
                         title: "Show like button",
                         keywords: [
-                            "apple music", "heart", "favorite", "love",
+                            "apple music", "heart", "favourite", "favorite",
+                            "love",
                             "library",
                         ]
                     ) {
@@ -1136,7 +1137,7 @@ struct SettingsView: View {
                 page: .updates,
                 title: "Updates",
                 note:
-                    "Updates come from GitHub Releases and are verified with SHA-256 and Ed25519. Because Loffty is not notarized, macOS may ask you to allow a new build once after an update.",
+                    "Updates come from GitHub Releases and are verified with SHA-256 and Ed25519. Because Loffty is not notarised, macOS may ask you to allow a new build once after an update.",
                 entries: [
                     SettingsEntry(
                         "automaticUpdates",

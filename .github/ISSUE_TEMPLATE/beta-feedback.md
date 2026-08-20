@@ -18,7 +18,7 @@ What do you like? What feels good? What feels unfinished or frustrating?
 
 ## What do you like most?
 
-What is your favorite part of Loffty?
+What is your favourite part of Loffty?
 
 ## What could be improved?
 

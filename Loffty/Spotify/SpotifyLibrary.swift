@@ -72,7 +72,7 @@ enum SpotifyLibraryError: Error, Equatable {
         case .canceled:
             ""
         case .missingAuthorizationCode:
-            "Spotify did not return an authorization code."
+            "Spotify did not return an authorisation code."
         case .authSessionFailed(let detail):
             detail
         case .tokenExchangeFailed(let detail):
@@ -316,7 +316,7 @@ final class SpotifyOAuthService: SpotifyTokenProviding {
         ]
         guard let url = components.url else {
             throw SpotifyLibraryError.authSessionFailed(
-                "Could not build the Spotify authorization URL."
+                "Could not build the Spotify authorisation URL."
             )
         }
         let callbackURL = try await authSession.authenticate(

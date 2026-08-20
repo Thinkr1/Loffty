@@ -12,14 +12,14 @@ A clear and concise description of what went wrong.
 
 ## To reproduce
 
-Steps to reproduce the behavior:
+Steps to reproduce the behaviour:
 
 1. Open Loffty
 2. ...
 3. ...
 4. See error
 
-## Expected behavior
+## Expected behaviour
 
 What did you expect to happen?
 

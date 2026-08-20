@@ -27,7 +27,7 @@ Download the latest `.zip` or `.dmg` from the [latest release](../../releases/la
 
 ### First launch
 
-Loffty is currently not notarized because it is being developed without a paid Apple Developer account.
+Loffty is currently not notarised because it is being developed without a paid Apple Developer account.
 
 As a result, macOS may prevent the app from opening the first time.
 
@@ -87,7 +87,7 @@ Contributions are welcome. Feel free to [open an issue](../../issues) with a bug
 
 ## License
 
-Loffty is released under the [BSD-3-Clause license](LICENSE).
+Loffty is released under the [BSD-3-Clause licence](LICENSE).
 
 ## Acknowledgements
 
@@ -95,4 +95,4 @@ Special thanks to Alcove for the original inspiration.
 
 Loffty also includes [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) by Jonas van den Berg (ungive), bundled under `Loffty/Dependencies/MediaRemoteAdapter/`.
 
-It is distributed under the BSD-3-Clause license. See its `LICENSE` and `NOTICE` files for details.
+It is distributed under the BSD-3-Clause licence. See its `LICENSE` and `NOTICE` files for details.

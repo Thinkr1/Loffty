@@ -563,7 +563,7 @@ struct OnboardingView: View {
             Text("You’re all set!")
                 .font(.system(size: 24, weight: .bold))
             Text(
-                "Loffty stays in the menu bar. Open settings anytime from the notch or the status item."
+                "Loffty stays in the menu bar. Open settings at any time from the notch or the status item."
             )
             .font(.system(size: 13))
             .foregroundStyle(.secondary)

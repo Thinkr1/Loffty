@@ -28,7 +28,7 @@ struct SpotifyTrackIDTests {
     }
 }
 
-@Suite("Apple Music favorite")
+@Suite("Apple Music favourite")
 struct AppleMusicFavoriteTests {
     @Test func parseFavoriteStateReadsTabSeparatedBoolean() {
         #expect(
