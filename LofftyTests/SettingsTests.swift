@@ -8,7 +8,7 @@ import Testing
 
 @testable import Loffty
 
-@Suite("Settings")
+@Suite("Settings", .serialized)
 struct SettingsTests {
     @Test func anyHUDEnabledOrLogic() {
         #expect(
@@ -244,8 +244,19 @@ struct SettingsTests {
     @Test @MainActor func hideNotchFullScreenAppsPersistAndDedupe() {
         let settings = AppSettings.shared
         let original = settings.hideNotchFullScreenApps
-        defer { settings.hideNotchFullScreenApps = original }
+        let originalHide = settings.hideNotchInFullScreen
+        let originalStyle = settings.notchEdgeStyle
+        let originalOutline = settings.notchOutlineWhenNotFullScreen
+        defer {
+            settings.hideNotchFullScreenApps = original
+            settings.hideNotchInFullScreen = originalHide
+            settings.notchEdgeStyle = originalStyle
+            settings.notchOutlineWhenNotFullScreen = originalOutline
+        }
 
+        settings.hideNotchInFullScreen = false
+        settings.notchEdgeStyle = .off
+        settings.notchOutlineWhenNotFullScreen = true
         settings.hideNotchFullScreenApps = []
         settings.addHideNotchFullScreenApp("org.videolan.vlc")
         settings.addHideNotchFullScreenApp(" org.videolan.vlc ")
@@ -291,6 +302,23 @@ struct SettingsTests {
         settings.notchEdgeStyle = .off
         #expect(UserDefaults.standard.string(forKey: "notchEdgeStyle") == "off")
         #expect(settings.notchEdgeStyle == .off)
+    }
+
+    @Test @MainActor func showSpotifyLikeButtonPersists() {
+        let settings = AppSettings.shared
+        let original = settings.showSpotifyLikeButton
+        defer { settings.showSpotifyLikeButton = original }
+
+        settings.showSpotifyLikeButton = false
+        #expect(
+            UserDefaults.standard.object(forKey: "showSpotifyLikeButton")
+                as? Bool == false
+        )
+        #expect(!settings.showSpotifyLikeButton)
+
+        settings.showSpotifyLikeButton = true
+        #expect(UserDefaults.standard.bool(forKey: "showSpotifyLikeButton"))
+        #expect(settings.showSpotifyLikeButton)
     }
 
     @Test @MainActor func notchOutlineWhenNotFullScreenPersists() {

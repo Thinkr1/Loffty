@@ -158,6 +158,7 @@ struct SettingsGroup: Identifiable {
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var updater = AppUpdater.shared
+    // @ObservedObject private var spotifyLibrary = SpotifyLibraryManager.shared
 
     @AppStorage("settings.selectedPage") private var storedPage =
         SettingsPage.general.rawValue
@@ -545,6 +546,22 @@ struct SettingsView: View {
         }
     }
 
+    //     private var spotifyAccountDetail: String {
+    //         if let error = spotifyLibrary.error, error != .canceled {
+    //             return error.settingsMessage
+    //         }
+    //         if spotifyLibrary.isAuthorizing {
+    //             return "Waiting for Spotify to finish signing in."
+    //         }
+    //         if spotifyLibrary.isAuthenticated {
+    //             return "Signed in. The like button can save to Liked Songs."
+    //         }
+    //         if SpotifyConfig.resolvedClientID.isEmpty {
+    //             return SpotifyLibraryError.missingClientID.settingsMessage
+    //         }
+    //         return "Sign in with Spotify to save tracks from the notch."
+    //     }
+
     private var mediaGroups: [SettingsGroup] {
         [
             SettingsGroup(
@@ -568,6 +585,51 @@ struct SettingsView: View {
                         .controlSize(.small)
                         .fixedSize()
                     }
+                ]
+            ),
+            SettingsGroup(
+                page: .media,
+                title: "Like",
+                note:
+                    "The heart favorites the current track in Music.",
+                entries: [
+                    SettingsEntry(
+                        "showSpotifyLikeButton",
+                        title: "Show like button",
+                        keywords: [
+                            "apple music", "heart", "favorite", "love",
+                            "library",
+                        ]
+                    ) {
+                        SettingsToggle(isOn: $settings.showSpotifyLikeButton)
+                    }
+                    //                     SettingsEntry(
+                    //                         "spotifyLibraryAccount",
+                    //                         title: "Spotify",
+                    //                         detail: spotifyAccountDetail,
+                    //                         keywords: [
+                    //                             "spotify", "connect", "login", "sign in", "oauth",
+                    //                             "like",
+                    //                         ]
+                    //                     ) {
+                    //                         if spotifyLibrary.isAuthorizing {
+                    //                             ProgressView()
+                    //                                 .controlSize(.small)
+                    //                         } else if spotifyLibrary.isAuthenticated {
+                    //                             Button("Sign Out") {
+                    //                                 spotifyLibrary.disconnect()
+                    //                             }
+                    //                             .controlSize(.small)
+                    //                             .settingsButton()
+                    //                         } else {
+                    //                             Button("Sign In") {
+                    //                                 spotifyLibrary.connect()
+                    //                             }
+                    //                             .controlSize(.small)
+                    //                             .settingsButton(prominent: true)
+                    //                             .disabled(SpotifyConfig.resolvedClientID.isEmpty)
+                    //                         }
+                    //                     },
                 ]
             ),
             SettingsGroup(

@@ -141,6 +141,7 @@ final class NotchViewModel: ObservableObject {
     @Published var hudDisplay: HUDKind? = nil
     @Published var hudLevel: Float = 0
     @Published var hudMuted: Bool = false
+    @Published private(set) var isCurrentTrackLiked: Bool?
     private var hudHideTask: Task<Void, Never>?
     static let hudSpring = Animation.spring(
         response: 0.35,
@@ -174,6 +175,9 @@ final class NotchViewModel: ObservableObject {
     private var lastTrackChangeAt = Date.distantPast
     @Published private(set) var isRapidSkipping = false
     private let media = MediaController()
+    private var likeRefreshTask: Task<Void, Never>?
+    private var likeToggleTask: Task<Void, Never>?
+    private var likedTrackID: String?
 
     var isIdle: Bool {
         nowPlaying.title.isEmpty && nowPlaying.artwork == nil
@@ -201,6 +205,19 @@ final class NotchViewModel: ObservableObject {
                 self?.media.refreshArtistEnrichment()
             }
             .store(in: &cancellables)
+
+        AppSettings.shared.$showSpotifyLikeButton
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshLikeState()
+            }
+            .store(in: &cancellables)
+        //         SpotifyLibraryManager.shared.$isAuthenticated
+        //             .receive(on: RunLoop.main)
+        //             .sink { [weak self] _ in
+        //                 self?.refreshLikeState()
+        //             }
+        //             .store(in: &cancellables)
 
         keyInterceptor.setEnabled(AppSettings.shared.replaceSystemHUD)
         AppSettings.shared.$replaceSystemHUD
@@ -434,6 +451,7 @@ final class NotchViewModel: ObservableObject {
             && np.isLive == nowPlaying.isLive
             && np.isVideo == nowPlaying.isVideo
             && np.websiteHost == nowPlaying.websiteHost
+            && np.contentItemIdentifier == nowPlaying.contentItemIdentifier
             && abs(np.artworkAspectRatio - nowPlaying.artworkAspectRatio)
                 < 0.01
             && np.duration == nowPlaying.duration
@@ -487,6 +505,8 @@ final class NotchViewModel: ObservableObject {
             (incoming.artwork == nil) != (nowPlaying.artwork == nil)
             || incoming.artwork?.count != nowPlaying.artwork?.count
         let wasIdle = isIdle
+        let previousBundle = nowPlaying.resolvedBundleIdentifier
+        let previousContentID = nowPlaying.contentItemIdentifier
         nowPlaying = incoming
         let nowIdle = isIdle
         if nowIdle, !wasIdle {
@@ -496,6 +516,12 @@ final class NotchViewModel: ObservableObject {
             }
         }
         syncSoundwaves()
+        if trackChanged || nowIdle != wasIdle
+            || incoming.resolvedBundleIdentifier != previousBundle
+            || incoming.contentItemIdentifier != previousContentID
+        {
+            refreshLikeState()
+        }
         if trackChanged {
             let now = Date()
             isRapidSkipping = now.timeIntervalSince(lastTrackChangeAt) < 0.25
@@ -650,6 +676,121 @@ final class NotchViewModel: ObservableObject {
     func seekToLive() {
         guard nowPlaying.isLive, nowPlaying.duration > 0 else { return }
         seek(to: nowPlaying.duration)
+    }
+
+    var showsLikeButton: Bool {
+        Self.showsLikeButton(
+            enabled: AppSettings.shared.showSpotifyLikeButton,
+            bundleID: nowPlaying.resolvedBundleIdentifier,
+            idle: isIdle
+        )
+    }
+
+    nonisolated static func likeSource(bundleID: String) -> LikeSource? {
+        switch bundleID {
+        // case SpotifyTrack.clientBundle: .spotify
+        case AppleMusicTrack.clientBundle: .appleMusic
+        default: nil
+        }
+    }
+
+    nonisolated static func showsLikeButton(
+        enabled: Bool,
+        bundleID: String,
+        idle: Bool
+    ) -> Bool {
+        enabled && !idle && likeSource(bundleID: bundleID) != nil
+    }
+
+    func toggleLike() {
+        guard let liked = isCurrentTrackLiked, let id = likedTrackID,
+            let source = Self.likeSource(
+                bundleID: nowPlaying.resolvedBundleIdentifier
+            )
+        else { return }
+        let next = !liked
+        isCurrentTrackLiked = next
+        likeToggleTask?.cancel()
+        likeToggleTask = Task { [weak self] in
+            guard let self else { return }
+            let ok: Bool
+            switch source {
+            //             case .spotify:
+            //                 ok = await SpotifyLibraryManager.shared.setTrackSaved(
+            //                     next,
+            //                     trackID: id
+            //                 )
+            case .appleMusic:
+                ok = await AppleMusicLibrary.setCurrentTrackFavorited(
+                    next,
+                    trackID: id
+                )
+            }
+            guard !Task.isCancelled else { return }
+            if !ok, self.likedTrackID == id {
+                self.isCurrentTrackLiked = liked
+            }
+        }
+    }
+
+    private func refreshLikeState() {
+        likeRefreshTask?.cancel()
+        likeToggleTask?.cancel()
+        likedTrackID = nil
+        isCurrentTrackLiked = nil
+        guard showsLikeButton,
+            let source = Self.likeSource(
+                bundleID: nowPlaying.resolvedBundleIdentifier
+            )
+        else { return }
+        let trackKey = nowPlaying.trackKey
+        //         let contentID = nowPlaying.contentItemIdentifier
+        likeRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            switch source {
+            //             case .spotify:
+            //                 await self.refreshSpotifyLikeState(
+            //                     trackKey: trackKey,
+            //                     contentID: contentID
+            //                 )
+            case .appleMusic:
+                await self.refreshAppleMusicLikeState(trackKey: trackKey)
+            }
+        }
+    }
+
+    //     private func refreshSpotifyLikeState(trackKey: String, contentID: String)
+    //         async
+    //     {
+    //         guard SpotifyLibraryManager.shared.isAuthenticated else { return }
+    //         let id: String?
+    //         if let parsed = SpotifyTrack.id(from: contentID) {
+    //             id = parsed
+    //         } else {
+    //             id = await SpotifyMetadata.currentTrackID()
+    //         }
+    //         guard !Task.isCancelled, nowPlaying.trackKey == trackKey else {
+    //             return
+    //         }
+    //         guard let id else { return }
+    //         likedTrackID = id
+    //         let saved = await SpotifyLibraryManager.shared.isTrackSaved(
+    //             trackID: id
+    //         )
+    //         guard !Task.isCancelled, nowPlaying.trackKey == trackKey else {
+    //             return
+    //         }
+    //         isCurrentTrackLiked = saved
+    //     }
+
+    private func refreshAppleMusicLikeState(trackKey: String) async {
+        let state = await AppleMusicLibrary.currentFavoriteState()
+        guard !Task.isCancelled, nowPlaying.trackKey == trackKey else {
+            return
+        }
+        guard let state else { return }
+        likedTrackID = state.trackID
+        isCurrentTrackLiked = state.favorited
     }
 
     func isBehindLive(at date: Date = Date()) -> Bool {

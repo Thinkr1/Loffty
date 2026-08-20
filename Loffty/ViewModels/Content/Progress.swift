@@ -306,6 +306,9 @@ struct MediaTransportControls: View {
 
     private func transportControls(behindLive: Bool) -> some View {
         HStack(spacing: 0) {
+            if vm.showsLikeButton {
+                LikeTrackButton()
+            }
             ControlButton(
                 systemName: "gobackward.10",
                 size: 18,
@@ -341,5 +344,23 @@ struct MediaTransportControls: View {
         }
         .frame(maxWidth: .infinity)
         .animation(.smooth(duration: 0.2), value: behindLive)
+        .animation(.smooth(duration: 0.2), value: vm.showsLikeButton)
+    }
+}
+
+struct LikeTrackButton: View {
+    @EnvironmentObject var vm: NotchViewModel
+
+    var body: some View {
+        ControlButton(
+            systemName: vm.isCurrentTrackLiked == true
+                ? "heart.fill" : "heart",
+            size: 18,
+            tint: vm.isCurrentTrackLiked == true
+                ? vm.accentColor : .white.opacity(0.5),
+            enabled: vm.isCurrentTrackLiked != nil
+        ) {
+            vm.toggleLike()
+        }
     }
 }

@@ -7,10 +7,25 @@
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Loffty intercepts volume and brightness keys to replace system HUD for these settings, and reads notification banners for the notch</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Loffty controls Messages to send replies from the notch, and controls your browser to identify the website of the video now playing so it can show that site’s icon</string>
+	<string>Loffty controls Messages to send replies from the notch, favorites the current track in Music, and controls your browser to identify the website of the video now playing so it can show that site’s icon</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_airdrop._tcp</string>
 	</array>
+	<!--
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.plmls-team.Loffty.spotify-oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>loffty-spotify</string>
+			</array>
+		</dict>
+	</array>
+	-->
 </dict>
 </plist>

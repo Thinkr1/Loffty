@@ -9,12 +9,12 @@ import ApplicationServices
 import CoreGraphics
 import SwiftUI
 
-private struct ProcessOutput {
+struct ProcessOutput {
     let status: Int32
     let data: Data
 }
 
-private nonisolated func runProcessCollectingOutput(
+nonisolated func runProcessCollectingOutput(
     executable: URL,
     arguments: [String]
 ) async -> ProcessOutput? {
@@ -594,7 +594,7 @@ enum MediaParsing {
     }
 }
 
-private enum SpotifyMetadata {
+enum SpotifyMetadata {
     static nonisolated func currentTrackID() async -> String? {
         guard
             let result = await runProcessCollectingOutput(
@@ -608,10 +608,9 @@ private enum SpotifyMetadata {
         else { return nil }
         guard
             let raw = String(data: result.data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-            raw.hasPrefix("spotify:track:")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         else { return nil }
-        return String(raw.dropFirst("spotify:track:".count))
+        return SpotifyTrack.id(from: raw)
     }
 
     static func fetchArtists(trackID: String) async -> String? {
@@ -875,6 +874,7 @@ struct NowPlaying: Equatable {
     var isVideo: Bool = false
     var websiteHost: String = ""
     var artworkAspectRatio: CGFloat = 1
+    var contentItemIdentifier: String = ""
 
     var resolvedBundleIdentifier: String {
         if bundleIdentifier == "com.apple.WebKit.WebContent",
@@ -1198,6 +1198,14 @@ final class NowPlayingStream {
             current.parentApplicationBundleIdentifier = ""
         } else if !isDiff || trackChanged {
             current.parentApplicationBundleIdentifier = ""
+        }
+
+        if let item = info["contentItemIdentifier"] as? String, !item.isEmpty {
+            current.contentItemIdentifier = item
+        } else if info["contentItemIdentifier"] is NSNull {
+            current.contentItemIdentifier = ""
+        } else if !isDiff || trackChanged {
+            current.contentItemIdentifier = ""
         }
 
         if isDiff {

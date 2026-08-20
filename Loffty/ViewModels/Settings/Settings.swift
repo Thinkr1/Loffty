@@ -330,6 +330,9 @@ final class AppSettings: ObservableObject {
     private static let showAlbumKey = "showAlbum"
     private static let automaticUpdatesKey = "automaticUpdates"
     private static let showAirPlayButtonKey = "showAirPlayButton"
+    private static let showSpotifyLikeButtonKey = "showSpotifyLikeButton"
+    private static let spotifyLibraryTokenExpirationKey =
+        "spotifyLibraryTokenExpiration"
     private static let hasCompletedOnboardingKey = "hasCompletedOnboarding"
     private static let hideNotchInFullScreenKey = "hideNotchInFullScreen"
     private static let hideNotchFullScreenAppsKey = "hideNotchFullScreenApps"
@@ -615,6 +618,24 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var showSpotifyLikeButton: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                showSpotifyLikeButton,
+                forKey: Self.showSpotifyLikeButtonKey
+            )
+        }
+    }
+
+    @Published var spotifyLibraryTokenExpiration: TimeInterval {
+        didSet {
+            UserDefaults.standard.set(
+                spotifyLibraryTokenExpiration,
+                forKey: Self.spotifyLibraryTokenExpirationKey
+            )
+        }
+    }
+
     @Published var hasCompletedOnboarding: Bool {
         didSet {
             UserDefaults.standard.set(
@@ -827,6 +848,13 @@ final class AppSettings: ObservableObject {
         showAirPlayButton =
             UserDefaults.standard.object(forKey: Self.showAirPlayButtonKey)
             as? Bool ?? true
+        showSpotifyLikeButton =
+            UserDefaults.standard.object(forKey: Self.showSpotifyLikeButtonKey)
+            as? Bool ?? true
+        spotifyLibraryTokenExpiration =
+            UserDefaults.standard.object(
+                forKey: Self.spotifyLibraryTokenExpirationKey
+            ) as? Double ?? 0
         hasCompletedOnboarding = UserDefaults.standard.bool(
             forKey: Self.hasCompletedOnboardingKey
         )
