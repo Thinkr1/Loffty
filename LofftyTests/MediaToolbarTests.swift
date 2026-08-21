@@ -4,6 +4,7 @@
 //
 
 import CoreGraphics
+import Foundation
 import Testing
 
 @testable import Loffty
@@ -12,10 +13,12 @@ import Testing
 struct MediaToolbarTests {
     @Test func defaultLayoutCentresPlaybackControls() {
         let items = MediaToolbarItem.defaultLayout()
-        #expect(items == [
-            .like, .skipBack, .space, .previous, .playPause, .next, .space,
-            .skipForward,
-        ])
+        #expect(
+            items == [
+                .like, .skipBack, .space, .previous, .playPause, .next, .space,
+                .skipForward,
+            ]
+        )
         #expect(
             MediaToolbarItem.defaultLayout(includeLike: false) == [
                 .skipBack, .space, .previous, .playPause, .next, .space,
@@ -102,7 +105,7 @@ struct MediaToolbarTests {
         )
     }
 
-    @Test func sanitizeSlotsKeepsSpaceIdentities() {
+    @Test @MainActor func sanitizeSlotsKeepsSpaceIdentities() {
         let space = MediaToolbarSlot(item: .space)
         let play = MediaToolbarSlot(item: .playPause)
         let next = MediaToolbarSlot(item: .next)
