@@ -144,46 +144,9 @@ struct NotificationNotchContent: View {
                 .buttonStyle(NotchControlButtonStyle())
                 .help("Close")
             }
-            HStack(spacing: 6) {
-                TextField(
-                    "",
-                    text: $notifications.draft,
-                    prompt: Text("Reply")
-                        .foregroundStyle(.white.opacity(0.28)),
-                    axis: .vertical
-                )
-                .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(.white.opacity(0.78))
-                .lineLimit(1...NotificationLayout.compactMessageLines)
-                .focused($replyFocused)
-                .focusEffectDisabled()
-                .onSubmit(notifications.sendReply)
-
-                Button(action: notifications.sendReply) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(
-                            canSend
-                                ? .white.opacity(0.95) : .white.opacity(0.32)
-                        )
-                        .frame(width: 26, height: 26)
-                        .background(
-                            Circle().fill(
-                                canSend
-                                    ? Color(red: 0.20, green: 0.48, blue: 0.96)
-                                    : Color.white.opacity(0.10)
-                            )
-                        )
-                }
-                .buttonStyle(NotchControlButtonStyle())
-                .disabled(!canSend)
-                .help("Send")
+            if canReply {
+                composer
             }
-            .padding(.leading, 14)
-            .padding(.trailing, 4)
-            .padding(.vertical, 5)
-            .notificationGlass(composerShape, interactive: true)
         }
         .padding(
             .horizontal,
@@ -199,8 +162,51 @@ struct NotificationNotchContent: View {
             replyFocused = replying
         }
         .onChange(of: replyFocused) { _, focused in
-            if focused { notifications.beginReply() }
+            if focused, canReply { notifications.beginReply() }
         }
+    }
+
+    private var composer: some View {
+        HStack(spacing: 6) {
+            TextField(
+                "",
+                text: $notifications.draft,
+                prompt: Text(replyPrompt)
+                    .foregroundStyle(.white.opacity(0.28)),
+                axis: .vertical
+            )
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(.white.opacity(0.78))
+            .lineLimit(1...NotificationLayout.compactMessageLines)
+            .focused($replyFocused)
+            .focusEffectDisabled()
+            .onSubmit(notifications.sendReply)
+
+            Button(action: notifications.sendReply) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(
+                        canSend
+                            ? .white.opacity(0.95) : .white.opacity(0.32)
+                    )
+                    .frame(width: 26, height: 26)
+                    .background(
+                        Circle().fill(
+                            canSend
+                                ? Color(red: 0.20, green: 0.48, blue: 0.96)
+                                : Color.white.opacity(0.10)
+                        )
+                    )
+            }
+            .buttonStyle(NotchControlButtonStyle())
+            .disabled(!canSend)
+            .help(replyActionHelp)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 4)
+        .padding(.vertical, 5)
+        .notificationGlass(composerShape, interactive: true)
     }
 
     private var compactReplyButton: some View {
@@ -220,7 +226,21 @@ struct NotificationNotchContent: View {
     }
 
     private var showsCompactReply: Bool {
-        !notifications.isExpanded
+        canReply && !notifications.isExpanded
+    }
+
+    private var canReply: Bool {
+        notifications.current?.app.supportsReply ?? false
+    }
+
+    private var replyPrompt: String {
+        notifications.current?.app == .whatsApp
+            ? "Message (opens WhatsApp)" : "Reply"
+    }
+
+    private var replyActionHelp: String {
+        notifications.current?.app == .whatsApp
+            ? "Open WhatsApp with prefilled message" : "Send"
     }
 
     private var replyCenter: CGPoint {

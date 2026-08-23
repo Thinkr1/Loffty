@@ -36,10 +36,10 @@ struct NotificationTests {
         #expect(NotificationBannerParser.app(fromName: "Mail") == nil)
     }
 
-    @Test func messagesAndWhatsAppSupportReply() {
+    @Test func messagingAppsSupportReply() {
         #expect(NotificationApp.messages.supportsReply)
         #expect(NotificationApp.whatsApp.supportsReply)
-        #expect(!NotificationApp.discord.supportsReply)
+        #expect(NotificationApp.discord.supportsReply)
     }
 
     @Test func parseUsesTitleAndBody() {
@@ -93,6 +93,7 @@ struct NotificationTests {
         #expect(note?.app == .discord)
         #expect(note?.sender == "John Doe")
         #expect(note?.body == "helloooooo")
+        #expect(note?.chatName == "#general")
     }
 
     @Test func notificationCenterBannerWithoutHintsIsIgnored() {
@@ -340,6 +341,74 @@ struct NotificationTests {
         )
     }
 
+    @Test func whatsAppURLOnlyPrefillsAChat() {
+        let url = NotificationReplyLogic.whatsAppURL(
+            phone: "+14155550100",
+            text: "Reply"
+        )
+        let items = URLComponents(url: url!, resolvingAgainstBaseURL: false)?
+            .queryItems ?? []
+        #expect(items.map(\.name) == ["phone", "text"])
+        #expect(!items.contains { $0.name == "context" || $0.name == "messageId" })
+    }
+
+    @Test func discordSearchTermPrefersChannelName() {
+        let note = NotchNotification(
+            id: "1",
+            app: .discord,
+            sender: "John Doe",
+            body: "hello",
+            deliveredAt: Date(),
+            avatar: nil,
+            handles: [],
+            chatName: "#general"
+        )
+        #expect(NotificationReplyLogic.discordSearchTerm(for: note) == "#general")
+        #expect(
+            NotificationReplyLogic.discordSearchTerm(
+                for: NotchNotification(
+                    id: "2",
+                    app: .discord,
+                    sender: "John Doe",
+                    body: "hello",
+                    deliveredAt: Date(),
+                    avatar: nil,
+                    handles: []
+                )
+            ) == "John Doe"
+        )
+        #expect(
+            NotificationReplyLogic.discordSearchTerm(
+                for: NotchNotification(
+                    id: "3",
+                    app: .discord,
+                    sender: "Discord",
+                    body: "John Doe: hello",
+                    deliveredAt: Date(),
+                    avatar: nil,
+                    handles: []
+                )
+            ) == nil
+        )
+    }
+
+    @Test func discordSendScriptUsesQuickSwitcherAndPaste() {
+        let script = NotificationReplyLogic.discordSendScript(
+            searchTerm: "#general",
+            message: "Yeah sure"
+        )
+        #expect(script.contains("tell application \"Discord\" to activate"))
+        #expect(script.contains("keystroke \"k\" using command down"))
+        #expect(script.contains("set the clipboard to \"#general\""))
+        #expect(script.contains("set the clipboard to \"Yeah sure\""))
+        #expect(script.contains("keystroke return"))
+        let direct = NotificationReplyLogic.discordSendScript(
+            searchTerm: nil,
+            message: "Yeah sure"
+        )
+        #expect(!direct.contains("keystroke \"k\" using command down"))
+    }
+
     @Test func contactSearchTermsStripWhatsAppAndGroupNoise() {
         #expect(
             NotificationContacts.searchTerms(from: "Jane Smith")
@@ -366,6 +435,39 @@ struct NotificationTests {
         )
         #expect(NotificationContacts.phoneQuery(from: "Jane Smith") == nil)
         #expect(NotificationContacts.phoneQuery(from: "123") == nil)
+    }
+
+    @Test func whatsAppContactAccessIsOnlyNeededForNameResolution() {
+        let named = NotchNotification(
+            id: "named",
+            app: .whatsApp,
+            sender: "Jane Smith",
+            body: "hello",
+            deliveredAt: Date(),
+            avatar: nil,
+            handles: []
+        )
+        let phone = NotchNotification(
+            id: "phone",
+            app: .whatsApp,
+            sender: "+1 (415) 555-0100",
+            body: "hello",
+            deliveredAt: Date(),
+            avatar: nil,
+            handles: []
+        )
+        let known = NotchNotification(
+            id: "known",
+            app: .whatsApp,
+            sender: "Jane Smith",
+            body: "hello",
+            deliveredAt: Date(),
+            avatar: nil,
+            handles: ["+14155550100"]
+        )
+        #expect(NotificationContacts.needsContactAccess(for: named))
+        #expect(!NotificationContacts.needsContactAccess(for: phone))
+        #expect(!NotificationContacts.needsContactAccess(for: known))
     }
 
     @Test func messagesChatLookupPrefersTheReceivingThread() {

@@ -58,6 +58,10 @@ Loffty is currently in its early stages of development. If you have a notched Ma
 
 Found a bug, have a suggestion, or want to see something added? [Open an issue](../../issues) or join the [Discussions](../../discussions).
 
+## Notification replies
+
+Messages and Discord can be sent from the notification composer. WhatsApp's public macOS URL scheme can open the recipient's conversation and prefill a message, but it cannot quote or target the original notification message; you must review and send it in WhatsApp.
+
 ## Roadmap
 
 Some things I'm currently working on:

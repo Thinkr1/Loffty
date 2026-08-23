@@ -7,6 +7,7 @@
 
 import AppKit
 import Combine
+import Contacts
 import SwiftUI
 
 enum NotificationApp: String, CaseIterable, Sendable {
@@ -66,8 +67,7 @@ enum NotificationApp: String, CaseIterable, Sendable {
 
     var supportsReply: Bool {
         switch self {
-        case .messages, .whatsApp: true
-        case .discord: false
+        case .messages, .whatsApp, .discord: true
         }
     }
 }
@@ -574,6 +574,12 @@ enum NotificationBannerParser: Sendable {
         let resolvedMessage = message.isEmpty ? sender : message
         guard !sender.isEmpty, !resolvedMessage.isEmpty else { return nil }
 
+        var chatName: String?
+        if app == .discord {
+            let channel = clean(subtitle)
+            if !channel.isEmpty { chatName = channel }
+        }
+
         return NotchNotification(
             id: id ?? UUID().uuidString,
             app: app,
@@ -581,7 +587,8 @@ enum NotificationBannerParser: Sendable {
             body: resolvedMessage,
             deliveredAt: deliveredAt,
             avatar: nil,
-            handles: []
+            handles: [],
+            chatName: chatName
         )
     }
 
@@ -627,6 +634,9 @@ enum NotificationBannerParser: Sendable {
         else { return nil }
         if note.app == .messages {
             note.chatID = MessagesChatLookup.chatID(fromPlist: plist)
+        } else if note.app == .discord, note.chatName == nil {
+            let channel = clean(subtitle)
+            if !channel.isEmpty { note.chatName = channel }
         }
         return note
     }
@@ -868,6 +878,62 @@ enum NotificationReplyLogic: Sendable {
     nonisolated static func digits(from handle: String) -> String {
         handle.filter(\.isNumber)
     }
+
+    nonisolated static func discordSearchTerm(for note: NotchNotification)
+        -> String?
+    {
+        if let chat = note.chatName?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ), !chat.isEmpty {
+            return chat
+        }
+        let sender = note.sender.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sender.isEmpty,
+            sender.caseInsensitiveCompare(NotificationApp.discord.displayName)
+                != .orderedSame
+        else { return nil }
+        return sender
+    }
+
+    nonisolated static func discordSendScript(
+        searchTerm: String?,
+        message: String
+    ) -> String {
+        let body = escapeAppleScript(message)
+        var lines = [
+            "tell application \"Discord\" to activate",
+            "delay 0.35",
+            "tell application \"System Events\"",
+            "  tell process \"Discord\"",
+            "    set frontmost to true",
+        ]
+        if let term = searchTerm?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ),
+            !term.isEmpty
+        {
+            let query = escapeAppleScript(term)
+            lines += [
+                "    delay 0.15",
+                "    set the clipboard to \"\(query)\"",
+                "    keystroke \"k\" using command down",
+                "    delay 0.25",
+                "    keystroke \"v\" using command down",
+                "    delay 0.35",
+                "    keystroke return",
+                "    delay 0.25",
+            ]
+        }
+        lines += [
+            "    set the clipboard to \"\(body)\"",
+            "    keystroke \"v\" using command down",
+            "    delay 0.05",
+            "    keystroke return",
+            "  end tell",
+            "end tell",
+        ]
+        return lines.joined(separator: "\n")
+    }
 }
 
 @MainActor
@@ -958,7 +1024,7 @@ final class NotificationController: ObservableObject {
     }
 
     func beginReply() {
-        guard current != nil else { return }
+        guard let note = current, note.app.supportsReply else { return }
         dismissTask?.cancel()
         withAnimation(NotchViewModel.notchExpandSpring) {
             isExpanded = true
@@ -996,6 +1062,10 @@ final class NotificationController: ObservableObject {
             guard !Task.isCancelled else { return }
             if sent {
                 dismiss()
+            } else if note.app == .whatsApp {
+                // The URL scheme opens WhatsApp with prefilled text but does
+                // not send or create a quoted reply.
+                sending = false
             } else if note.app != .messages {
                 sending = false
                 NotificationReply.open(note)
@@ -1121,7 +1191,7 @@ enum NotificationReply {
         case .whatsApp:
             return await sendWhatsApp(text, to: note)
         case .discord:
-            return false
+            return await sendDiscord(text, to: note)
         }
     }
 
@@ -1167,15 +1237,29 @@ enum NotificationReply {
     private static func sendWhatsApp(_ text: String, to note: NotchNotification)
         async -> Bool
     {
-        for handle in note.handles {
+        let handles = await NotificationContacts.whatsAppHandles(for: note)
+        for handle in handles {
             if let url = NotificationReplyLogic.whatsAppURL(
                 phone: handle,
                 text: text
             ) {
                 let ok = await MainActor.run { NSWorkspace.shared.open(url) }
-                if ok { return true }
+                if ok { return false }
             }
         }
+        open(note)
+        return false
+    }
+
+    private static func sendDiscord(_ text: String, to note: NotchNotification)
+        async -> Bool
+    {
+        let search = NotificationReplyLogic.discordSearchTerm(for: note)
+        let script = NotificationReplyLogic.discordSendScript(
+            searchTerm: search,
+            message: text
+        )
+        if await runAppleScript(script) { return true }
         open(note)
         return false
     }
@@ -1241,6 +1325,70 @@ enum NotificationReply {
 }
 
 enum NotificationContacts {
+    struct LookupResult: Sendable {
+        var handles: [String]
+    }
+
+    nonisolated static func lookup(name: String) -> LookupResult {
+        var handles: [String] = []
+        for term in searchTerms(from: name) {
+            let hit = lookupTerm(term)
+            for handle in hit.handles {
+                guard
+                    !handles.contains(where: {
+                        $0.caseInsensitiveCompare(handle) == .orderedSame
+                    })
+                else { continue }
+                handles.append(handle)
+            }
+        }
+        if let phone = phoneQuery(from: name) {
+            let digits = NotificationReplyLogic.digits(from: phone)
+            if !handles.contains(where: {
+                NotificationReplyLogic.digits(from: $0) == digits
+            }) {
+                handles.insert(phone, at: 0)
+            }
+        }
+        return LookupResult(handles: handles)
+    }
+
+    static func whatsAppHandles(for note: NotchNotification) async -> [String] {
+        let known = note.handles.filter {
+            NotificationReplyLogic.whatsAppURL(phone: $0, text: "") != nil
+        }
+        if !needsContactAccess(for: note) {
+            if !known.isEmpty { return known }
+            if let phone = phoneQuery(from: note.sender) { return [phone] }
+        }
+
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        if status == .notDetermined {
+            let store = CNContactStore()
+            let granted = await withCheckedContinuation { continuation in
+                store.requestAccess(for: .contacts) { granted, _ in
+                    continuation.resume(returning: granted)
+                }
+            }
+            guard granted else { return [] }
+        } else if status != .authorized {
+            return []
+        }
+
+        return lookup(name: note.sender).handles.filter {
+            NotificationReplyLogic.whatsAppURL(phone: $0, text: "") != nil
+        }
+    }
+
+    nonisolated static func needsContactAccess(for note: NotchNotification)
+        -> Bool
+    {
+        let hasPhone = note.handles.contains {
+            NotificationReplyLogic.whatsAppURL(phone: $0, text: "") != nil
+        }
+        return !hasPhone && phoneQuery(from: note.sender) == nil
+    }
+
     nonisolated static func searchTerms(from sender: String) -> [String] {
         var text = sender.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.hasPrefix("~") {
@@ -1282,5 +1430,34 @@ enum NotificationContacts {
         let digits = sender.filter(\.isNumber)
         guard digits.count >= 8, letters.count < 3 else { return nil }
         return digits
+    }
+
+    nonisolated private static func lookupTerm(_ term: String) -> LookupResult {
+        let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return LookupResult(handles: []) }
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        guard status == .authorized else { return LookupResult(handles: []) }
+
+        let store = CNContactStore()
+        let keys: [CNKeyDescriptor] = [
+            CNContactPhoneNumbersKey as CNKeyDescriptor,
+            CNContactEmailAddressesKey as CNKeyDescriptor,
+        ]
+        let predicate = CNContact.predicateForContacts(matchingName: trimmed)
+        let contacts =
+            (try? store.unifiedContacts(matching: predicate, keysToFetch: keys))
+            ?? []
+        guard let contact = contacts.first else {
+            return LookupResult(handles: [])
+        }
+
+        var handles: [String] = []
+        handles.append(
+            contentsOf: contact.phoneNumbers.map(\.value.stringValue)
+        )
+        handles.append(
+            contentsOf: contact.emailAddresses.map { $0.value as String }
+        )
+        return LookupResult(handles: handles)
     }
 }

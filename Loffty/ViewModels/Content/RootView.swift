@@ -990,7 +990,8 @@ struct NotchRootView: View {
                 && notifications.isExpanded,
             notificationPreview: notifications.current?.body ?? "",
             notificationSender: notifications.current?.sender ?? "",
-            notificationCanReply: notifications.current != nil,
+            notificationCanReply: notifications.current?.app.supportsReply
+                ?? false,
             notificationDraft: notifications.draft,
             showAlbum: settings.showAlbum
                 && !vm.nowPlaying.album.isEmpty

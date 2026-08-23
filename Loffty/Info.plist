@@ -7,7 +7,9 @@
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Loffty intercepts volume and brightness keys to replace system HUD for these settings, and reads notification banners for the notch</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Loffty controls Messages to send replies from the notch, favourites the current track in Music, and controls your browser to identify the website of the video now playing so it can show that site’s icon</string>
+	<string>Loffty controls Messages and Discord to send replies from the notch, favourites the current track in Music, and controls your browser to identify the website of the video now playing so it can show that site’s icon</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Loffty uses Contacts to find the WhatsApp recipient’s phone number so your reply can be addressed and sent from the notch</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_airdrop._tcp</string>
