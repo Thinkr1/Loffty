@@ -720,7 +720,11 @@ final class NotchViewModel: ObservableObject {
     func updatePageSwipe(_ dx: CGFloat, _ dy: CGFloat) {
         guard abs(dx) > abs(dy) * 1.35, abs(dx) >= 2 else { return }
         let resistance: CGFloat = 0.42
-        pageSwipeOffset = max(-42, min(42, pageSwipeOffset + dx * resistance))
+        let next = max(-42, min(42, pageSwipeOffset + dx * resistance))
+        withTransaction(Transaction(animation: nil)) {
+            pageSwipeOffset =
+                pageSwipeOffset == 0 && abs(next) < 8 ? 0 : next
+        }
     }
 
     func cancelPageSwipe() {
@@ -749,10 +753,14 @@ final class NotchViewModel: ObservableObject {
     func updateWeatherSlide(_ dy: CGFloat) {
         guard abs(dy) > 2 else { return }
         let resistance: CGFloat = 0.42
-        weatherSlideOffset = max(
+        let next = max(
             -42,
             min(42, weatherSlideOffset + dy * resistance)
         )
+        withTransaction(Transaction(animation: nil)) {
+            weatherSlideOffset =
+                weatherSlideOffset == 0 && abs(next) < 8 ? 0 : next
+        }
     }
 
     func cancelWeatherSlide() {

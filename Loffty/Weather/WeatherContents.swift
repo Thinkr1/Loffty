@@ -40,7 +40,6 @@ struct WeatherNotchContent: View {
         }
         .frame(width: m.width, height: m.height)
         .clipped()
-        .animation(NotchViewModel.pageSwitchSpring, value: vm.weatherSlide)
         .onAppear { weather.prepare() }
     }
 
@@ -95,10 +94,8 @@ struct WeatherNotchContent: View {
 
     private var slideTransition: AnyTransition {
         .asymmetric(
-            insertion: .move(edge: vm.weatherSlideForward ? .bottom : .top)
-                .combined(with: .opacity),
-            removal: .move(edge: vm.weatherSlideForward ? .top : .bottom)
-                .combined(with: .opacity)
+            insertion: .opacity.combined(with: .scale(scale: 0.985)),
+            removal: .opacity.combined(with: .scale(scale: 1.015))
         )
     }
 

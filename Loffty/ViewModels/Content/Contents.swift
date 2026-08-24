@@ -66,7 +66,6 @@ struct ExpandedContent: View {
                 .transition(.opacity)
             }
         }
-        .animation(NotchViewModel.pageSwitchSpring, value: vm.expandedPage)
         .animation(.easeInOut(duration: 0.22), value: vm.isIdle)
         .animation(
             NotchViewModel.notchExpandSpring,
@@ -76,12 +75,8 @@ struct ExpandedContent: View {
 
     private var pageTransition: AnyTransition {
         .asymmetric(
-            insertion: .move(
-                edge: vm.pageTurnForward ? .trailing : .leading
-            ).combined(with: .opacity),
-            removal: .move(
-                edge: vm.pageTurnForward ? .leading : .trailing
-            ).combined(with: .opacity)
+            insertion: .opacity.combined(with: .scale(scale: 0.985)),
+            removal: .opacity.combined(with: .scale(scale: 1.015))
         )
     }
 

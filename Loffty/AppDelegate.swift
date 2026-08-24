@@ -217,6 +217,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var triggerZone = CGRect.zero
     private var expandedZone = CGRect.zero
     private var airDropZone = CGRect.zero
+    private enum ScrollAxis {
+        case horizontal
+        case vertical
+    }
+    private var scrollAxis: ScrollAxis?
+    private var ignoreScrollUntil = Date.distantPast
     private var pageSwipe = HorizontalSwipeRecognizer()
     private var weatherSlideSwipe = VerticalSwipeRecognizer()
     private var cancellables = Set<AnyCancellable>()
@@ -720,6 +726,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if event.phase.contains(.ended) || event.phase.contains(.cancelled)
             {
                 _ = weatherSlideSwipe.handle(.cancelled)
+                scrollAxis = nil
             }
             return
         }
@@ -727,7 +734,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if event.phase.contains(.ended) || event.phase.contains(.cancelled)
             {
                 _ = pageSwipe.handle(.cancelled)
+                scrollAxis = nil
             }
+            return
+        }
+        if Date() < ignoreScrollUntil {
             return
         }
         if vm.expandedPage == .weather,
@@ -743,13 +754,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if event.phase.contains(.began), dx == 0, dy == 0 {
             return
         }
-        let verticalGestureIsActive = weatherSlideSwipe.isTracking
-        if verticalGestureIsActive
-            || abs(dy) > abs(dx) * 1.25
-        {
-            if event.phase.contains(.began) || event.phase.contains(.changed) {
-                vm.updateWeatherSlide(dy)
+        if event.phase.contains(.began) {
+            scrollAxis = nil
+        }
+        if scrollAxis == nil {
+            if abs(dy) > abs(dx) * 1.25 {
+                scrollAxis = .vertical
+            } else if abs(dx) > abs(dy) * 1.25 {
+                scrollAxis = .horizontal
+            } else {
+                return
             }
+        }
+        let verticalGestureIsActive = weatherSlideSwipe.isTracking
+        if scrollAxis == .vertical || verticalGestureIsActive {
             let direction = dy < 0 ? 1 : -1
             let slideTurn: Int?
             if event.phase.contains(.ended) {
@@ -765,6 +783,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
                 slideTurn = weatherSlideSwipe.commitIfReady()
             }
+            if slideTurn == nil,
+                event.phase.contains(.began)
+                    || event.phase.contains(.changed),
+                abs(dy) < 14
+            {
+                vm.updateWeatherSlide(dy)
+            }
+            if slideTurn != nil {
+                ignoreScrollUntil = Date().addingTimeInterval(0.5)
+            }
             Task { @MainActor in
                 if slideTurn != nil {
                     self.vm.turnWeatherSlide(direction)
@@ -773,6 +801,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 {
                     self.vm.cancelWeatherSlide()
                 }
+            }
+            if event.phase.contains(.ended) || event.phase.contains(.cancelled)
+            {
+                scrollAxis = nil
             }
             return
         }
@@ -786,7 +818,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             _ = pageSwipe.handle(.changed(dx: dx, dy: dy))
             turn = pageSwipe.handle(.ended)
         } else if phase.contains(.changed) {
-            vm.updatePageSwipe(dx, dy)
             _ = pageSwipe.handle(.changed(dx: dx, dy: dy))
             turn = pageSwipe.commitIfReady()
         } else if phase.isEmpty {
@@ -794,12 +825,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             turn = nil
         }
+        if turn == nil, phase.contains(.changed), abs(dx) < 14 {
+            vm.updatePageSwipe(dx, dy)
+        }
+        if turn != nil {
+            ignoreScrollUntil = Date().addingTimeInterval(0.5)
+        }
         guard let turn else {
             if phase.contains(.ended) || phase.contains(.cancelled) {
                 vm.cancelPageSwipe()
+                scrollAxis = nil
             }
             return
         }
+        scrollAxis = nil
         Task { @MainActor in
             self.vm.turnExpandedPage(turn)
         }
