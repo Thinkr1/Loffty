@@ -310,6 +310,34 @@ enum WeatherIdleExpand: String, CaseIterable, Identifiable {
     }
 }
 
+enum WeatherLocationMode: String, CaseIterable, Identifiable {
+    case current
+    case manual
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .current: "Current location"
+        case .manual: "Fixed location"
+        }
+    }
+}
+
+enum WeatherSection: String, CaseIterable, Identifiable {
+    case overview
+    case charts
+    case forecast
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .overview: "Current conditions"
+        case .charts: "Charts"
+        case .forecast: "Daily forecast"
+        }
+    }
+}
+
 enum ArtistEnrichmentMode: String, CaseIterable, Identifiable {
     case never
     case wifiOnly
@@ -416,6 +444,9 @@ final class AppSettings: ObservableObject {
     private static let weatherShowPrecipKey = "weatherShowPrecip"
     private static let weatherHourCountKey = "weatherHourCount"
     private static let weatherRefreshMinutesKey = "weatherRefreshMinutes"
+    private static let weatherLocationModeKey = "weatherLocationMode"
+    private static let weatherManualLocationKey = "weatherManualLocation"
+    private static let weatherSectionOrderKey = "weatherSectionOrder"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -800,6 +831,42 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var weatherLocationMode: WeatherLocationMode {
+        didSet {
+            UserDefaults.standard.set(
+                weatherLocationMode.rawValue,
+                forKey: Self.weatherLocationModeKey
+            )
+        }
+    }
+
+    @Published var weatherManualLocation: String {
+        didSet {
+            UserDefaults.standard.set(
+                weatherManualLocation,
+                forKey: Self.weatherManualLocationKey
+            )
+        }
+    }
+
+    @Published var weatherSectionOrder: [WeatherSection] {
+        didSet {
+            UserDefaults.standard.set(
+                weatherSectionOrder.map(\.rawValue),
+                forKey: Self.weatherSectionOrderKey
+            )
+        }
+    }
+
+    func moveWeatherSection(_ section: WeatherSection, offset: Int) {
+        guard let index = weatherSectionOrder.firstIndex(of: section) else {
+            return
+        }
+        let destination = index + offset
+        guard weatherSectionOrder.indices.contains(destination) else { return }
+        weatherSectionOrder.swapAt(index, destination)
+    }
+
     @Published var weatherTemperatureUnit: WeatherTemperatureUnit {
         didSet {
             UserDefaults.standard.set(
@@ -1120,6 +1187,28 @@ final class AppSettings: ObservableObject {
         weatherSwipeEnabled =
             UserDefaults.standard.object(forKey: Self.weatherSwipeEnabledKey)
             as? Bool ?? true
+        if let raw = UserDefaults.standard.string(
+            forKey: Self.weatherLocationModeKey
+        ), let mode = WeatherLocationMode(rawValue: raw) {
+            weatherLocationMode = mode
+        } else {
+            weatherLocationMode = .current
+        }
+        weatherManualLocation =
+            UserDefaults.standard.string(forKey: Self.weatherManualLocationKey)
+            ?? ""
+        let storedSections =
+            UserDefaults.standard.stringArray(
+                forKey: Self.weatherSectionOrderKey
+            )?.compactMap(WeatherSection.init(rawValue:))
+            ?? []
+        weatherSectionOrder =
+            WeatherSection.allCases.filter {
+                storedSections.contains($0)
+            }
+            + WeatherSection.allCases.filter {
+                !storedSections.contains($0)
+            }
         if let raw = UserDefaults.standard.string(
             forKey: WeatherTemperatureUnit.storageKey
         ), let unit = WeatherTemperatureUnit(rawValue: raw) {

@@ -402,6 +402,7 @@ final class WeatherController: NSObject, ObservableObject {
     private var location = CLLocationManager()
     private var lastCoordinate: CLLocationCoordinate2D?
     private var fetchTask: Task<Void, Never>?
+    private var manualLocationTask: Task<Void, Never>?
     private var locationRetryTask: Task<Void, Never>?
     private var locationTimeoutTask: Task<Void, Never>?
     private var locationAttempts = 0
@@ -420,7 +421,49 @@ final class WeatherController: NSObject, ObservableObject {
 
     func prepare(forcePrompt: Bool = false) {
         guard AppSettings.shared.weatherEnabled else { return }
+        if AppSettings.shared.weatherLocationMode == .manual,
+            !AppSettings.shared.weatherManualLocation
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            loadManualLocation()
+            return
+        }
         applyAuthorizationStatus(promptIfNeeded: forcePrompt)
+    }
+
+    func refreshManualLocation() {
+        manualLocationTask?.cancel()
+        fetchTask?.cancel()
+        snapshot = nil
+        status = .locating
+        loadManualLocation()
+    }
+
+    private func loadManualLocation() {
+        guard status != .locating || manualLocationTask == nil else { return }
+        let query = AppSettings.shared.weatherManualLocation
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            status = .failed
+            return
+        }
+        status = .locating
+        manualLocationTask = Task { [weak self] in
+            guard let self else { return }
+            let geocoder = CLGeocoder()
+            let result = await withCheckedContinuation { continuation in
+                geocoder.geocodeAddressString(query) { marks, _ in
+                    continuation.resume(returning: marks?.first?.location)
+                }
+            }
+            guard !Task.isCancelled else { return }
+            guard let result else {
+                self.status = .failed
+                return
+            }
+            self.manualLocationTask = nil
+            self.loadForecast(for: result)
+        }
     }
 
     func requestAccessFromUser() {

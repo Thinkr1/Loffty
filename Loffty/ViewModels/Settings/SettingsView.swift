@@ -1207,6 +1207,81 @@ struct SettingsView: View {
             ),
             SettingsGroup(
                 page: .weather,
+                title: "Location",
+                entries: [
+                    SettingsEntry(
+                        "weatherLocationMode",
+                        title: "Weather location",
+                        detail: "Use your current location or a fixed place.",
+                        keywords: ["city", "address", "manual", "gps"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsMenu(selection: $settings.weatherLocationMode) {
+                            ForEach(WeatherLocationMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                    },
+                    SettingsEntry(
+                        "weatherManualLocation",
+                        title: "Fixed place",
+                        detail: "Enter a city, address, or postal code.",
+                        keywords: ["city", "address", "place"],
+                        isEnabled: settings.weatherEnabled
+                            && settings.weatherLocationMode == .manual
+                    ) {
+                        HStack(spacing: 6) {
+                            TextField(
+                                "City or address",
+                                text: $settings.weatherManualLocation
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 150)
+                            Button("Set") {
+                                WeatherController.shared.refreshManualLocation()
+                            }
+                            .controlSize(.small)
+                            .settingsButton(prominent: true)
+                        }
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .weather,
+                title: "Slide order",
+                note: "Choose which weather view appears on each slide.",
+                entries: settings.weatherSectionOrder.enumerated().map {
+                    index,
+                    section in
+                    SettingsEntry(
+                        "weatherSectionOrder.\(section.rawValue)",
+                        title: section.title,
+                        detail: "Slide \(index + 1)",
+                        keywords: ["reorder", "slides", "sections"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        HStack(spacing: 4) {
+                            Button {
+                                settings.moveWeatherSection(section, offset: -1)
+                            } label: {
+                                Image(systemName: "chevron.up")
+                            }
+                            .disabled(index == 0)
+                            Button {
+                                settings.moveWeatherSection(section, offset: 1)
+                            } label: {
+                                Image(systemName: "chevron.down")
+                            }
+                            .disabled(
+                                index == settings.weatherSectionOrder.count - 1
+                            )
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            ),
+            SettingsGroup(
+                page: .weather,
                 title: "Units",
                 entries: [
                     SettingsEntry(

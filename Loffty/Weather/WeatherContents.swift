@@ -49,7 +49,7 @@ struct WeatherNotchContent: View {
             Color.clear.frame(height: m.notchH)
             Spacer(minLength: 0)
             Group {
-                switch vm.weatherSlide {
+                switch activeSection {
                 case .overview:
                     VStack(alignment: .leading, spacing: 12) {
                         readyHeader(snap)
@@ -90,6 +90,12 @@ struct WeatherNotchContent: View {
         .padding(.horizontal, 38)
         .padding(.bottom, 18)
         .frame(width: m.width, height: m.height, alignment: .topLeading)
+    }
+
+    private var activeSection: WeatherSection {
+        settings.weatherSectionOrder.indices.contains(vm.weatherSlide.rawValue)
+            ? settings.weatherSectionOrder[vm.weatherSlide.rawValue]
+            : .overview
     }
 
     private var slideTransition: AnyTransition {
