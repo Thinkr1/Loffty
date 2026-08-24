@@ -240,6 +240,7 @@ struct ExpandedPageSwipeTests {
     @Test func tickGestureProducesImmediateTurn() {
         var recognizer = HorizontalSwipeRecognizer()
         #expect(recognizer.handle(.tick(dx: -20, dy: 1)) == 1)
+        _ = recognizer.handle(.began(dx: 0, dy: 0))
         #expect(recognizer.handle(.tick(dx: 20, dy: 1)) == -1)
         #expect(recognizer.handle(.tick(dx: 2, dy: 20)) == nil)
     }

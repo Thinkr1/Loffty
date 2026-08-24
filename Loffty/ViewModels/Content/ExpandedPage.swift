@@ -84,8 +84,10 @@ struct HorizontalSwipeRecognizer {
             reset()
             return nil
         case .tick(let dx, let dy):
+            guard !didCommit else { return nil }
             guard abs(dx) >= abs(dy), abs(dx) >= 6 else { return nil }
             reset()
+            didCommit = true
             return dx < 0 ? 1 : -1
         }
     }
@@ -169,7 +171,9 @@ struct VerticalSwipeRecognizer {
             isTracking = false
             didCommit = false
         case .tick(_, let dy):
+            guard !didCommit else { return nil }
             guard abs(dy) >= 8 else { return nil }
+            didCommit = true
             return dy < 0 ? 1 : -1
         }
         return nil

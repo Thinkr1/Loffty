@@ -388,7 +388,9 @@ final class WeatherController: NSObject, ObservableObject {
         AppSettings.shared.weatherRefreshMinutes * 60
     }
     var fetch: (URL) async throws -> Data = { url in
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse,
             !(200..<300).contains(http.statusCode)
         {
@@ -400,6 +402,9 @@ final class WeatherController: NSObject, ObservableObject {
     private var location = CLLocationManager()
     private var lastCoordinate: CLLocationCoordinate2D?
     private var fetchTask: Task<Void, Never>?
+    private var locationRetryTask: Task<Void, Never>?
+    private var locationTimeoutTask: Task<Void, Never>?
+    private var locationAttempts = 0
     private var accessWindow: NSWindow?
     private var previousActivationPolicy: NSApplication.ActivationPolicy?
 
@@ -586,8 +591,39 @@ final class WeatherController: NSObject, ObservableObject {
     }
 
     private func startUpdating() {
+        guard status != .locating else { return }
         if status != .ready { status = .locating }
+        locationAttempts = 0
+        requestLocationAttempt()
+    }
+
+    private func requestLocationAttempt() {
+        locationAttempts += 1
+        let attempt = locationAttempts
         location.requestLocation()
+        locationTimeoutTask?.cancel()
+        locationTimeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled, let self else { return }
+            guard self.status == .locating,
+                self.locationAttempts == attempt
+            else { return }
+            self.handleLocationUnavailable()
+        }
+    }
+
+    private func handleLocationUnavailable() {
+        guard locationAttempts < 3 else {
+            if snapshot == nil { status = .failed }
+            return
+        }
+        let attempt = locationAttempts
+        locationRetryTask?.cancel()
+        locationRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            self.requestLocationAttempt()
+        }
     }
 
     private func loadForecast(for location: CLLocation) {
@@ -661,6 +697,11 @@ extension WeatherController: CLLocationManagerDelegate {
     ) {
         guard let location = locations.last else { return }
         Task { @MainActor in
+            self.locationRetryTask?.cancel()
+            self.locationRetryTask = nil
+            self.locationTimeoutTask?.cancel()
+            self.locationTimeoutTask = nil
+            self.locationAttempts = 0
             loadForecast(for: location)
         }
     }
@@ -672,6 +713,14 @@ extension WeatherController: CLLocationManagerDelegate {
         Task { @MainActor in
             if let clError = error as? CLError, clError.code == .denied {
                 status = .denied
+                return
+            }
+            if let clError = error as? CLError,
+                clError.code == .locationUnknown
+            {
+                locationTimeoutTask?.cancel()
+                locationTimeoutTask = nil
+                handleLocationUnavailable()
                 return
             }
             if snapshot == nil { status = .failed }

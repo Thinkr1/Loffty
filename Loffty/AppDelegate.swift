@@ -723,6 +723,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !MediaToolbarCustomizer.shared.isCustomizing else { return }
         guard expandedZone.contains(NSEvent.mouseLocation) else { return }
         if event.phase.contains(.began) {
+            guard Date() >= ignoreScrollUntil else { return }
             _ = weatherSlideSwipe.handle(.cancelled)
             _ = pageSwipe.handle(.cancelled)
             scrollAxis = nil
@@ -794,7 +795,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 vm.updateWeatherSlide(dy)
             }
             if slideTurn != nil {
-                ignoreScrollUntil = Date().addingTimeInterval(0.5)
+                ignoreScrollUntil = Date().addingTimeInterval(0.9)
             }
             Task { @MainActor in
                 if slideTurn != nil {
@@ -832,7 +833,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             vm.updatePageSwipe(dx, dy)
         }
         if turn != nil {
-            ignoreScrollUntil = Date().addingTimeInterval(0.5)
+            ignoreScrollUntil = Date().addingTimeInterval(0.9)
         }
         guard let turn else {
             if phase.contains(.ended) || phase.contains(.cancelled) {
