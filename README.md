@@ -75,7 +75,6 @@ Some things I'm currently working on:
   - Show profile picture in push notifications
   - Dual Discord/server image badges for notifications
   - Improve lock screen widget (+show music video option)
-  - 1:1 marquee speed
   - Screensaver music video
   - Auto-expand on track change?
   - media-control skip Spotify ads
