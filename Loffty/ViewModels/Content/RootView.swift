@@ -5,6 +5,7 @@
 //  Created by Pierre-Louis ML on 15/07/2026.
 //
 
+import AppKit
 import Combine
 import SwiftUI
 
@@ -28,6 +29,7 @@ struct NotchMetrics {
     var artAspectRatio: CGFloat = 1
     var customizingToolbar: Bool = false
     var weather: Bool = false
+    var swipeExpansion: CGFloat = 0
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
     let barsW: CGFloat = 18
@@ -79,7 +81,7 @@ struct NotchMetrics {
             )
         }
         if expanded {
-            if weather { return 240 }
+            if weather { return 240 + swipeExpansion * 24 }
             return showAlbum ? 206 : 196
         }
         if hudActive { return notchH + hudExtra }
@@ -119,7 +121,9 @@ struct NotchMetrics {
             )
         }
         if customizingToolbar { return MediaToolbarCustomizeLayout.width }
-        if expanded { return 392 }
+        if expanded {
+            return weather ? 392 + swipeExpansion * 32 : 392
+        }
         if hudActive { return notchW + 2 * topRadius + 36 }
         if sideAnnouncement {
             return notchW + 2 * side + 2 * topRadius + 10
@@ -712,6 +716,7 @@ final class NotchViewModel: ObservableObject {
         lastSwipeCommit = Date()
         weatherSlideForward = direction > 0
         weatherSlideOffset = 0
+        performSlideFeedback()
         withAnimation(Self.pageSwitchSpring) {
             weatherSlide = next
         }
@@ -719,8 +724,9 @@ final class NotchViewModel: ObservableObject {
 
     func updatePageSwipe(_ dx: CGFloat, _ dy: CGFloat) {
         guard abs(dx) > abs(dy) * 1.35, abs(dx) >= 2 else { return }
-        let resistance: CGFloat = 0.42
-        let next = max(-42, min(42, pageSwipeOffset + dx * resistance))
+        let resistance: CGFloat = 0.65
+        let step = max(-14, min(14, dx * resistance))
+        let next = max(-42, min(42, pageSwipeOffset + step))
         withTransaction(Transaction(animation: nil)) {
             pageSwipeOffset =
                 pageSwipeOffset == 0 && abs(next) < 8 ? 0 : next
@@ -747,15 +753,24 @@ final class NotchViewModel: ObservableObject {
             return
         }
         lastSwipeCommit = Date()
+        performSlideFeedback()
         setExpandedPage(next)
+    }
+
+    private func performSlideFeedback() {
+        NSHapticFeedbackManager.defaultPerformer.perform(
+            .alignment,
+            performanceTime: .now
+        )
     }
 
     func updateWeatherSlide(_ dy: CGFloat) {
         guard abs(dy) > 2 else { return }
-        let resistance: CGFloat = 0.42
+        let resistance: CGFloat = 0.65
+        let step = max(-14, min(14, dy * resistance))
         let next = max(
             -42,
-            min(42, weatherSlideOffset + dy * resistance)
+            min(42, weatherSlideOffset + step)
         )
         withTransaction(Transaction(animation: nil)) {
             weatherSlideOffset =
@@ -1084,6 +1099,22 @@ struct NotchRootView: View {
             && vm.hudDisplay?.presentsOnSides == true
             && !vm.isExpanded
     }
+    private var swipeExpansion: CGFloat {
+        let raw = min(
+            1,
+            max(
+                abs(vm.pageSwipeOffset),
+                abs(vm.weatherSlideOffset)
+            ) / 42
+        )
+        return raw * raw * (3 - 2 * raw)
+    }
+    private var swipeExpansionOffset: CGFloat {
+        guard vm.pageSwipeOffset != 0 else { return 0 }
+        return vm.pageSwipeOffset < 0
+            ? -swipeExpansion * 16
+            : swipeExpansion * 16
+    }
     private var hudIntegrated: Bool {
         verticalHUD && !vm.isExpanded && !airDropActive && !notificationActive
     }
@@ -1134,7 +1165,8 @@ struct NotchRootView: View {
             customizingToolbar: toolbar.isCustomizing,
             weather: vm.isExpanded && vm.expandedPage == .weather
                 && !toolbar.isCustomizing
-                && !airDropActive && !notificationActive
+                && !airDropActive && !notificationActive,
+            swipeExpansion: swipeExpansion
         )
     }
     private var persistentEdgeColor: Color? {
@@ -1215,7 +1247,6 @@ struct NotchRootView: View {
             value: notifications.isExpanded
         )
         .animation(NotchViewModel.notchExpandSpring, value: m.height)
-        .animation(NotchViewModel.notchExpandSpring, value: m.width)
         .animation(
             NotchViewModel.notchExpandSpring,
             value: toolbar.isCustomizing
@@ -1412,6 +1443,7 @@ struct NotchRootView: View {
                 radius: islandRaised ? 5 : 0,
                 y: islandRaised ? 2 : 0
             )
+            .offset(x: swipeExpansionOffset)
 
             if hudBelowExpanded, let kind = vm.hudDisplay {
                 ZStack {

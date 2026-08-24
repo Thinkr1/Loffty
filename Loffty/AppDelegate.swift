@@ -722,6 +722,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !AirDropController.shared.phase.isActive else { return }
         guard !MediaToolbarCustomizer.shared.isCustomizing else { return }
         guard expandedZone.contains(NSEvent.mouseLocation) else { return }
+        if event.phase.contains(.began) {
+            _ = weatherSlideSwipe.handle(.cancelled)
+            _ = pageSwipe.handle(.cancelled)
+            scrollAxis = nil
+            ignoreScrollUntil = .distantPast
+        }
         if weatherSlideSwipe.didCommit {
             if event.phase.contains(.ended) || event.phase.contains(.cancelled)
             {
@@ -747,8 +753,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         {
             return
         }
-        if event.momentumPhase != [] { return }
-
         let dx = event.scrollingDeltaX
         let dy = event.scrollingDeltaY
         if event.phase.contains(.began), dx == 0, dy == 0 {
@@ -785,8 +789,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             if slideTurn == nil,
                 event.phase.contains(.began)
-                    || event.phase.contains(.changed),
-                abs(dy) < 14
+                    || event.phase.contains(.changed)
             {
                 vm.updateWeatherSlide(dy)
             }
@@ -795,7 +798,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             Task { @MainActor in
                 if slideTurn != nil {
-                    self.vm.turnWeatherSlide(direction)
+                    self.vm.turnWeatherSlide(slideTurn ?? direction)
                 } else if event.phase.contains(.ended)
                     || event.phase.contains(.cancelled)
                 {
@@ -825,7 +828,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             turn = nil
         }
-        if turn == nil, phase.contains(.changed), abs(dx) < 14 {
+        if turn == nil, phase.contains(.changed) {
             vm.updatePageSwipe(dx, dy)
         }
         if turn != nil {
