@@ -89,6 +89,32 @@ struct NotchMetricsTests {
         #expect(weather.bottomRadius == 30)
     }
 
+    @Test func weatherSwipeExpansionGrowsNotchByProgress() {
+        let base = NotchMetrics(
+            notchW: 200,
+            notchH: 32,
+            expanded: true,
+            idle: true,
+            extended: false,
+            hudActive: false,
+            weather: true
+        )
+        let expanded = NotchMetrics(
+            notchW: 200,
+            notchH: 32,
+            expanded: true,
+            idle: true,
+            extended: false,
+            hudActive: false,
+            weather: true,
+            swipeExpansion: 0.5
+        )
+        #expect(base.width == 392)
+        #expect(base.height == 240)
+        #expect(expanded.width == 408)
+        #expect(expanded.height == 252)
+    }
+
     @Test func expandedIdle() {
         let m = base(expanded: true, idle: true)
         #expect(m.height == 196)

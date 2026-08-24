@@ -197,6 +197,17 @@ struct ExpandedPageSwipeTests {
         #expect(recognizer.handle(.ended) == 1)
     }
 
+    @Test func verticalSwipeCommitsOnlyOncePerGesture() {
+        var recognizer = VerticalSwipeRecognizer()
+        _ = recognizer.handle(.began(dx: 0, dy: 0))
+        _ = recognizer.handle(.changed(dx: 0, dy: -80))
+        #expect(recognizer.commitIfReady() == 1)
+        #expect(recognizer.didCommit)
+        #expect(recognizer.handle(.tick(dx: 0, dy: -80)) == nil)
+        _ = recognizer.handle(.began(dx: 0, dy: 0))
+        #expect(!recognizer.didCommit)
+    }
+
     @Test func weatherSlidesMoveVertically() {
         #expect(WeatherSlide.overview.neighbor(direction: 1) == .charts)
         #expect(WeatherSlide.charts.neighbor(direction: 1) == .forecast)
@@ -227,6 +238,16 @@ struct ExpandedPageSwipeTests {
         #expect(recognizer.handle(.changed(dx: -12, dy: 1)) == nil)
         #expect(recognizer.handle(.changed(dx: -12, dy: 0)) == nil)
         #expect(recognizer.handle(.ended) == 1)
+    }
+
+    @Test func horizontalSwipeCommitsAtThresholdBeforeRelease() {
+        var recognizer = HorizontalSwipeRecognizer()
+        recognizer.distanceThreshold = 20
+        _ = recognizer.handle(.began(dx: 0, dy: 0))
+        _ = recognizer.handle(.changed(dx: -15, dy: 0))
+        _ = recognizer.handle(.changed(dx: -8, dy: 0))
+        #expect(recognizer.commitIfReady() == 1)
+        #expect(recognizer.handle(.ended) == nil)
     }
 
     @Test func horizontalSwipeIgnoresMostlyVerticalMotion() {

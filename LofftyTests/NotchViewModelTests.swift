@@ -108,13 +108,20 @@ struct NotchViewModelTests {
 
     @Test @MainActor func turnExpandedPageMovesSpatially() {
         let vm = NotchViewModel()
+        let settings = AppSettings.shared
+        let originalWeatherEnabled = settings.weatherEnabled
+        let originalSwipeEnabled = settings.weatherSwipeEnabled
         let original = ExpandedPage.stored()
         defer {
+            settings.weatherEnabled = originalWeatherEnabled
+            settings.weatherSwipeEnabled = originalSwipeEnabled
             UserDefaults.standard.set(
                 original.rawValue,
                 forKey: ExpandedPage.storageKey
             )
         }
+        settings.weatherEnabled = true
+        settings.weatherSwipeEnabled = true
         vm.isExpanded = true
         vm.expandedPage = .music
         vm.turnExpandedPage(1)
@@ -139,13 +146,20 @@ struct NotchViewModelTests {
 
     @Test @MainActor func setExpandedWhileIdleOpensWeather() {
         let vm = NotchViewModel()
+        let settings = AppSettings.shared
+        let originalWeatherEnabled = settings.weatherEnabled
+        let originalExpand = settings.weatherIdleExpand
         let original = ExpandedPage.stored()
         defer {
+            settings.weatherEnabled = originalWeatherEnabled
+            settings.weatherIdleExpand = originalExpand
             UserDefaults.standard.set(
                 original.rawValue,
                 forKey: ExpandedPage.storageKey
             )
         }
+        settings.weatherEnabled = true
+        settings.weatherIdleExpand = .weather
         vm.nowPlaying = NowPlaying()
         vm.expandedPage = .music
         vm.setExpanded(true)

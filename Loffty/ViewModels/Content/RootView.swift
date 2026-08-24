@@ -148,7 +148,6 @@ final class NotchViewModel: ObservableObject {
     @Published var weatherSlideForward = true
     @Published var pageSwipeOffset: CGFloat = 0
     @Published var weatherSlideOffset: CGFloat = 0
-    private var lastSwipeCommit = Date.distantPast
     @Published var nowPlaying = NowPlaying()
     @Published private(set) var trackChangeToken: UInt = 0
     @Published var accentColor: Color = NotchViewModel.defaultAccent
@@ -706,14 +705,12 @@ final class NotchViewModel: ObservableObject {
 
     func turnWeatherSlide(_ direction: Int) {
         guard isExpanded, expandedPage == .weather else { return }
-        guard Date().timeIntervalSince(lastSwipeCommit) > 0.42 else { return }
         guard AppSettings.shared.weatherSwipeEnabled,
             let next = weatherSlide.neighbor(direction: direction)
         else {
             cancelWeatherSlide()
             return
         }
-        lastSwipeCommit = Date()
         weatherSlideForward = direction > 0
         weatherSlideOffset = 0
         performSlideFeedback()
@@ -741,7 +738,6 @@ final class NotchViewModel: ObservableObject {
 
     func turnExpandedPage(_ direction: Int) {
         guard isExpanded else { return }
-        guard Date().timeIntervalSince(lastSwipeCommit) > 0.42 else { return }
         guard AppSettings.shared.weatherEnabled,
             AppSettings.shared.weatherSwipeEnabled
         else {
@@ -752,7 +748,6 @@ final class NotchViewModel: ObservableObject {
             cancelPageSwipe()
             return
         }
-        lastSwipeCommit = Date()
         performSlideFeedback()
         setExpandedPage(next)
     }
