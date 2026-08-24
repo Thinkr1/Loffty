@@ -163,5 +163,12 @@ struct OnboardingTests {
                 $0.hasSuffix("Privacy_Automation")
             }
         )
+        #expect(
+            PrivacyAccess.privacySettingsURLCandidates(
+                anchor: "Privacy_LocationServices"
+            ).contains {
+                $0.hasSuffix("Privacy_LocationServices")
+            }
+        )
     }
 }

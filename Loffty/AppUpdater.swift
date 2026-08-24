@@ -281,7 +281,7 @@ final class AppUpdater: ObservableObject {
                 state = .upToDate
                 if announceResult {
                     presentAlert(
-                        title: "You’re up to date!",
+                        title: "You're up to date!",
                         message:
                             "Loffty \(currentVersion) is the latest release."
                     )

@@ -16,22 +16,72 @@ struct ExpandedContent: View {
     let m: NotchMetrics
 
     var body: some View {
-        Group {
-            if vm.isIdle, !toolbar.isCustomizing {
+        ZStack {
+            if vm.expandedPage == .weather, !toolbar.isCustomizing,
+                settings.weatherEnabled
+            {
+                WeatherNotchContent(m: m)
+                    .transition(pageTransition)
+            } else if vm.isIdle, !toolbar.isCustomizing {
                 idleContent
+                    .transition(pageTransition)
             } else {
                 activeContent
-                    .overlay(alignment: .top) {
-                        if !vm.isLocked {
-                            notchTopBar
-                        }
-                    }
+                    .transition(pageTransition)
             }
         }
+        .offset(x: vm.pageSwipeOffset)
+        .scaleEffect(
+            x: 1 + abs(vm.pageSwipeOffset) / 4200,
+            y: 1 + abs(vm.pageSwipeOffset) / 9000,
+            anchor: .center
+        )
+        .overlay(alignment: .top) {
+            if !vm.isLocked {
+                notchTopBar
+            }
+        }
+        .overlay(alignment: .trailing) {
+            if vm.expandedPage == .weather, settings.weatherEnabled,
+                !toolbar.isCustomizing
+            {
+                VStack(spacing: 5) {
+                    ForEach(WeatherSlide.allCases, id: \.rawValue) { slide in
+                        Capsule()
+                            .fill(
+                                .white.opacity(
+                                    slide == vm.weatherSlide ? 0.85 : 0.3
+                                )
+                            )
+                            .frame(
+                                width: 3,
+                                height: slide == vm.weatherSlide ? 14 : 5
+                            )
+                    }
+                }
+                .frame(width: 30, height: m.height, alignment: .center)
+                .padding(.trailing, 18)
+                .allowsHitTesting(false)
+                .opacity(1)
+                .transition(.opacity)
+            }
+        }
+        .animation(NotchViewModel.pageSwitchSpring, value: vm.expandedPage)
         .animation(.easeInOut(duration: 0.22), value: vm.isIdle)
         .animation(
             NotchViewModel.notchExpandSpring,
             value: toolbar.isCustomizing
+        )
+    }
+
+    private var pageTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(
+                edge: vm.pageTurnForward ? .trailing : .leading
+            ).combined(with: .opacity),
+            removal: .move(
+                edge: vm.pageTurnForward ? .leading : .trailing
+            ).combined(with: .opacity)
         )
     }
 
@@ -42,8 +92,26 @@ struct ExpandedContent: View {
     private var notchTopBar: some View {
         HStack(spacing: 0) {
             Group {
-                if settings.showAirPlayButton {
+                if vm.expandedPage == .weather, settings.weatherEnabled {
+                    ControlButton(
+                        systemName: "music.note",
+                        size: 12,
+                        tint: .white.opacity(0.45),
+                        hitSize: min(28, notchFlankWidth)
+                    ) {
+                        vm.setExpandedPage(.music)
+                    }
+                } else if settings.showAirPlayButton, !vm.isIdle {
                     AirPlayPickerButton()
+                } else if settings.weatherEnabled {
+                    ControlButton(
+                        systemName: "cloud.sun.fill",
+                        size: 12,
+                        tint: .white.opacity(0.45),
+                        hitSize: min(28, notchFlankWidth)
+                    ) {
+                        vm.setExpandedPage(.weather)
+                    }
                 } else {
                     Color.clear
                 }
@@ -66,34 +134,27 @@ struct ExpandedContent: View {
     }
 
     private var idleContent: some View {
-        HStack(spacing: 0) {
-            Image(systemName: "play.slash.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.42))
-                .frame(width: m.side - m.gap, height: m.height)
-                .padding(.trailing, m.gap)
-
-            Color.clear
-                .frame(width: m.notchW, height: m.height)
-
-            if vm.isLocked {
-                Color.clear
-                    .frame(width: m.side - m.gap, height: m.height)
-                    .padding(.leading, m.gap)
-            } else {
-                ControlButton(
-                    systemName: "gearshape.fill",
-                    size: 12,
-                    tint: .white.opacity(0.45),
-                    hitSize: max(m.side - m.gap, 28)
-                ) {
-                    Task { @MainActor in SettingsOpener.shared.open() }
-                }
-                .frame(width: m.side - m.gap, height: m.height)
-                .padding(.leading, m.gap)
-            }
+        VStack(spacing: 10) {
+            Image(systemName: "music.note")
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(.white.opacity(0.28))
+            Text("Nothing Playing")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.78))
+            Text(
+                settings.weatherEnabled
+                    ? "Swipe for weather" : "Waiting for media"
+            )
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white.opacity(0.34))
         }
-        .frame(width: m.width, height: m.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, m.notchH)
+        .padding(.bottom, 16)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if settings.weatherEnabled { vm.setExpandedPage(.weather) }
+        }
     }
 
     private var showingAlbum: Bool {

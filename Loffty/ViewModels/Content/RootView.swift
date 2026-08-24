@@ -27,6 +27,7 @@ struct NotchMetrics {
     var showAlbum: Bool = false
     var artAspectRatio: CGFloat = 1
     var customizingToolbar: Bool = false
+    var weather: Bool = false
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
     let barsW: CGFloat = 18
@@ -38,7 +39,6 @@ struct NotchMetrics {
         }
         if notification { return NotificationLayout.compactTopRadius }
         if customizingToolbar { return 22 }
-        if expanded, idle { return 10 }
         if expanded { return 22 }
         if hudActive { return 16 }
         return 10
@@ -50,7 +50,6 @@ struct NotchMetrics {
         }
         if notification { return NotificationLayout.compactBottomRadius }
         if customizingToolbar { return 30 }
-        if expanded, idle { return 12 }
         if expanded { return 30 }
         if hudActive { return 26 }
         return 12
@@ -79,8 +78,10 @@ struct NotchMetrics {
                 showAlbum: showAlbum
             )
         }
-        if expanded, idle { return notchH }
-        if expanded { return showAlbum ? 206 : 196 }
+        if expanded {
+            if weather { return 240 }
+            return showAlbum ? 206 : 196
+        }
         if hudActive { return notchH + hudExtra }
         return notchH
     }
@@ -118,9 +119,6 @@ struct NotchMetrics {
             )
         }
         if customizingToolbar { return MediaToolbarCustomizeLayout.width }
-        if expanded, idle {
-            return notchW + 2 * side + 2 * topRadius
-        }
         if expanded { return 392 }
         if hudActive { return notchW + 2 * topRadius + 36 }
         if sideAnnouncement {
@@ -140,6 +138,13 @@ final class NotchViewModel: ObservableObject {
         notchRect: .zero
     )
     @Published var isExpanded = false
+    @Published var expandedPage: ExpandedPage = ExpandedPage.stored()
+    @Published var pageTurnForward = true
+    @Published var weatherSlide: WeatherSlide = .overview
+    @Published var weatherSlideForward = true
+    @Published var pageSwipeOffset: CGFloat = 0
+    @Published var weatherSlideOffset: CGFloat = 0
+    private var lastSwipeCommit = Date.distantPast
     @Published var nowPlaying = NowPlaying()
     @Published private(set) var trackChangeToken: UInt = 0
     @Published var accentColor: Color = NotchViewModel.defaultAccent
@@ -173,6 +178,11 @@ final class NotchViewModel: ObservableObject {
     static let notchCollapseSpring = Animation.spring(
         response: 0.35,
         dampingFraction: 1.0
+    )
+    static let pageSwitchSpring = Animation.spring(
+        response: 0.46,
+        dampingFraction: 0.86,
+        blendDuration: 0.08
     )
     private var elapsedAt = Date()
     private var pendingSeekTime: Double?
@@ -361,6 +371,20 @@ final class NotchViewModel: ObservableObject {
             }
             .store(in: &cancellables)
         syncSoundwaves()
+
+        MediaToolbarCustomizer.shared.$isCustomizing
+            .receive(on: RunLoop.main)
+            .sink { [weak self] customizing in
+                guard let self else { return }
+                if customizing {
+                    if self.expandedPage == .weather {
+                        self.expandedPage = .music
+                    }
+                } else {
+                    self.expandedPage = ExpandedPage.stored()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func syncSoundwaves() {
@@ -629,8 +653,111 @@ final class NotchViewModel: ObservableObject {
         if !v, AirDropController.shared.phase.isActive { return }
         if !v, NotificationController.shared.isPinned { return }
         guard v != isExpanded else { return }
+        let settings = AppSettings.shared
+        let idlePage: ExpandedPage? = {
+            guard v, isIdle, !MediaToolbarCustomizer.shared.isCustomizing
+            else { return nil }
+            guard settings.weatherEnabled else { return .music }
+            switch settings.weatherIdleExpand {
+            case .weather: return .weather
+            case .music: return .music
+            case .remember: return ExpandedPage.stored()
+            }
+        }()
         withAnimation(v ? Self.notchExpandSpring : Self.notchCollapseSpring) {
             isExpanded = v
+            if let idlePage {
+                pageTurnForward = idlePage == .weather
+                expandedPage = idlePage
+                if idlePage == .weather { weatherSlide = .overview }
+            }
+        }
+        if let idlePage {
+            UserDefaults.standard.set(
+                idlePage.rawValue,
+                forKey: ExpandedPage.storageKey
+            )
+        }
+        if v, expandedPage == .weather {
+            WeatherController.shared.prepare()
+        }
+    }
+
+    func setExpandedPage(_ page: ExpandedPage) {
+        guard page != expandedPage else { return }
+        guard !MediaToolbarCustomizer.shared.isCustomizing else { return }
+        if page == .weather, !AppSettings.shared.weatherEnabled { return }
+        pageTurnForward = page == .weather
+        pageSwipeOffset = 0
+        withAnimation(Self.pageSwitchSpring) {
+            expandedPage = page
+            if page == .weather { weatherSlide = .overview }
+        }
+        UserDefaults.standard.set(
+            page.rawValue,
+            forKey: ExpandedPage.storageKey
+        )
+        if page == .weather { WeatherController.shared.prepare() }
+    }
+
+    func turnWeatherSlide(_ direction: Int) {
+        guard isExpanded, expandedPage == .weather else { return }
+        guard Date().timeIntervalSince(lastSwipeCommit) > 0.42 else { return }
+        guard AppSettings.shared.weatherSwipeEnabled,
+            let next = weatherSlide.neighbor(direction: direction)
+        else {
+            cancelWeatherSlide()
+            return
+        }
+        lastSwipeCommit = Date()
+        weatherSlideForward = direction > 0
+        weatherSlideOffset = 0
+        withAnimation(Self.pageSwitchSpring) {
+            weatherSlide = next
+        }
+    }
+
+    func updatePageSwipe(_ dx: CGFloat, _ dy: CGFloat) {
+        guard abs(dx) > abs(dy) * 1.35, abs(dx) >= 2 else { return }
+        let resistance: CGFloat = 0.42
+        pageSwipeOffset = max(-42, min(42, pageSwipeOffset + dx * resistance))
+    }
+
+    func cancelPageSwipe() {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            pageSwipeOffset = 0
+        }
+    }
+
+    func turnExpandedPage(_ direction: Int) {
+        guard isExpanded else { return }
+        guard Date().timeIntervalSince(lastSwipeCommit) > 0.42 else { return }
+        guard AppSettings.shared.weatherEnabled,
+            AppSettings.shared.weatherSwipeEnabled
+        else {
+            cancelPageSwipe()
+            return
+        }
+        guard let next = expandedPage.neighbor(direction: direction) else {
+            cancelPageSwipe()
+            return
+        }
+        lastSwipeCommit = Date()
+        setExpandedPage(next)
+    }
+
+    func updateWeatherSlide(_ dy: CGFloat) {
+        guard abs(dy) > 2 else { return }
+        let resistance: CGFloat = 0.42
+        weatherSlideOffset = max(
+            -42,
+            min(42, weatherSlideOffset + dy * resistance)
+        )
+    }
+
+    func cancelWeatherSlide() {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            weatherSlideOffset = 0
         }
     }
 
@@ -956,7 +1083,7 @@ struct NotchRootView: View {
         verticalHUD && vm.isExpanded && !airDropActive && !notificationActive
     }
     private var islandRaised: Bool {
-        (vm.isExpanded && !vm.isIdle && !airDropActive && !notificationActive)
+        (vm.isExpanded && !airDropActive && !notificationActive)
             || toolbar.isCustomizing
             || (notificationActive && notifications.isExpanded)
             || airDropActive
@@ -970,8 +1097,7 @@ struct NotchRootView: View {
             expanded: (vm.isExpanded || toolbar.isCustomizing)
                 && !airDropActive && !notificationActive,
             idle: vm.isExpanded && vm.isIdle && !toolbar.isCustomizing
-                && !airDropActive
-                && !notificationActive,
+                && !airDropActive && !notificationActive,
             extended: (settings.extendNotch && hasTrack && !verticalHUD
                 && !airDropActive && !notificationActive)
                 || sideAnnouncement,
@@ -997,7 +1123,10 @@ struct NotchRootView: View {
                 && !vm.nowPlaying.album.isEmpty
                 && !vm.isIdle,
             artAspectRatio: vm.nowPlaying.displayArtworkAspect,
-            customizingToolbar: toolbar.isCustomizing
+            customizingToolbar: toolbar.isCustomizing,
+            weather: vm.isExpanded && vm.expandedPage == .weather
+                && !toolbar.isCustomizing
+                && !airDropActive && !notificationActive
         )
     }
     private var persistentEdgeColor: Color? {
@@ -1061,6 +1190,7 @@ struct NotchRootView: View {
             value: m.extended
         )
         .animation(NotchViewModel.notchExpandSpring, value: vm.isIdle)
+        .animation(NotchViewModel.notchExpandSpring, value: vm.expandedPage)
         .animation(NotchViewModel.sideHUDSpring, value: vm.hud)
         .animation(NotchViewModel.sideHUDSpring, value: vm.hudDisplay)
         .animation(NotchViewModel.airDropSpring, value: airDrop.phase)
@@ -1178,7 +1308,7 @@ struct NotchRootView: View {
                     .opacity(
                         airDropActive
                             ? 0.55
-                            : ((vm.isExpanded && !vm.isIdle || hudVisible
+                            : ((vm.isExpanded || hudVisible
                                 || notificationActive
                                 ? 0.55 : 0)
                                 + trackPulse * 0.35)
@@ -1194,7 +1324,7 @@ struct NotchRootView: View {
                     .blur(radius: 28)
                     .scaleEffect(x: 1.12, y: 1.18)
                     .opacity(
-                        airDropActive || vm.isExpanded && !vm.isIdle
+                        airDropActive || vm.isExpanded
                             || hudVisible || notificationActive ? 0.55 : 0
                     )
                     .frame(width: m.width, height: m.height)

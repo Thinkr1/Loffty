@@ -243,6 +243,73 @@ enum SoundwaveTone: String, CaseIterable, Identifiable {
     }
 }
 
+enum WeatherTemperatureUnit: String, CaseIterable, Identifiable {
+    case automatic
+    case celsius
+    case fahrenheit
+
+    static let storageKey = "weatherTemperatureUnit"
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: "Automatic"
+        case .celsius: "Celsius"
+        case .fahrenheit: "Fahrenheit"
+        }
+    }
+
+    func usesMetric(locale: Locale = .current) -> Bool {
+        switch self {
+        case .automatic: locale.measurementSystem == .metric
+        case .celsius: true
+        case .fahrenheit: false
+        }
+    }
+}
+
+enum WeatherWindUnit: String, CaseIterable, Identifiable {
+    case automatic
+    case kilometers
+    case miles
+
+    static let storageKey = "weatherWindUnit"
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: "Automatic"
+        case .kilometers: "km/h"
+        case .miles: "mph"
+        }
+    }
+
+    func usesMetric(locale: Locale = .current) -> Bool {
+        switch self {
+        case .automatic: locale.measurementSystem == .metric
+        case .kilometers: true
+        case .miles: false
+        }
+    }
+}
+
+enum WeatherIdleExpand: String, CaseIterable, Identifiable {
+    case weather
+    case music
+    case remember
+
+    static let storageKey = "weatherIdleExpand"
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .weather: "Weather"
+        case .music: "Music"
+        case .remember: "Last used"
+        }
+    }
+}
+
 enum ArtistEnrichmentMode: String, CaseIterable, Identifiable {
     case never
     case wifiOnly
@@ -339,6 +406,16 @@ final class AppSettings: ObservableObject {
     private static let hideNotchFullScreenAppsKey = "hideNotchFullScreenApps"
     private static let notchOutlineWhenNotFullScreenKey =
         "notchOutlineWhenNotFullScreen"
+    private static let weatherEnabledKey = "weatherEnabled"
+    private static let weatherSwipeEnabledKey = "weatherSwipeEnabled"
+    private static let weatherShowLocationKey = "weatherShowLocation"
+    private static let weatherShowHighLowKey = "weatherShowHighLow"
+    private static let weatherShowUVKey = "weatherShowUV"
+    private static let weatherShowWindKey = "weatherShowWind"
+    private static let weatherShowHourlyKey = "weatherShowHourly"
+    private static let weatherShowPrecipKey = "weatherShowPrecip"
+    private static let weatherHourCountKey = "weatherHourCount"
+    private static let weatherRefreshMinutesKey = "weatherRefreshMinutes"
 
     @Published var hideMenuBarItem: Bool {
         didSet {
@@ -696,6 +773,125 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var weatherEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                weatherEnabled,
+                forKey: Self.weatherEnabledKey
+            )
+        }
+    }
+
+    @Published var weatherIdleExpand: WeatherIdleExpand {
+        didSet {
+            UserDefaults.standard.set(
+                weatherIdleExpand.rawValue,
+                forKey: WeatherIdleExpand.storageKey
+            )
+        }
+    }
+
+    @Published var weatherSwipeEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                weatherSwipeEnabled,
+                forKey: Self.weatherSwipeEnabledKey
+            )
+        }
+    }
+
+    @Published var weatherTemperatureUnit: WeatherTemperatureUnit {
+        didSet {
+            UserDefaults.standard.set(
+                weatherTemperatureUnit.rawValue,
+                forKey: WeatherTemperatureUnit.storageKey
+            )
+        }
+    }
+
+    @Published var weatherWindUnit: WeatherWindUnit {
+        didSet {
+            UserDefaults.standard.set(
+                weatherWindUnit.rawValue,
+                forKey: WeatherWindUnit.storageKey
+            )
+        }
+    }
+
+    @Published var weatherShowLocation: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                weatherShowLocation,
+                forKey: Self.weatherShowLocationKey
+            )
+        }
+    }
+
+    @Published var weatherShowHighLow: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                weatherShowHighLow,
+                forKey: Self.weatherShowHighLowKey
+            )
+        }
+    }
+
+    @Published var weatherShowUV: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                weatherShowUV,
+                forKey: Self.weatherShowUVKey
+            )
+        }
+    }
+
+    @Published var weatherShowWind: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                weatherShowWind,
+                forKey: Self.weatherShowWindKey
+            )
+        }
+    }
+
+    @Published var weatherShowHourly: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                weatherShowHourly,
+                forKey: Self.weatherShowHourlyKey
+            )
+        }
+    }
+
+    @Published var weatherShowPrecip: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                weatherShowPrecip,
+                forKey: Self.weatherShowPrecipKey
+            )
+        }
+    }
+
+    @Published var weatherHourCount: Int {
+        didSet {
+            let hours = min(6, max(3, weatherHourCount))
+            if hours != weatherHourCount {
+                weatherHourCount = hours
+                return
+            }
+            UserDefaults.standard.set(hours, forKey: Self.weatherHourCountKey)
+        }
+    }
+
+    @Published var weatherRefreshMinutes: Double {
+        didSet {
+            UserDefaults.standard.set(
+                weatherRefreshMinutes,
+                forKey: Self.weatherRefreshMinutesKey
+            )
+        }
+    }
+
     var watchesFullScreenApps: Bool {
         hideNotchInFullScreen || !hideNotchFullScreenApps.isEmpty
             || (notchEdgeStyle != .off && !notchOutlineWhenNotFullScreen)
@@ -911,6 +1107,57 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.notchOutlineWhenNotFullScreenKey
             ) as? Bool ?? true
+        weatherEnabled =
+            UserDefaults.standard.object(forKey: Self.weatherEnabledKey)
+            as? Bool ?? true
+        if let raw = UserDefaults.standard.string(
+            forKey: WeatherIdleExpand.storageKey
+        ), let value = WeatherIdleExpand(rawValue: raw) {
+            weatherIdleExpand = value
+        } else {
+            weatherIdleExpand = .weather
+        }
+        weatherSwipeEnabled =
+            UserDefaults.standard.object(forKey: Self.weatherSwipeEnabledKey)
+            as? Bool ?? true
+        if let raw = UserDefaults.standard.string(
+            forKey: WeatherTemperatureUnit.storageKey
+        ), let unit = WeatherTemperatureUnit(rawValue: raw) {
+            weatherTemperatureUnit = unit
+        } else {
+            weatherTemperatureUnit = .automatic
+        }
+        if let raw = UserDefaults.standard.string(
+            forKey: WeatherWindUnit.storageKey
+        ), let unit = WeatherWindUnit(rawValue: raw) {
+            weatherWindUnit = unit
+        } else {
+            weatherWindUnit = .automatic
+        }
+        weatherShowLocation =
+            UserDefaults.standard.object(forKey: Self.weatherShowLocationKey)
+            as? Bool ?? true
+        weatherShowHighLow =
+            UserDefaults.standard.object(forKey: Self.weatherShowHighLowKey)
+            as? Bool ?? true
+        weatherShowUV =
+            UserDefaults.standard.object(forKey: Self.weatherShowUVKey)
+            as? Bool ?? true
+        weatherShowWind =
+            UserDefaults.standard.object(forKey: Self.weatherShowWindKey)
+            as? Bool ?? true
+        weatherShowHourly =
+            UserDefaults.standard.object(forKey: Self.weatherShowHourlyKey)
+            as? Bool ?? true
+        weatherShowPrecip =
+            UserDefaults.standard.object(forKey: Self.weatherShowPrecipKey)
+            as? Bool ?? true
+        weatherHourCount =
+            UserDefaults.standard.object(forKey: Self.weatherHourCountKey)
+            as? Int ?? 6
+        weatherRefreshMinutes =
+            UserDefaults.standard.object(forKey: Self.weatherRefreshMinutesKey)
+            as? Double ?? 15
         launchAtLogin = LaunchAtLogin.isEnabled
         launchAtLoginNeedsApproval = LaunchAtLogin.requiresApproval
     }

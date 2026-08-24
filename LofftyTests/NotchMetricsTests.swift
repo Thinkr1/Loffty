@@ -70,11 +70,30 @@ struct NotchMetricsTests {
         #expect(m.topRadius == 22)
     }
 
+    @Test func expandedWeatherUsesRoomForItsSlides() {
+        let idleMusic = base(expanded: true, idle: true)
+        let weather = NotchMetrics(
+            notchW: 200,
+            notchH: 32,
+            expanded: true,
+            idle: true,
+            extended: false,
+            hudActive: false,
+            weather: true
+        )
+        #expect(idleMusic.height == 196)
+        #expect(idleMusic.width == 392)
+        #expect(weather.height == 240)
+        #expect(weather.width == 392)
+        #expect(weather.topRadius == 22)
+        #expect(weather.bottomRadius == 30)
+    }
+
     @Test func expandedIdle() {
         let m = base(expanded: true, idle: true)
-        #expect(m.height == 32)
-        #expect(m.topRadius == 10)
-        #expect(m.width == 200 + 2 * m.side + 2 * m.topRadius)
+        #expect(m.height == 196)
+        #expect(m.topRadius == 22)
+        #expect(m.width == 392)
     }
 
     @Test func hudActiveExtendsHeight() {

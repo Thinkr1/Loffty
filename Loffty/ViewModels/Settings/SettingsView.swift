@@ -20,6 +20,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     case airDrop
     case notifications
     case lockScreen
+    case weather
     case updates
 
     enum Region {
@@ -34,7 +35,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         switch self {
         case .general, .media: .app
         case .sensory, .battery, .accessories, .focus, .airDrop, .notifications,
-            .lockScreen:
+            .lockScreen, .weather:
             .overlays
         case .updates: .footer
         }
@@ -51,6 +52,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .airDrop: "AirDrop"
         case .notifications: "Notifications"
         case .lockScreen: "Lock Screen"
+        case .weather: "Weather"
         case .updates: "Updates"
         }
     }
@@ -66,6 +68,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .airDrop: "dot.radiowaves.up.forward"
         case .notifications: "bell.fill"
         case .lockScreen: "lock.fill"
+        case .weather: "cloud.sun.fill"
         case .updates: "arrow.down.circle.fill"
         }
     }
@@ -81,6 +84,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .airDrop: .blue
         case .notifications: .green
         case .lockScreen: .orange
+        case .weather: .cyan
         case .updates: .blue
         }
     }
@@ -391,7 +395,7 @@ struct SettingsView: View {
 
     private var groups: [SettingsGroup] {
         generalGroups + mediaGroups + overlayGroups + lockScreenGroups
-            + updateGroups
+            + weatherGroups + updateGroups
     }
 
     private var generalGroups: [SettingsGroup] {
@@ -443,7 +447,7 @@ struct SettingsView: View {
                 page: .general,
                 title: "Notch",
                 note:
-                    "The overlay duration applies to every notch overlay: volume, brightness, battery, Bluetooth and Focus.",
+                    "The overlay duration applies to every notch overlay: volume, brightness, battery, Bluetooth and Focus. Swipe sideways with two fingers on the expanded notch to switch between music and weather.",
                 entries: [
                     SettingsEntry(
                         "extendNotch",
@@ -1142,6 +1146,203 @@ struct SettingsView: View {
         ]
     }
 
+    private var weatherGroups: [SettingsGroup] {
+        [
+            SettingsGroup(
+                page: .weather,
+                title: "Weather",
+                note:
+                    "Weather uses your location and Open-Meteo. Because Loffty lives in the menu bar, macOS needs a regular window to show the Location prompt.",
+                entries: [
+                    SettingsEntry(
+                        "weatherEnabled",
+                        title: "Weather in the notch",
+                        keywords: ["forecast", "expanded", "page"]
+                    ) {
+                        SettingsToggle(isOn: $settings.weatherEnabled)
+                    },
+                    SettingsEntry(
+                        "weatherIdleExpand",
+                        title: "When nothing is playing",
+                        detail: "Shown when you expand the idle notch.",
+                        keywords: ["idle", "default", "page"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsMenu(selection: $settings.weatherIdleExpand) {
+                            ForEach(WeatherIdleExpand.allCases) { option in
+                                Text(option.title).tag(option)
+                            }
+                        }
+                    },
+                    SettingsEntry(
+                        "weatherSwipeEnabled",
+                        title: "Swipe between music and weather",
+                        detail: "Two-finger swipe on the expanded notch.",
+                        keywords: ["trackpad", "gesture", "page"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsToggle(isOn: $settings.weatherSwipeEnabled)
+                    },
+                    SettingsEntry(
+                        "weatherLocation",
+                        title: "Location",
+                        detail: "Allow shows the macOS Location prompt.",
+                        keywords: ["permission", "gps", "allow"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        HStack(spacing: 6) {
+                            Button("Allow") {
+                                WeatherController.shared.requestAccessFromUser()
+                            }
+                            .controlSize(.small)
+                            .settingsButton(prominent: true)
+                            Button("Settings") {
+                                PrivacyAccess.openLocationSettings()
+                            }
+                            .controlSize(.small)
+                            .settingsButton()
+                        }
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .weather,
+                title: "Units",
+                entries: [
+                    SettingsEntry(
+                        "weatherTemperatureUnit",
+                        title: "Temperature",
+                        keywords: ["celsius", "fahrenheit", "degrees"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsMenu(
+                            selection: $settings.weatherTemperatureUnit
+                        ) {
+                            ForEach(WeatherTemperatureUnit.allCases) { unit in
+                                Text(unit.title).tag(unit)
+                            }
+                        }
+                    },
+                    SettingsEntry(
+                        "weatherWindUnit",
+                        title: "Wind",
+                        keywords: ["kmh", "mph", "speed"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsMenu(selection: $settings.weatherWindUnit) {
+                            ForEach(WeatherWindUnit.allCases) { unit in
+                                Text(unit.title).tag(unit)
+                            }
+                        }
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .weather,
+                title: "Details",
+                entries: [
+                    SettingsEntry(
+                        "weatherShowLocation",
+                        title: "Show place name",
+                        keywords: ["city", "locality"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsToggle(isOn: $settings.weatherShowLocation)
+                    },
+                    SettingsEntry(
+                        "weatherShowHighLow",
+                        title: "Show high and low",
+                        keywords: ["max", "min", "range"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsToggle(isOn: $settings.weatherShowHighLow)
+                    },
+                    SettingsEntry(
+                        "weatherShowUV",
+                        title: "Show UV index",
+                        keywords: ["sun", "index"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsToggle(isOn: $settings.weatherShowUV)
+                    },
+                    SettingsEntry(
+                        "weatherShowWind",
+                        title: "Show wind speed",
+                        keywords: ["breeze"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsToggle(isOn: $settings.weatherShowWind)
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .weather,
+                title: "Hourly",
+                entries: [
+                    SettingsEntry(
+                        "weatherShowHourly",
+                        title: "Show hourly forecast",
+                        keywords: ["hours", "timeline"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsToggle(isOn: $settings.weatherShowHourly)
+                    },
+                    SettingsEntry(
+                        "weatherHourCount",
+                        title: "Hours shown",
+                        keywords: ["count", "columns"],
+                        isEnabled: settings.weatherEnabled
+                            && settings.weatherShowHourly
+                    ) {
+                        SettingsMenu(
+                            selection: Binding(
+                                get: { settings.weatherHourCount },
+                                set: { settings.weatherHourCount = $0 }
+                            )
+                        ) {
+                            ForEach([3, 4, 5, 6], id: \.self) { count in
+                                Text("\(count)").tag(count)
+                            }
+                        }
+                    },
+                    SettingsEntry(
+                        "weatherShowPrecip",
+                        title: "Show rain chance",
+                        keywords: ["precipitation", "percent"],
+                        isEnabled: settings.weatherEnabled
+                            && settings.weatherShowHourly
+                    ) {
+                        SettingsToggle(isOn: $settings.weatherShowPrecip)
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .weather,
+                title: "Refresh",
+                entries: [
+                    SettingsEntry(
+                        "weatherRefreshMinutes",
+                        title: "Update interval",
+                        keywords: ["refresh", "minutes", "cache"],
+                        isEnabled: settings.weatherEnabled
+                    ) {
+                        SettingsMenu(
+                            selection: Binding(
+                                get: { settings.weatherRefreshMinutes },
+                                set: { settings.weatherRefreshMinutes = $0 }
+                            )
+                        ) {
+                            ForEach([10.0, 15.0, 30.0, 60.0], id: \.self) {
+                                minutes in
+                                Text("\(Int(minutes)) min").tag(minutes)
+                            }
+                        }
+                    }
+                ]
+            ),
+        ]
+    }
+
     private var updateGroups: [SettingsGroup] {
         [
             SettingsGroup(
@@ -1380,6 +1581,21 @@ private struct SettingsToggle: View {
             .labelsHidden()
             .toggleStyle(.switch)
             .sensoryFeedback(.selection, trigger: isOn)
+    }
+}
+
+private struct SettingsMenu<Selection: Hashable, Content: View>: View {
+    @Binding var selection: Selection
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Picker("", selection: $selection) {
+            content()
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .controlSize(.small)
+        .frame(width: 128)
     }
 }
 

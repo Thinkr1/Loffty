@@ -371,6 +371,9 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Loffty receives new bluetooth connections to display them in the notch";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Loffty discovers nearby AirDrop devices to send files from the notch";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Loffty uses your location to show the local weather in the notch";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Loffty uses your location to show the local weather in the notch";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Loffty uses your location to show the local weather in the notch";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -414,6 +417,9 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Loffty receives new bluetooth connections to display them in the notch";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Loffty discovers nearby AirDrop devices to send files from the notch";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Loffty uses your location to show the local weather in the notch";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Loffty uses your location to show the local weather in the notch";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Loffty uses your location to show the local weather in the notch";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

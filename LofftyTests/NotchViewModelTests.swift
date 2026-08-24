@@ -105,4 +105,74 @@ struct NotchViewModelTests {
         let now = Date()
         #expect(abs(vm.currentTime(at: now) - 40) < 0.01)
     }
+
+    @Test @MainActor func turnExpandedPageMovesSpatially() {
+        let vm = NotchViewModel()
+        let original = ExpandedPage.stored()
+        defer {
+            UserDefaults.standard.set(
+                original.rawValue,
+                forKey: ExpandedPage.storageKey
+            )
+        }
+        vm.isExpanded = true
+        vm.expandedPage = .music
+        vm.turnExpandedPage(1)
+        #expect(vm.expandedPage == .weather)
+        vm.turnExpandedPage(1)
+        #expect(vm.expandedPage == .weather)
+        vm.turnExpandedPage(-1)
+        #expect(vm.expandedPage == .music)
+        #expect(
+            UserDefaults.standard.string(forKey: ExpandedPage.storageKey)
+                == ExpandedPage.music.rawValue
+        )
+    }
+
+    @Test @MainActor func turnExpandedPageRequiresExpandedNotch() {
+        let vm = NotchViewModel()
+        vm.expandedPage = .music
+        vm.isExpanded = false
+        vm.turnExpandedPage(1)
+        #expect(vm.expandedPage == .music)
+    }
+
+    @Test @MainActor func setExpandedWhileIdleOpensWeather() {
+        let vm = NotchViewModel()
+        let original = ExpandedPage.stored()
+        defer {
+            UserDefaults.standard.set(
+                original.rawValue,
+                forKey: ExpandedPage.storageKey
+            )
+        }
+        vm.nowPlaying = NowPlaying()
+        vm.expandedPage = .music
+        vm.setExpanded(true)
+        #expect(vm.isExpanded)
+        #expect(vm.expandedPage == .weather)
+        #expect(
+            UserDefaults.standard.string(forKey: ExpandedPage.storageKey)
+                == ExpandedPage.weather.rawValue
+        )
+    }
+
+    @Test @MainActor func setExpandedWhileIdleRespectsMusicPreference() {
+        let vm = NotchViewModel()
+        let settings = AppSettings.shared
+        let originalExpand = settings.weatherIdleExpand
+        let originalPage = ExpandedPage.stored()
+        defer {
+            settings.weatherIdleExpand = originalExpand
+            UserDefaults.standard.set(
+                originalPage.rawValue,
+                forKey: ExpandedPage.storageKey
+            )
+        }
+        settings.weatherIdleExpand = .music
+        vm.nowPlaying = NowPlaying()
+        vm.expandedPage = .weather
+        vm.setExpanded(true)
+        #expect(vm.expandedPage == .music)
+    }
 }

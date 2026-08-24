@@ -457,7 +457,7 @@ struct OnboardingView: View {
             .padding(.top, 4)
 
             Text(
-                "Turn off Desktop for each app so banners don’t appear on screen. Keep Allow Notifications and Notification Centre on."
+                "Turn off Desktop for each app so banners don't appear on screen. Keep Allow Notifications and Notification Centre on."
             )
             .font(.system(size: 13))
             .foregroundStyle(.secondary)
@@ -560,7 +560,7 @@ struct OnboardingView: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
                 .shadow(color: .black.opacity(0.24), radius: 18, y: 8)
-            Text("You’re all set!")
+            Text("You're all set!")
                 .font(.system(size: 24, weight: .bold))
             Text(
                 "Loffty stays in the menu bar. Open settings at any time from the notch or the status item."

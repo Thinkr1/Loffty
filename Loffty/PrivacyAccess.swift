@@ -79,6 +79,10 @@ enum PrivacyAccess {
         openPrivacyPane("Privacy_AllFiles")
     }
 
+    static func openLocationSettings() {
+        openPrivacyPane("Privacy_LocationServices")
+    }
+
     static func openAutomationSettings() {
         openPrivacyPane("Privacy_Automation")
     }

@@ -55,6 +55,16 @@ final class SettingsOpener {
     }
 
     func open() {
+        open(page: nil)
+    }
+
+    func open(page: SettingsPage?) {
+        if let page {
+            UserDefaults.standard.set(
+                page.rawValue,
+                forKey: "settings.selectedPage"
+            )
+        }
         ensureWindow()
         guard let window else { return }
         if !window.isVisible {
@@ -207,6 +217,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var triggerZone = CGRect.zero
     private var expandedZone = CGRect.zero
     private var airDropZone = CGRect.zero
+    private var pageSwipe = HorizontalSwipeRecognizer()
+    private var weatherSlideSwipe = VerticalSwipeRecognizer()
     private var cancellables = Set<AnyCancellable>()
     private let fullScreen = FullScreenWatcher()
 
@@ -649,6 +661,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mouseHandler($0)
             return $0
         }
+        let scrollHandler: (NSEvent) -> Void = { [weak self] event in
+            self?.handlePageScroll(event)
+        }
+        NSEvent.addGlobalMonitorForEvents(
+            matching: [.scrollWheel],
+            handler: scrollHandler
+        )
+        NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) {
+            scrollHandler($0)
+            return $0
+        }
         NSEvent.addGlobalMonitorForEvents(matching: [
             .leftMouseDown, .rightMouseDown,
         ]) { [weak self] _ in
@@ -684,6 +707,104 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateHoverState()
     }
 
+    private func handlePageScroll(_ event: NSEvent) {
+        guard vm != nil, vm.isExpanded else { return }
+        guard AppSettings.shared.weatherEnabled,
+            AppSettings.shared.weatherSwipeEnabled
+        else { return }
+        guard !NotificationController.shared.isActive else { return }
+        guard !AirDropController.shared.phase.isActive else { return }
+        guard !MediaToolbarCustomizer.shared.isCustomizing else { return }
+        guard expandedZone.contains(NSEvent.mouseLocation) else { return }
+        if weatherSlideSwipe.didCommit {
+            if event.phase.contains(.ended) || event.phase.contains(.cancelled)
+            {
+                _ = weatherSlideSwipe.handle(.cancelled)
+            }
+            return
+        }
+        if pageSwipe.didCommit {
+            if event.phase.contains(.ended) || event.phase.contains(.cancelled)
+            {
+                _ = pageSwipe.handle(.cancelled)
+            }
+            return
+        }
+        if vm.expandedPage == .weather,
+            !weatherSlideSwipe.isTracking,
+            NSEvent.mouseLocation.x > expandedZone.maxX - 52
+        {
+            return
+        }
+        if event.momentumPhase != [] { return }
+
+        let dx = event.scrollingDeltaX
+        let dy = event.scrollingDeltaY
+        if event.phase.contains(.began), dx == 0, dy == 0 {
+            return
+        }
+        let verticalGestureIsActive = weatherSlideSwipe.isTracking
+        if verticalGestureIsActive
+            || abs(dy) > abs(dx) * 1.25
+        {
+            if event.phase.contains(.began) || event.phase.contains(.changed) {
+                vm.updateWeatherSlide(dy)
+            }
+            let direction = dy < 0 ? 1 : -1
+            let slideTurn: Int?
+            if event.phase.contains(.ended) {
+                slideTurn = weatherSlideSwipe.handle(.ended)
+            } else if event.phase.contains(.cancelled) {
+                slideTurn = nil
+                _ = weatherSlideSwipe.handle(.cancelled)
+            } else {
+                _ = weatherSlideSwipe.handle(
+                    event.phase.contains(.began)
+                        ? .began(dx: dx, dy: dy)
+                        : .changed(dx: dx, dy: dy)
+                )
+                slideTurn = weatherSlideSwipe.commitIfReady()
+            }
+            Task { @MainActor in
+                if slideTurn != nil {
+                    self.vm.turnWeatherSlide(direction)
+                } else if event.phase.contains(.ended)
+                    || event.phase.contains(.cancelled)
+                {
+                    self.vm.cancelWeatherSlide()
+                }
+            }
+            return
+        }
+        let phase = event.phase
+        let turn: Int?
+        if phase.contains(.cancelled) {
+            turn = pageSwipe.handle(.cancelled)
+        } else if phase.contains(.began) {
+            turn = pageSwipe.handle(.began(dx: dx, dy: dy))
+        } else if phase.contains(.ended) {
+            _ = pageSwipe.handle(.changed(dx: dx, dy: dy))
+            turn = pageSwipe.handle(.ended)
+        } else if phase.contains(.changed) {
+            vm.updatePageSwipe(dx, dy)
+            _ = pageSwipe.handle(.changed(dx: dx, dy: dy))
+            turn = pageSwipe.commitIfReady()
+        } else if phase.isEmpty {
+            turn = pageSwipe.handle(.tick(dx: dx, dy: dy))
+        } else {
+            turn = nil
+        }
+        guard let turn else {
+            if phase.contains(.ended) || phase.contains(.cancelled) {
+                vm.cancelPageSwipe()
+            }
+            return
+        }
+        Task { @MainActor in
+            self.vm.turnExpandedPage(turn)
+        }
+    }
+
     private func refreshExpandedZone(screen: NSScreen, notch: CGRect) {
         let customizing = MediaToolbarCustomizer.shared.isCustomizing
         let panelW: CGFloat =
@@ -691,7 +812,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let panelH: CGFloat =
             customizing
             ? MediaToolbarCustomizeLayout.expandedHeight(showAlbum: true)
-            : 206
+            : (vm.expandedPage == .weather ? 240 : 206)
         let margin: CGFloat = 36
         expandedZone = CGRect(
             x: notch.midX - panelW / 2 - margin,

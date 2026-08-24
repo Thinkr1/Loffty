@@ -12,7 +12,7 @@ import Testing
 struct OutputDeviceIconTests {
     @Test(arguments: [
         (
-            "Pierre’s AirPods Max", kAudioDeviceTransportTypeBluetooth,
+            "PL's AirPods Max", kAudioDeviceTransportTypeBluetooth,
             "airpods.max"
         ),
         ("AirPods Pro", kAudioDeviceTransportTypeBluetooth, "airpods.pro"),
