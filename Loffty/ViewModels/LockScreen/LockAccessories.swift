@@ -27,6 +27,7 @@ enum LockAccessoriesMetrics {
     static let minTopInset: CGFloat = 200
     static let maxTopInset: CGFloat = 460
 
+    @MainActor
     static func height(settings: AppSettings = .shared) -> CGFloat {
         let accessories = settings.enabledLockScreenAccessories
         guard !accessories.isEmpty else { return 0 }
@@ -41,6 +42,7 @@ enum LockAccessoriesMetrics {
         min(max(value, minTopInsetFraction), maxTopInsetFraction)
     }
 
+    @MainActor
     static func topInset(
         screenHeight: CGFloat,
         settings: AppSettings = .shared
@@ -51,6 +53,7 @@ enum LockAccessoriesMetrics {
         return min(max(screenHeight * fraction, minTopInset), maxTopInset)
     }
 
+    @MainActor
     static func defaultFrame(
         screenFrame: CGRect,
         settings: AppSettings = .shared

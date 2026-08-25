@@ -132,6 +132,7 @@ enum LockScreenPolicy {
         )
     }
 
+    @MainActor
     static func defaultAccessoriesFrame(screenFrame: CGRect) -> CGRect {
         LockAccessoriesMetrics.defaultFrame(screenFrame: screenFrame)
     }

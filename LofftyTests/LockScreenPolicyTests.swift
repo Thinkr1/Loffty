@@ -67,7 +67,7 @@ struct LockScreenPolicyTests {
         #expect(frame.minY == screen.minY + screen.height * 0.19)
     }
 
-    @Test func defaultAccessoriesFrameSitsUnderClockNearTop() {
+    @Test @MainActor func defaultAccessoriesFrameSitsUnderClockNearTop() {
         let screen = CGRect(x: 100, y: 50, width: 1512, height: 982)
         let settings = AppSettings.shared
         let originalWeather = settings.lockScreenWeatherAccessory
@@ -145,7 +145,7 @@ struct LockScreenPolicyTests {
         #expect(rect.midY == window.height / 2)
     }
 
-    @Test func accessoriesHeightGrowsWithWeatherGraph() {
+    @Test @MainActor func accessoriesHeightGrowsWithWeatherGraph() {
         let settings = AppSettings.shared
         let originalWeather = settings.lockScreenWeatherAccessory
         let originalBluetooth = settings.lockScreenBluetoothAccessory
@@ -178,7 +178,7 @@ struct LockScreenPolicyTests {
         )
     }
 
-    @Test func accessoryOrderSwapMovesItems() {
+    @Test @MainActor func accessoryOrderSwapMovesItems() {
         let settings = AppSettings.shared
         let original = settings.lockScreenAccessoryOrder
         defer { settings.lockScreenAccessoryOrder = original }
@@ -191,7 +191,7 @@ struct LockScreenPolicyTests {
         #expect(settings.lockScreenAccessoryOrder == [.bluetooth, .battery, .weather])
     }
 
-    @Test func accessoryMoveToAndResetLayout() {
+    @Test @MainActor func accessoryMoveToAndResetLayout() {
         let settings = AppSettings.shared
         let originalOrder = settings.lockScreenAccessoryOrder
         let originalInset = settings.lockScreenAccessoriesTopInsetFraction
