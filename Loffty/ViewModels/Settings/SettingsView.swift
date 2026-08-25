@@ -1143,6 +1143,108 @@ struct SettingsView: View {
                     },
                 ]
             ),
+            SettingsGroup(
+                page: .lockScreen,
+                title: "Accessories",
+                note:
+                    "Drag chips in the mock to reorder or move the row. Dimmed chips are turned off. Reset restores the default layout.",
+                accessory: AnyView(LockAccessoriesLayoutMock()),
+                entries: [
+                    SettingsEntry(
+                        "lockScreenWeatherAccessory",
+                        title: "Weather",
+                        keywords: ["forecast", "temperature", "chip"]
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWeatherAccessory
+                        )
+                    },
+                    SettingsEntry(
+                        "lockScreenBluetoothAccessory",
+                        title: "Bluetooth",
+                        keywords: ["devices", "headphones", "chip"]
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenBluetoothAccessory
+                        )
+                    },
+                    SettingsEntry(
+                        "lockScreenBatteryAccessory",
+                        title: "Battery",
+                        keywords: ["power", "charge", "chip"]
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenBatteryAccessory
+                        )
+                    },
+                    SettingsEntry(
+                        "resetLockScreenAccessoriesLayout",
+                        title: "Reset layout",
+                        detail: "Default order and position under the clock.",
+                        keywords: ["default", "reset", "accessories", "order"]
+                    ) {
+                        Button("Reset") {
+                            settings.resetLockScreenAccessoriesLayout()
+                        }
+                        .controlSize(.small)
+                        .settingsButton()
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .lockScreen,
+                title: "Weather chip",
+                entries: [
+                    SettingsEntry(
+                        "lockScreenWeatherShowLocation",
+                        title: "Show place name",
+                        keywords: ["city", "locality"],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWeatherShowLocation
+                        )
+                    },
+                    SettingsEntry(
+                        "lockScreenWeatherShowHighLow",
+                        title: "Show high and low",
+                        keywords: ["max", "min"],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWeatherShowHighLow
+                        )
+                    },
+                    SettingsEntry(
+                        "lockScreenWeatherShowUV",
+                        title: "Show UV index",
+                        keywords: ["sun"],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                    ) {
+                        SettingsToggle(isOn: $settings.lockScreenWeatherShowUV)
+                    },
+                    SettingsEntry(
+                        "lockScreenWeatherShowWind",
+                        title: "Show wind",
+                        keywords: ["breeze"],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWeatherShowWind
+                        )
+                    },
+                    SettingsEntry(
+                        "lockScreenWeatherShowGraph",
+                        title: "Show temperature graph",
+                        keywords: ["sparkline", "chart", "trend"],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWeatherShowGraph
+                        )
+                    },
+                ]
+            ),
         ]
     }
 

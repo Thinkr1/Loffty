@@ -132,6 +132,10 @@ enum LockScreenPolicy {
         )
     }
 
+    static func defaultAccessoriesFrame(screenFrame: CGRect) -> CGRect {
+        LockAccessoriesMetrics.defaultFrame(screenFrame: screenFrame)
+    }
+
     static func convertToLocalTopLeft(
         _ rect: CGRect,
         in windowFrame: CGRect

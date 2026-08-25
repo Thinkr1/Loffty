@@ -338,6 +338,22 @@ enum WeatherSection: String, CaseIterable, Identifiable {
     }
 }
 
+enum LockScreenAccessory: String, CaseIterable, Identifiable {
+    case weather
+    case bluetooth
+    case battery
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .weather: "Weather"
+        case .bluetooth: "Bluetooth"
+        case .battery: "Battery"
+        }
+    }
+}
+
 enum ArtistEnrichmentMode: String, CaseIterable, Identifiable {
     case never
     case wifiOnly
@@ -416,6 +432,26 @@ final class AppSettings: ObservableObject {
     private static let lockScreenWaveformsKey = "lockScreenWaveforms"
     private static let lockScreenWaveformsAccentKey =
         "lockScreenWaveformsAccent"
+    private static let lockScreenAccessoryOrderKey =
+        "lockScreenAccessoryOrder"
+    private static let lockScreenAccessoriesTopInsetFractionKey =
+        "lockScreenAccessoriesTopInsetFraction"
+    private static let lockScreenWeatherAccessoryKey =
+        "lockScreenWeatherAccessory"
+    private static let lockScreenBluetoothAccessoryKey =
+        "lockScreenBluetoothAccessory"
+    private static let lockScreenBatteryAccessoryKey =
+        "lockScreenBatteryAccessory"
+    private static let lockScreenWeatherShowLocationKey =
+        "lockScreenWeatherShowLocation"
+    private static let lockScreenWeatherShowHighLowKey =
+        "lockScreenWeatherShowHighLow"
+    private static let lockScreenWeatherShowUVKey =
+        "lockScreenWeatherShowUV"
+    private static let lockScreenWeatherShowWindKey =
+        "lockScreenWeatherShowWind"
+    private static let lockScreenWeatherShowGraphKey =
+        "lockScreenWeatherShowGraph"
     private static let playerBadgeExpandedKey = "playerBadgeExpanded.v2"
     private static let playerBadgeCollapsedKey = "playerBadgeCollapsed.v2"
     private static let playerBadgeLockScreenKey = "playerBadgeLockScreen.v2"
@@ -629,6 +665,150 @@ final class AppSettings: ObservableObject {
                 forKey: Self.lockScreenWaveformsAccentKey
             )
         }
+    }
+
+    @Published var lockScreenAccessoryOrder: [LockScreenAccessory] {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenAccessoryOrder.map(\.rawValue),
+                forKey: Self.lockScreenAccessoryOrderKey
+            )
+        }
+    }
+
+    @Published var lockScreenAccessoriesTopInsetFraction: CGFloat {
+        didSet {
+            let clamped = LockAccessoriesMetrics.clampedTopInsetFraction(
+                lockScreenAccessoriesTopInsetFraction
+            )
+            if clamped != lockScreenAccessoriesTopInsetFraction {
+                lockScreenAccessoriesTopInsetFraction = clamped
+                return
+            }
+            UserDefaults.standard.set(
+                Double(clamped),
+                forKey: Self.lockScreenAccessoriesTopInsetFractionKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherAccessory: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherAccessory,
+                forKey: Self.lockScreenWeatherAccessoryKey
+            )
+        }
+    }
+
+    @Published var lockScreenBluetoothAccessory: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenBluetoothAccessory,
+                forKey: Self.lockScreenBluetoothAccessoryKey
+            )
+        }
+    }
+
+    @Published var lockScreenBatteryAccessory: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenBatteryAccessory,
+                forKey: Self.lockScreenBatteryAccessoryKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherShowLocation: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherShowLocation,
+                forKey: Self.lockScreenWeatherShowLocationKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherShowHighLow: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherShowHighLow,
+                forKey: Self.lockScreenWeatherShowHighLowKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherShowUV: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherShowUV,
+                forKey: Self.lockScreenWeatherShowUVKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherShowWind: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherShowWind,
+                forKey: Self.lockScreenWeatherShowWindKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherShowGraph: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherShowGraph,
+                forKey: Self.lockScreenWeatherShowGraphKey
+            )
+        }
+    }
+
+    var enabledLockScreenAccessories: [LockScreenAccessory] {
+        lockScreenAccessoryOrder.filter(isLockScreenAccessoryEnabled)
+    }
+
+    func isLockScreenAccessoryEnabled(_ accessory: LockScreenAccessory) -> Bool
+    {
+        switch accessory {
+        case .weather: lockScreenWeatherAccessory
+        case .bluetooth: lockScreenBluetoothAccessory
+        case .battery: lockScreenBatteryAccessory
+        }
+    }
+
+    func moveLockScreenAccessory(
+        _ accessory: LockScreenAccessory,
+        offset: Int
+    ) {
+        guard let index = lockScreenAccessoryOrder.firstIndex(of: accessory)
+        else { return }
+        let destination = index + offset
+        guard lockScreenAccessoryOrder.indices.contains(destination) else {
+            return
+        }
+        lockScreenAccessoryOrder.swapAt(index, destination)
+    }
+
+    func moveLockScreenAccessory(
+        _ accessory: LockScreenAccessory,
+        to destination: Int
+    ) {
+        guard let index = lockScreenAccessoryOrder.firstIndex(of: accessory)
+        else { return }
+        guard lockScreenAccessoryOrder.indices.contains(destination),
+            index != destination
+        else { return }
+        var order = lockScreenAccessoryOrder
+        order.remove(at: index)
+        order.insert(accessory, at: destination)
+        lockScreenAccessoryOrder = order
+    }
+
+    func resetLockScreenAccessoriesLayout() {
+        lockScreenAccessoryOrder = Array(LockScreenAccessory.allCases)
+        lockScreenAccessoriesTopInsetFraction =
+            LockAccessoriesMetrics.defaultTopInsetFraction
     }
 
     @Published var playerBadgeExpanded: Bool {
@@ -1080,6 +1260,68 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.lockScreenWaveformsAccentKey
             ) as? Bool ?? false
+        let storedAccessories =
+            UserDefaults.standard.stringArray(
+                forKey: Self.lockScreenAccessoryOrderKey
+            )?.compactMap(LockScreenAccessory.init(rawValue:))
+            ?? []
+        lockScreenAccessoryOrder =
+            storedAccessories.isEmpty
+            ? LockScreenAccessory.allCases
+            : LockScreenAccessory.allCases.filter {
+                storedAccessories.contains($0)
+            }
+                + LockScreenAccessory.allCases.filter {
+                    !storedAccessories.contains($0)
+                }
+        if let storedInset = UserDefaults.standard.object(
+            forKey: Self.lockScreenAccessoriesTopInsetFractionKey
+        ) as? Double {
+            let value = CGFloat(storedInset)
+            let previousDefault: CGFloat = 0.255
+            if abs(value - previousDefault) < 0.005 {
+                lockScreenAccessoriesTopInsetFraction =
+                    LockAccessoriesMetrics.defaultTopInsetFraction
+            } else {
+                lockScreenAccessoriesTopInsetFraction =
+                    LockAccessoriesMetrics.clampedTopInsetFraction(value)
+            }
+        } else {
+            lockScreenAccessoriesTopInsetFraction =
+                LockAccessoriesMetrics.defaultTopInsetFraction
+        }
+        lockScreenWeatherAccessory =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherAccessoryKey
+            ) as? Bool ?? true
+        lockScreenBluetoothAccessory =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenBluetoothAccessoryKey
+            ) as? Bool ?? false
+        lockScreenBatteryAccessory =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenBatteryAccessoryKey
+            ) as? Bool ?? false
+        lockScreenWeatherShowLocation =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherShowLocationKey
+            ) as? Bool ?? true
+        lockScreenWeatherShowHighLow =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherShowHighLowKey
+            ) as? Bool ?? false
+        lockScreenWeatherShowUV =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherShowUVKey
+            ) as? Bool ?? false
+        lockScreenWeatherShowWind =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherShowWindKey
+            ) as? Bool ?? false
+        lockScreenWeatherShowGraph =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherShowGraphKey
+            ) as? Bool ?? true
         playerBadgeExpanded =
             UserDefaults.standard.object(forKey: Self.playerBadgeExpandedKey)
             as? Bool ?? true

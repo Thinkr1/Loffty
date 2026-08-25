@@ -175,6 +175,7 @@ final class LockScreenWidget {
 
     private var lockNotchWindow: SkyPanel?
     private var cardWindow: SkyPanel?
+    private var accessoriesWindow: SkyPanel?
     private var cardController: LockCardHostingController<LockCardRootView>?
     private let placement = LockCardPlacement()
     private var savedCompactFrame: NSRect?
@@ -239,6 +240,27 @@ final class LockScreenWidget {
             }
             .store(in: &cancellables)
 
+        let accessoryHeightTriggers = [
+            AppSettings.shared.$lockScreenWeatherAccessory
+                .map { _ in () }.eraseToAnyPublisher(),
+            AppSettings.shared.$lockScreenBluetoothAccessory
+                .map { _ in () }.eraseToAnyPublisher(),
+            AppSettings.shared.$lockScreenBatteryAccessory
+                .map { _ in () }.eraseToAnyPublisher(),
+            AppSettings.shared.$lockScreenWeatherShowGraph
+                .map { _ in () }.eraseToAnyPublisher(),
+            AppSettings.shared.$lockScreenAccessoryOrder
+                .map { _ in () }.eraseToAnyPublisher(),
+            AppSettings.shared.$lockScreenAccessoriesTopInsetFraction
+                .map { _ in () }.eraseToAnyPublisher(),
+        ]
+        Publishers.MergeMany(accessoryHeightTriggers)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in
+                self?.syncAccessoriesIfNeeded()
+            }
+            .store(in: &cancellables)
+
         vm.$lockScreenArtExpanded
             .removeDuplicates()
             .dropFirst()
@@ -249,9 +271,13 @@ final class LockScreenWidget {
                     guard self.vm.isLocked,
                         AppSettings.shared.lockScreenFullScreenArt
                     else { return }
+                    self.hideAccessories()
                     self.showFullScreenArt()
                 } else {
                     self.hideFullScreenArt()
+                    if self.vm.isLocked {
+                        self.showAccessories()
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -281,6 +307,7 @@ final class LockScreenWidget {
                 self.vm.setLocked(false)
                 self.setNotchInteractive(false)
                 self.hideLockNotch()
+                self.hideAccessories()
                 self.hideCard()
                 self.appliedCachedFrameThisLock = false
                 if let frame = self.cardWindow?.frame {
@@ -299,6 +326,7 @@ final class LockScreenWidget {
         if AppSettings.shared.lockScreenNotch {
             showLockNotch()
         }
+        showAccessories()
         showCard()
     }
 
@@ -325,6 +353,35 @@ final class LockScreenWidget {
 
     private func hideLockNotch() {
         lockNotchWindow?.orderOut(nil)
+    }
+
+    private func hideAccessories() {
+        accessoriesWindow?.orderOut(nil)
+        LockAccessoryStatus.shared.stop()
+    }
+
+    private func showAccessories() {
+        guard !vm.lockScreenArtExpanded else { return }
+        let height = LockAccessoriesMetrics.height()
+        guard height > 0 else {
+            hideAccessories()
+            return
+        }
+        let frame = Self.defaultAccessoriesFrame(for: targetScreen())
+        let win = accessoriesWindow ?? makeAccessoriesWindow(frame: frame)
+        accessoriesWindow = win
+        win.setFrame(frame, display: true)
+        win.alphaValue = 1
+        win.ignoresMouseEvents = true
+        win.orderFrontRegardless()
+        LockScreenSpace.interactive.ensureShown()
+        LockScreenSpace.interactive.add(win)
+        LockAccessoryStatus.shared.start()
+    }
+
+    private func syncAccessoriesIfNeeded() {
+        guard vm.isLocked, !vm.lockScreenArtExpanded else { return }
+        showAccessories()
     }
 
     private func showLockNotch() {
@@ -441,6 +498,11 @@ final class LockScreenWidget {
         LockScreenPolicy.defaultCardFrame(screenFrame: screen.frame)
     }
 
+    private static func defaultAccessoriesFrame(for screen: NSScreen) -> NSRect
+    {
+        LockScreenPolicy.defaultAccessoriesFrame(screenFrame: screen.frame)
+    }
+
     private func makeLockNotchWindow() -> SkyPanel {
         let frame = sourceNotchWindow?.frame ?? .zero
         let win = SkyPanel(frame: frame)
@@ -476,6 +538,14 @@ final class LockScreenWidget {
         cardController = controller
         return win
     }
+
+    private func makeAccessoriesWindow(frame: NSRect) -> SkyPanel {
+        let win = SkyPanel(frame: frame)
+        win.hasShadow = false
+        win.ignoresMouseEvents = true
+        win.contentView = NSHostingView(rootView: LockAccessoriesRootView())
+        return win
+    }
 }
 
 private struct LockCardRootView: View {
@@ -497,10 +567,11 @@ private struct LockCardRootView: View {
     }
 }
 
-enum LockCardMetrics {
-    static let width: CGFloat = 356
-    static let height: CGFloat = 174
-    static let cornerRadius: CGFloat = 38
+enum LockCardMatchID {
+    static let chrome = "lockCard.chrome"
+    static let artwork = "lockCard.artwork"
+    static let text = "lockCard.text"
+    static let controls = "lockCard.controls"
 }
 
 struct LockCardView: View {
@@ -518,7 +589,10 @@ struct LockCardView: View {
                 cardBody
             #endif
         }
-        .frame(width: LockCardMetrics.width, height: LockCardMetrics.height)
+        .frame(
+            width: LockCardMetrics.width,
+            height: LockCardMetrics.height
+        )
         .animation(
             .spring(response: 0.42, dampingFraction: 0.86),
             value: vm.nowPlaying.trackKey
@@ -684,13 +758,6 @@ struct LockCardBody: View {
             content
         }
     }
-}
-
-enum LockCardMatchID {
-    static let chrome = "lockCard.chrome"
-    static let artwork = "lockCard.artwork"
-    static let text = "lockCard.text"
-    static let controls = "lockCard.controls"
 }
 
 extension View {
