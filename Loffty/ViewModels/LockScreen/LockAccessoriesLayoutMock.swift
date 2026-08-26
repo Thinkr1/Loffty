@@ -330,6 +330,7 @@ extension LockScreenAccessory {
         case .weather: "cloud.sun.fill"
         case .bluetooth: "airpodspro"
         case .battery: "battery.100"
+        case .focus: "moon.fill"
         }
     }
 
@@ -338,6 +339,7 @@ extension LockScreenAccessory {
         case .weather: "25°"
         case .bluetooth: "AirPods"
         case .battery: "80%"
+        case .focus: "Focus"
         }
     }
 }

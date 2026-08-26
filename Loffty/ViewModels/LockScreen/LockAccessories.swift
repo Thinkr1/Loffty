@@ -21,6 +21,8 @@ enum LockAccessoriesMetrics {
     static let width: CGFloat = 340
     static let rowHeight: CGFloat = 44
     static let graphExtra: CGFloat = 30
+    static let graphBothExtra: CGFloat = 18
+    static let graphLabelsExtra: CGFloat = 14
     static let defaultTopInsetFraction: CGFloat = 0.30
     static let minTopInsetFraction: CGFloat = 0.18
     static let maxTopInsetFraction: CGFloat = 0.42
@@ -34,6 +36,15 @@ enum LockAccessoriesMetrics {
         var value = rowHeight
         if accessories.contains(.weather), settings.lockScreenWeatherShowGraph {
             value += graphExtra
+            if settings.lockScreenWeatherGraphKind == .both {
+                value += graphBothExtra
+            }
+            if settings.lockScreenWeatherShowGraphLabels {
+                value += graphLabelsExtra
+                if settings.lockScreenWeatherGraphKind == .both {
+                    value += graphLabelsExtra / 2
+                }
+            }
         }
         return value
     }
@@ -81,6 +92,8 @@ final class LockAccessoryStatus: ObservableObject {
     @Published private(set) var batteryPercent: Int?
     @Published private(set) var batteryCharging = false
     @Published private(set) var batteryOnAC = false
+    @Published private(set) var focusActive = false
+    @Published private(set) var focusName: String?
 
     private let bluetooth = BluetoothHUDWatcher()
     private var timer: Timer?
@@ -97,11 +110,13 @@ final class LockAccessoryStatus: ObservableObject {
         bluetooth.start()
         refreshBluetoothSnapshot()
         refreshBattery()
+        refreshFocus()
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) {
+        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) {
             [weak self] _ in
             Task { @MainActor in
                 self?.refreshBattery()
+                self?.refreshFocus()
             }
         }
     }
@@ -146,6 +161,12 @@ final class LockAccessoryStatus: ObservableObject {
         batteryPercent = info.percent
         batteryCharging = info.charging
         batteryOnAC = info.onAC
+    }
+
+    func refreshFocus() {
+        let bridge = FocusFilterBridge.shared
+        focusActive = bridge.isFocused
+        focusName = bridge.modeName
     }
 
     private static func readBattery() -> (
@@ -210,9 +231,16 @@ struct LockAccessoriesView: View {
                     settings.lockScreenWeatherShowGraph,
                     let hours = weather.snapshot?.hours, hours.count >= 3
                 {
-                    LockWeatherSparkline(values: hours.map(\.temperatureC))
-                        .frame(height: 22)
-                        .frame(maxWidth: 180)
+                    LockWeatherSparkline(
+                        hours: hours,
+                        kind: settings.lockScreenWeatherGraphKind,
+                        showLabels: settings.lockScreenWeatherShowGraphLabels,
+                        metricTemperature:
+                            WeatherFormatting.usesMetricTemperature(
+                                settings.weatherTemperatureUnit
+                            )
+                    )
+                    .frame(maxWidth: 220)
                 }
             }
             .padding(.horizontal, 8)
@@ -234,6 +262,8 @@ struct LockAccessoriesView: View {
             bluetoothChip
         case .battery:
             batteryChip
+        case .focus:
+            focusChip
         }
     }
 
@@ -263,6 +293,16 @@ struct LockAccessoriesView: View {
                     )
                     .font(.system(size: 15, weight: .semibold))
                     .monospacedDigit()
+                    if settings.lockScreenWeatherShowCondition {
+                        Text(
+                            WeatherFormatting.conditionLabel(
+                                code: snap.weatherCode
+                            )
+                        )
+                        .font(.system(size: 12, weight: .medium))
+                        .opacity(0.72)
+                        .lineLimit(1)
+                    }
                     if settings.lockScreenWeatherShowLocation {
                         Text(snap.locality)
                             .font(.system(size: 12, weight: .medium))
@@ -292,6 +332,18 @@ struct LockAccessoriesView: View {
                         .font(.system(size: 11, weight: .medium))
                         .opacity(0.55)
                     }
+                    if settings.lockScreenWeatherShowPrecip,
+                        let chance = snap.hours.first?.precipChance
+                    {
+                        HStack(spacing: 2) {
+                            Image(systemName: "drop.fill")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text(WeatherFormatting.precipChanceLabel(chance))
+                                .font(.system(size: 11, weight: .medium))
+                                .monospacedDigit()
+                        }
+                        .opacity(0.55)
+                    }
                 }
             } else {
                 HStack(spacing: 5) {
@@ -316,12 +368,8 @@ struct LockAccessoriesView: View {
 
     private var bluetoothChip: some View {
         HStack(spacing: 5) {
-            Image(
-                systemName: status.bluetoothDevices.isEmpty
-                    ? "airpodspro"
-                    : "airpodspro"
-            )
-            .font(.system(size: 14, weight: .medium))
+            Image(systemName: "airpodspro")
+                .font(.system(size: 14, weight: .medium))
             Text(bluetoothLabel)
                 .font(.system(size: 14, weight: .semibold))
                 .monospacedDigit()
@@ -331,10 +379,13 @@ struct LockAccessoriesView: View {
     }
 
     private var bluetoothLabel: String {
-        if let first = status.bluetoothDevices.first {
-            return HUDText.shortBluetoothName(first)
+        let devices = status.bluetoothDevices
+        guard let first = devices.first else { return "Off" }
+        let name = HUDText.shortBluetoothName(first)
+        if settings.lockScreenBluetoothShowCount, devices.count > 1 {
+            return "\(name) +\(devices.count - 1)"
         }
-        return "Off"
+        return name
     }
 
     private var batteryChip: some View {
@@ -348,6 +399,19 @@ struct LockAccessoriesView: View {
             } else {
                 Text("—")
                     .font(.system(size: 14, weight: .medium))
+            }
+            if settings.lockScreenBatteryShowCharging,
+                status.batteryPercent != nil
+            {
+                if status.batteryCharging {
+                    Text("Charging")
+                        .font(.system(size: 11, weight: .medium))
+                        .opacity(0.55)
+                } else if status.batteryOnAC {
+                    Text("Power Adapter")
+                        .font(.system(size: 11, weight: .medium))
+                        .opacity(0.55)
+                }
             }
         }
         .foregroundStyle(.white)
@@ -368,14 +432,131 @@ struct LockAccessoriesView: View {
         default: return "battery.100"
         }
     }
+
+    private var focusChip: some View {
+        HStack(spacing: 5) {
+            Image(
+                systemName: status.focusActive
+                    ? "moon.fill" : "moon"
+            )
+            .font(.system(size: 14, weight: .medium))
+            Text(focusLabel)
+                .font(.system(size: 14, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .opacity(status.focusActive ? 1 : 0.55)
+    }
+
+    private var focusLabel: String {
+        if status.focusActive {
+            return status.focusName ?? "Focus"
+        }
+        return "Off"
+    }
 }
 
 private struct LockWeatherSparkline: View {
-    var values: [Double]
+    var hours: [WeatherHour]
+    var kind: LockScreenWeatherGraphKind
+    var showLabels: Bool
+    var metricTemperature: Bool
 
     var body: some View {
+        switch kind {
+        case .temperature:
+            temperatureBlock(includeHours: showLabels)
+        case .precipitation:
+            precipBlock(includeHours: showLabels)
+        case .both:
+            VStack(spacing: 6) {
+                temperatureBlock(includeHours: false)
+                precipBlock(includeHours: showLabels)
+            }
+        }
+    }
+
+    private func temperatureBlock(includeHours: Bool) -> some View {
+        VStack(spacing: 3) {
+            if showLabels {
+                graphHeader(
+                    title: "Temp",
+                    detail: temperatureRangeLabel
+                )
+            }
+            temperatureLine(values: hours.map(\.temperatureC))
+                .frame(height: 16)
+            if includeHours {
+                hourFooter
+            }
+        }
+    }
+
+    private func precipBlock(includeHours: Bool) -> some View {
+        VStack(spacing: 3) {
+            if showLabels {
+                graphHeader(
+                    title: "Rain",
+                    detail: precipRangeLabel
+                )
+            }
+            precipBars(values: hours.map { Double($0.precipChance) })
+                .frame(height: 14)
+            if includeHours {
+                hourFooter
+            }
+        }
+    }
+
+    private var temperatureRangeLabel: String {
+        guard let min = hours.map(\.temperatureC).min(),
+            let max = hours.map(\.temperatureC).max()
+        else { return "" }
+        return
+            "\(WeatherFormatting.temperatureLabel(min, metric: metricTemperature))–\(WeatherFormatting.temperatureLabel(max, metric: metricTemperature))"
+    }
+
+    private var precipRangeLabel: String {
+        guard let max = hours.map(\.precipChance).max() else { return "" }
+        return "up to \(WeatherFormatting.precipChanceLabel(max))"
+    }
+
+    private var hourFooter: some View {
+        HStack {
+            Text(hourLabel(hours.first?.date))
+            Spacer(minLength: 0)
+            Text(hourLabel(hours.last?.date))
+        }
+        .font(.system(size: 9, weight: .medium))
+        .foregroundStyle(.white.opacity(0.45))
+        .monospacedDigit()
+    }
+
+    private func graphHeader(title: String, detail: String) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.4))
+                .textCase(.uppercase)
+                .tracking(0.3)
+            Spacer(minLength: 0)
+            if !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    private func hourLabel(_ date: Date?) -> String {
+        guard let date else { return "" }
+        return WeatherFormatting.hourLabel(date)
+    }
+
+    private func temperatureLine(values: [Double]) -> some View {
         let points = WeatherGraph.normalized(values)
-        Canvas { context, size in
+        return Canvas { context, size in
             guard points.count > 1 else { return }
             var line = Path()
             for (index, y) in points.enumerated() {
@@ -390,13 +571,40 @@ private struct LockWeatherSparkline: View {
             }
             context.stroke(
                 line,
-                with: .color(.white.opacity(0.7)),
+                with: .color(.white.opacity(0.75)),
                 style: StrokeStyle(
                     lineWidth: 1.4,
                     lineCap: .round,
                     lineJoin: .round
                 )
             )
+        }
+    }
+
+    private func precipBars(values: [Double]) -> some View {
+        Canvas { context, size in
+            guard !values.isEmpty else { return }
+            let count = CGFloat(values.count)
+            let gap: CGFloat = 1.5
+            let barWidth = max(
+                1.5,
+                (size.width - gap * (count - 1)) / count
+            )
+            for (index, value) in values.enumerated() {
+                let normalized = CGFloat(min(max(value / 100, 0), 1))
+                let height = max(1.5, normalized * (size.height - 1))
+                let x = CGFloat(index) * (barWidth + gap)
+                let rect = CGRect(
+                    x: x,
+                    y: size.height - height,
+                    width: barWidth,
+                    height: height
+                )
+                context.fill(
+                    Path(roundedRect: rect, cornerRadius: 1),
+                    with: .color(.white.opacity(0.45 + 0.35 * normalized))
+                )
+            }
         }
     }
 }

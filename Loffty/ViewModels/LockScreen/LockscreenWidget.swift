@@ -247,7 +247,13 @@ final class LockScreenWidget {
                 .map { _ in () }.eraseToAnyPublisher(),
             AppSettings.shared.$lockScreenBatteryAccessory
                 .map { _ in () }.eraseToAnyPublisher(),
+            AppSettings.shared.$lockScreenFocusAccessory
+                .map { _ in () }.eraseToAnyPublisher(),
             AppSettings.shared.$lockScreenWeatherShowGraph
+                .map { _ in () }.eraseToAnyPublisher(),
+            AppSettings.shared.$lockScreenWeatherGraphKind
+                .map { _ in () }.eraseToAnyPublisher(),
+            AppSettings.shared.$lockScreenWeatherShowGraphLabels
                 .map { _ in () }.eraseToAnyPublisher(),
             AppSettings.shared.$lockScreenAccessoryOrder
                 .map { _ in () }.eraseToAnyPublisher(),

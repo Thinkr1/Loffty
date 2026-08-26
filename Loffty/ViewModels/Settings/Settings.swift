@@ -342,6 +342,7 @@ enum LockScreenAccessory: String, CaseIterable, Identifiable {
     case weather
     case bluetooth
     case battery
+    case focus
 
     var id: String { rawValue }
 
@@ -350,6 +351,23 @@ enum LockScreenAccessory: String, CaseIterable, Identifiable {
         case .weather: "Weather"
         case .bluetooth: "Bluetooth"
         case .battery: "Battery"
+        case .focus: "Focus"
+        }
+    }
+}
+
+enum LockScreenWeatherGraphKind: String, CaseIterable, Identifiable {
+    case temperature
+    case precipitation
+    case both
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .temperature: "Temperature"
+        case .precipitation: "Precipitation"
+        case .both: "Temperature + rain"
         }
     }
 }
@@ -442,6 +460,8 @@ final class AppSettings: ObservableObject {
         "lockScreenBluetoothAccessory"
     private static let lockScreenBatteryAccessoryKey =
         "lockScreenBatteryAccessory"
+    private static let lockScreenFocusAccessoryKey =
+        "lockScreenFocusAccessory"
     private static let lockScreenWeatherShowLocationKey =
         "lockScreenWeatherShowLocation"
     private static let lockScreenWeatherShowHighLowKey =
@@ -450,8 +470,20 @@ final class AppSettings: ObservableObject {
         "lockScreenWeatherShowUV"
     private static let lockScreenWeatherShowWindKey =
         "lockScreenWeatherShowWind"
+    private static let lockScreenWeatherShowPrecipKey =
+        "lockScreenWeatherShowPrecip"
+    private static let lockScreenWeatherShowConditionKey =
+        "lockScreenWeatherShowCondition"
     private static let lockScreenWeatherShowGraphKey =
         "lockScreenWeatherShowGraph"
+    private static let lockScreenWeatherGraphKindKey =
+        "lockScreenWeatherGraphKind"
+    private static let lockScreenWeatherShowGraphLabelsKey =
+        "lockScreenWeatherShowGraphLabels"
+    private static let lockScreenBluetoothShowCountKey =
+        "lockScreenBluetoothShowCount"
+    private static let lockScreenBatteryShowChargingKey =
+        "lockScreenBatteryShowCharging"
     private static let playerBadgeExpandedKey = "playerBadgeExpanded.v2"
     private static let playerBadgeCollapsedKey = "playerBadgeCollapsed.v2"
     private static let playerBadgeLockScreenKey = "playerBadgeLockScreen.v2"
@@ -719,6 +751,15 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var lockScreenFocusAccessory: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenFocusAccessory,
+                forKey: Self.lockScreenFocusAccessoryKey
+            )
+        }
+    }
+
     @Published var lockScreenWeatherShowLocation: Bool {
         didSet {
             UserDefaults.standard.set(
@@ -755,11 +796,65 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var lockScreenWeatherShowPrecip: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherShowPrecip,
+                forKey: Self.lockScreenWeatherShowPrecipKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherShowCondition: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherShowCondition,
+                forKey: Self.lockScreenWeatherShowConditionKey
+            )
+        }
+    }
+
     @Published var lockScreenWeatherShowGraph: Bool {
         didSet {
             UserDefaults.standard.set(
                 lockScreenWeatherShowGraph,
                 forKey: Self.lockScreenWeatherShowGraphKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherGraphKind: LockScreenWeatherGraphKind {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherGraphKind.rawValue,
+                forKey: Self.lockScreenWeatherGraphKindKey
+            )
+        }
+    }
+
+    @Published var lockScreenWeatherShowGraphLabels: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenWeatherShowGraphLabels,
+                forKey: Self.lockScreenWeatherShowGraphLabelsKey
+            )
+        }
+    }
+
+    @Published var lockScreenBluetoothShowCount: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenBluetoothShowCount,
+                forKey: Self.lockScreenBluetoothShowCountKey
+            )
+        }
+    }
+
+    @Published var lockScreenBatteryShowCharging: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenBatteryShowCharging,
+                forKey: Self.lockScreenBatteryShowChargingKey
             )
         }
     }
@@ -774,6 +869,7 @@ final class AppSettings: ObservableObject {
         case .weather: lockScreenWeatherAccessory
         case .bluetooth: lockScreenBluetoothAccessory
         case .battery: lockScreenBatteryAccessory
+        case .focus: lockScreenFocusAccessory
         }
     }
 
@@ -1302,6 +1398,10 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.lockScreenBatteryAccessoryKey
             ) as? Bool ?? false
+        lockScreenFocusAccessory =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenFocusAccessoryKey
+            ) as? Bool ?? false
         lockScreenWeatherShowLocation =
             UserDefaults.standard.object(
                 forKey: Self.lockScreenWeatherShowLocationKey
@@ -1318,9 +1418,36 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.lockScreenWeatherShowWindKey
             ) as? Bool ?? false
+        lockScreenWeatherShowPrecip =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherShowPrecipKey
+            ) as? Bool ?? false
+        lockScreenWeatherShowCondition =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherShowConditionKey
+            ) as? Bool ?? false
         lockScreenWeatherShowGraph =
             UserDefaults.standard.object(
                 forKey: Self.lockScreenWeatherShowGraphKey
+            ) as? Bool ?? true
+        if let raw = UserDefaults.standard.string(
+            forKey: Self.lockScreenWeatherGraphKindKey
+        ), let kind = LockScreenWeatherGraphKind(rawValue: raw) {
+            lockScreenWeatherGraphKind = kind
+        } else {
+            lockScreenWeatherGraphKind = .temperature
+        }
+        lockScreenWeatherShowGraphLabels =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenWeatherShowGraphLabelsKey
+            ) as? Bool ?? false
+        lockScreenBluetoothShowCount =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenBluetoothShowCountKey
+            ) as? Bool ?? false
+        lockScreenBatteryShowCharging =
+            UserDefaults.standard.object(
+                forKey: Self.lockScreenBatteryShowChargingKey
             ) as? Bool ?? true
         playerBadgeExpanded =
             UserDefaults.standard.object(forKey: Self.playerBadgeExpandedKey)

@@ -1178,6 +1178,15 @@ struct SettingsView: View {
                         )
                     },
                     SettingsEntry(
+                        "lockScreenFocusAccessory",
+                        title: "Focus",
+                        keywords: ["dnd", "do not disturb", "chip"]
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenFocusAccessory
+                        )
+                    },
+                    SettingsEntry(
                         "resetLockScreenAccessoriesLayout",
                         title: "Reset layout",
                         detail: "Default order and position under the clock.",
@@ -1203,6 +1212,16 @@ struct SettingsView: View {
                     ) {
                         SettingsToggle(
                             isOn: $settings.lockScreenWeatherShowLocation
+                        )
+                    },
+                    SettingsEntry(
+                        "lockScreenWeatherShowCondition",
+                        title: "Show condition",
+                        keywords: ["clear", "rain", "cloudy"],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWeatherShowCondition
                         )
                     },
                     SettingsEntry(
@@ -1234,13 +1253,81 @@ struct SettingsView: View {
                         )
                     },
                     SettingsEntry(
+                        "lockScreenWeatherShowPrecip",
+                        title: "Show rain chance",
+                        keywords: ["precip", "precipitation", "rain"],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWeatherShowPrecip
+                        )
+                    },
+                    SettingsEntry(
                         "lockScreenWeatherShowGraph",
-                        title: "Show temperature graph",
+                        title: "Show graph",
                         keywords: ["sparkline", "chart", "trend"],
                         isEnabled: settings.lockScreenWeatherAccessory
                     ) {
                         SettingsToggle(
                             isOn: $settings.lockScreenWeatherShowGraph
+                        )
+                    },
+                    SettingsEntry(
+                        "lockScreenWeatherGraphKind",
+                        title: "Graph shows",
+                        keywords: [
+                            "temperature", "precipitation", "rain", "chart",
+                        ],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                            && settings.lockScreenWeatherShowGraph
+                    ) {
+                        SettingsMenu(
+                            selection: $settings.lockScreenWeatherGraphKind
+                        ) {
+                            ForEach(LockScreenWeatherGraphKind.allCases) {
+                                kind in
+                                Text(kind.title).tag(kind)
+                            }
+                        }
+                    },
+                    SettingsEntry(
+                        "lockScreenWeatherShowGraphLabels",
+                        title: "Show graph labels",
+                        detail: "Hours and range on the sparkline.",
+                        keywords: ["labels", "hours", "axis", "chart"],
+                        isEnabled: settings.lockScreenWeatherAccessory
+                            && settings.lockScreenWeatherShowGraph
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenWeatherShowGraphLabels
+                        )
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .lockScreen,
+                title: "Other chips",
+                entries: [
+                    SettingsEntry(
+                        "lockScreenBluetoothShowCount",
+                        title: "Bluetooth device count",
+                        detail:
+                            "Show +N when more than one device is connected.",
+                        keywords: ["airpods", "devices"],
+                        isEnabled: settings.lockScreenBluetoothAccessory
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenBluetoothShowCount
+                        )
+                    },
+                    SettingsEntry(
+                        "lockScreenBatteryShowCharging",
+                        title: "Battery charging status",
+                        keywords: ["adapter", "power", "charge"],
+                        isEnabled: settings.lockScreenBatteryAccessory
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.lockScreenBatteryShowCharging
                         )
                     },
                 ]

@@ -150,21 +150,30 @@ struct LockScreenPolicyTests {
         let originalWeather = settings.lockScreenWeatherAccessory
         let originalBluetooth = settings.lockScreenBluetoothAccessory
         let originalBattery = settings.lockScreenBatteryAccessory
+        let originalFocus = settings.lockScreenFocusAccessory
         let originalGraph = settings.lockScreenWeatherShowGraph
+        let originalKind = settings.lockScreenWeatherGraphKind
+        let originalLabels = settings.lockScreenWeatherShowGraphLabels
         defer {
             settings.lockScreenWeatherAccessory = originalWeather
             settings.lockScreenBluetoothAccessory = originalBluetooth
             settings.lockScreenBatteryAccessory = originalBattery
+            settings.lockScreenFocusAccessory = originalFocus
             settings.lockScreenWeatherShowGraph = originalGraph
+            settings.lockScreenWeatherGraphKind = originalKind
+            settings.lockScreenWeatherShowGraphLabels = originalLabels
         }
 
         settings.lockScreenWeatherAccessory = false
         settings.lockScreenBluetoothAccessory = false
         settings.lockScreenBatteryAccessory = false
+        settings.lockScreenFocusAccessory = false
+        settings.lockScreenWeatherShowGraph = false
+        settings.lockScreenWeatherShowGraphLabels = false
+        settings.lockScreenWeatherGraphKind = .temperature
         #expect(LockAccessoriesMetrics.height(settings: settings) == 0)
 
         settings.lockScreenWeatherAccessory = true
-        settings.lockScreenWeatherShowGraph = false
         #expect(
             LockAccessoriesMetrics.height(settings: settings)
                 == LockAccessoriesMetrics.rowHeight
@@ -175,6 +184,24 @@ struct LockScreenPolicyTests {
             LockAccessoriesMetrics.height(settings: settings)
                 == LockAccessoriesMetrics.rowHeight
                 + LockAccessoriesMetrics.graphExtra
+        )
+
+        settings.lockScreenWeatherGraphKind = .both
+        #expect(
+            LockAccessoriesMetrics.height(settings: settings)
+                == LockAccessoriesMetrics.rowHeight
+                + LockAccessoriesMetrics.graphExtra
+                + LockAccessoriesMetrics.graphBothExtra
+        )
+
+        settings.lockScreenWeatherShowGraphLabels = true
+        #expect(
+            LockAccessoriesMetrics.height(settings: settings)
+                == LockAccessoriesMetrics.rowHeight
+                + LockAccessoriesMetrics.graphExtra
+                + LockAccessoriesMetrics.graphBothExtra
+                + LockAccessoriesMetrics.graphLabelsExtra
+                + LockAccessoriesMetrics.graphLabelsExtra / 2
         )
     }
 

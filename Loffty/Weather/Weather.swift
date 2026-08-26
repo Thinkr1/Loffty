@@ -109,6 +109,27 @@ enum WeatherFormatting {
         "UV \(Int(uv.rounded()))"
     }
 
+    nonisolated static func precipChanceLabel(_ percent: Int) -> String {
+        "\(max(0, min(100, percent)))%"
+    }
+
+    nonisolated static func conditionLabel(code: Int) -> String {
+        switch code {
+        case 0: "Clear"
+        case 1: "Mostly clear"
+        case 2: "Partly cloudy"
+        case 3: "Overcast"
+        case 45, 48: "Fog"
+        case 51, 53, 55, 56, 57: "Drizzle"
+        case 61, 63, 65, 66, 67: "Rain"
+        case 71, 73, 75, 77: "Snow"
+        case 80, 81, 82: "Showers"
+        case 85, 86: "Snow showers"
+        case 95, 96, 99: "Thunder"
+        default: "Cloudy"
+        }
+    }
+
     nonisolated static func hourLabel(
         _ date: Date,
         locale: Locale = .current
