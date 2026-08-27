@@ -23,9 +23,27 @@ struct WeatherTests {
         #expect(WeatherFormatting.windLabel(16.093_44, metric: false) == "10 mph")
     }
 
-    @Test func uvLabelRounds() {
-        #expect(WeatherFormatting.uvLabel(3.2) == "UV 3")
-        #expect(WeatherFormatting.uvLabel(3.6) == "UV 4")
+    @Test func precipChanceLabelClampsPercent() {
+        #expect(WeatherFormatting.precipChanceLabel(70) == "70%")
+        #expect(WeatherFormatting.precipChanceLabel(-4) == "0%")
+        #expect(WeatherFormatting.precipChanceLabel(140) == "100%")
+    }
+
+    @Test func conditionLabelMapsWMOCodes() {
+        #expect(WeatherFormatting.conditionLabel(code: 0) == "Clear")
+        #expect(WeatherFormatting.conditionLabel(code: 1) == "Mostly clear")
+        #expect(WeatherFormatting.conditionLabel(code: 2) == "Partly cloudy")
+        #expect(WeatherFormatting.conditionLabel(code: 3) == "Overcast")
+        #expect(WeatherFormatting.conditionLabel(code: 45) == "Fog")
+        #expect(WeatherFormatting.conditionLabel(code: 48) == "Fog")
+        #expect(WeatherFormatting.conditionLabel(code: 51) == "Drizzle")
+        #expect(WeatherFormatting.conditionLabel(code: 61) == "Rain")
+        #expect(WeatherFormatting.conditionLabel(code: 71) == "Snow")
+        #expect(WeatherFormatting.conditionLabel(code: 80) == "Showers")
+        #expect(WeatherFormatting.conditionLabel(code: 85) == "Snow showers")
+        #expect(WeatherFormatting.conditionLabel(code: 95) == "Thunder")
+        #expect(WeatherFormatting.conditionLabel(code: 99) == "Thunder")
+        #expect(WeatherFormatting.conditionLabel(code: 1234) == "Cloudy")
     }
 
     @Test func weatherSymbolsMapWMOCodes() {

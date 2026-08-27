@@ -159,6 +159,39 @@ struct LockScreenPolicyTests {
         )
         #expect(idle.minY < card.midY)
         #expect(idle.maxY < card.maxY)
+        #expect(idle.width < card.width)
+        #expect(idle.height < card.height)
+        #expect(idle.minY > screen.minY + LockCardMetrics.lockProfilePictureTopInset)
+        #expect(idle.maxY < screen.maxY)
+        #expect(idle.minX >= screen.minX)
+        #expect(idle.maxX <= screen.maxX)
+    }
+
+    @Test func clampedTopInsetFractionUsesRaisedCeiling() {
+        #expect(
+            LockAccessoriesMetrics.clampedTopInsetFraction(0)
+                == LockAccessoriesMetrics.minTopInsetFraction
+        )
+        #expect(
+            LockAccessoriesMetrics.clampedTopInsetFraction(1)
+                == LockAccessoriesMetrics.maxTopInsetFraction
+        )
+        #expect(
+            LockAccessoriesMetrics.clampedTopInsetFraction(0.5) == 0.5
+        )
+        #expect(LockAccessoriesMetrics.maxTopInsetFraction == 0.92)
+    }
+
+    @Test func mockStripTopStaysBetweenClockAndBottomPadding() {
+        #expect(
+            LockMockLayout.clampedStripTop(0) == LockMockLayout.clockBottom
+        )
+        #expect(
+            LockMockLayout.clampedStripTop(LockMockLayout.height)
+                == LockMockLayout.height - LockMockLayout.bottomPadding
+        )
+        #expect(LockMockLayout.clampedStripTop(120) == 120)
+        #expect(LockMockLayout.previewScale == 0.58)
     }
 
     @Test @MainActor func accessoriesHeightGrowsWithWeatherGraph() {
@@ -219,6 +252,79 @@ struct LockScreenPolicyTests {
                 + LockAccessoriesMetrics.graphLabelsExtra
                 + LockAccessoriesMetrics.graphLabelsExtra / 2
         )
+
+        settings.lockScreenWeatherGraphKind = .temperature
+        #expect(
+            LockAccessoriesMetrics.height(settings: settings)
+                == LockAccessoriesMetrics.rowHeight
+                + LockAccessoriesMetrics.graphExtra
+                + LockAccessoriesMetrics.graphLabelsExtra
+        )
+
+        settings.lockScreenWeatherAccessory = false
+        settings.lockScreenFocusAccessory = true
+        #expect(
+            LockAccessoriesMetrics.height(settings: settings)
+                == LockAccessoriesMetrics.rowHeight
+        )
+    }
+
+    @Test @MainActor func topInsetKeepsPanelAboveBottomMargin() {
+        let settings = AppSettings.shared
+        let originalWeather = settings.lockScreenWeatherAccessory
+        let originalBluetooth = settings.lockScreenBluetoothAccessory
+        let originalBattery = settings.lockScreenBatteryAccessory
+        let originalFocus = settings.lockScreenFocusAccessory
+        let originalGraph = settings.lockScreenWeatherShowGraph
+        let originalKind = settings.lockScreenWeatherGraphKind
+        let originalLabels = settings.lockScreenWeatherShowGraphLabels
+        let originalFraction = settings.lockScreenAccessoriesTopInsetFraction
+        defer {
+            settings.lockScreenWeatherAccessory = originalWeather
+            settings.lockScreenBluetoothAccessory = originalBluetooth
+            settings.lockScreenBatteryAccessory = originalBattery
+            settings.lockScreenFocusAccessory = originalFocus
+            settings.lockScreenWeatherShowGraph = originalGraph
+            settings.lockScreenWeatherGraphKind = originalKind
+            settings.lockScreenWeatherShowGraphLabels = originalLabels
+            settings.lockScreenAccessoriesTopInsetFraction = originalFraction
+        }
+
+        settings.lockScreenWeatherAccessory = true
+        settings.lockScreenBluetoothAccessory = false
+        settings.lockScreenBatteryAccessory = false
+        settings.lockScreenFocusAccessory = false
+        settings.lockScreenWeatherShowGraph = true
+        settings.lockScreenWeatherGraphKind = .both
+        settings.lockScreenWeatherShowGraphLabels = true
+        settings.lockScreenAccessoriesTopInsetFraction = 0.92
+
+        let screenHeight: CGFloat = 982
+        let panelHeight = LockAccessoriesMetrics.height(settings: settings)
+        let inset = LockAccessoriesMetrics.topInset(
+            screenHeight: screenHeight,
+            settings: settings
+        )
+        #expect(
+            inset == screenHeight - panelHeight
+                - LockAccessoriesMetrics.bottomMargin
+        )
+        #expect(inset > LockAccessoriesMetrics.minTopInset)
+
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: screenHeight)
+        let frame = LockAccessoriesMetrics.defaultFrame(
+            screenFrame: screen,
+            settings: settings
+        )
+        #expect(frame.minY == LockAccessoriesMetrics.bottomMargin)
+        #expect(frame.height == panelHeight)
+
+        settings.lockScreenAccessoriesTopInsetFraction = 0.05
+        let low = LockAccessoriesMetrics.topInset(
+            screenHeight: screenHeight,
+            settings: settings
+        )
+        #expect(low == LockAccessoriesMetrics.minTopInset)
     }
 
     @Test @MainActor func accessoryOrderSwapMovesItems() {

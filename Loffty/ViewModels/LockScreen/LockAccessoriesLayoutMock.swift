@@ -9,6 +9,17 @@ import AppKit
 import Darwin
 import SwiftUI
 
+enum LockMockLayout {
+    static let height: CGFloat = 320
+    static let clockBottom: CGFloat = 84
+    static let bottomPadding: CGFloat = 22
+    static let previewScale: CGFloat = 0.58
+
+    static func clampedStripTop(_ raw: CGFloat) -> CGFloat {
+        min(max(raw, clockBottom), height - bottomPadding)
+    }
+}
+
 struct LockAccessoriesLayoutMock: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var weather = WeatherController.shared
@@ -20,10 +31,9 @@ struct LockAccessoriesLayoutMock: View {
     @State private var chipFrames: [LockScreenAccessory: CGRect] = [:]
     @State private var wallpaper: NSImage?
 
-    private let mockHeight: CGFloat = 320
-    private let clockBottom: CGFloat = 84
-    /// Lock accessories are sized for a full display; shrink them to match the mini preview.
-    private let previewScale: CGFloat = 0.58
+    private let mockHeight = LockMockLayout.height
+    private let clockBottom = LockMockLayout.clockBottom
+    private let previewScale = LockMockLayout.previewScale
 
     private var unscaledPanelHeight: CGFloat {
         max(44, LockAccessoriesMetrics.height(settings: settings))
@@ -100,8 +110,7 @@ struct LockAccessoriesLayoutMock: View {
     }
 
     private func clampedStripTop(_ raw: CGFloat) -> CGFloat {
-        let maxTop = mockHeight - 22
-        return min(max(raw, clockBottom), maxTop)
+        LockMockLayout.clampedStripTop(raw)
     }
 
     private func prepareLivePreview() {
@@ -385,7 +394,7 @@ private struct LockAccessoryChipFrameKey: PreferenceKey {
     }
 }
 
-private enum LockMockWallpaper {
+enum LockMockWallpaper {
     static func image(for screen: NSScreen?) -> NSImage? {
         if let captured = captureDesktopWindow(matching: screen) {
             return captured
@@ -405,11 +414,28 @@ private enum LockMockWallpaper {
         return nil
     }
 
-    private static func isFallbackSystemDesktop(_ url: URL) -> Bool {
+    static func isFallbackSystemDesktop(_ url: URL) -> Bool {
         let path = url.path
         return path.contains("/DefaultDesktop.")
             || path.contains("/.wallpapers/")
             || path.localizedCaseInsensitiveContains("screensaver")
+    }
+
+    static func wallpaperWindowScore(
+        name: String,
+        boundsSize: CGSize?,
+        targetName: String?,
+        screenSize: CGSize?
+    ) -> Int? {
+        guard name.hasPrefix("Wallpaper-") else { return nil }
+        if let targetName, name == targetName { return 0 }
+        if let boundsSize, let screenSize {
+            return Int(
+                abs(boundsSize.width - screenSize.width)
+                    + abs(boundsSize.height - screenSize.height)
+            ) + 10
+        }
+        return 100
     }
 
     private static func captureDesktopWindow(matching screen: NSScreen?)
@@ -429,25 +455,22 @@ private enum LockMockWallpaper {
         var ranked: [(score: Int, windowID: CGWindowID)] = []
         for window in info {
             let name = window[kCGWindowName as String] as? String ?? ""
-            guard name.hasPrefix("Wallpaper-"),
+            guard
                 let windowID = window[kCGWindowNumber as String] as? CGWindowID
             else { continue }
-
-            var score = 100
-            if let targetName, name == targetName {
-                score = 0
-            } else if let screenFrame,
-                let bounds = window[kCGWindowBounds as String]
-                    as? [String: CGFloat]
-            {
-                let width = bounds["Width"] ?? 0
-                let height = bounds["Height"] ?? 0
-                score =
-                    Int(
-                        abs(width - screenFrame.width)
-                            + abs(height - screenFrame.height)
-                    ) + 10
-            }
+            let bounds = window[kCGWindowBounds as String] as? [String: CGFloat]
+            let boundsSize: CGSize? =
+                bounds.map {
+                    CGSize(width: $0["Width"] ?? 0, height: $0["Height"] ?? 0)
+                }
+            guard
+                let score = wallpaperWindowScore(
+                    name: name,
+                    boundsSize: boundsSize,
+                    targetName: targetName,
+                    screenSize: screenFrame?.size
+                )
+            else { continue }
             ranked.append((score, windowID))
         }
         ranked.sort { $0.score < $1.score }
@@ -544,7 +567,13 @@ private enum LockMockWallpaper {
         return nil
     }
 
-    private static func imageURL(fromDesktop desktop: [String: Any]) -> URL? {
+    static func imageURL(
+        fromDesktop desktop: [String: Any],
+        fileExists: (URL) -> Bool = {
+            FileManager.default.fileExists(atPath: $0.path)
+        },
+        homeDirectory: String = NSHomeDirectory()
+    ) -> URL? {
         guard
             let content = desktop["Content"] as? [String: Any],
             let choices = content["Choices"] as? [[String: Any]],
@@ -558,7 +587,7 @@ private enum LockMockWallpaper {
             for file in files {
                 if let path = file as? String {
                     let url = URL(fileURLWithPath: path)
-                    if FileManager.default.fileExists(atPath: url.path) {
+                    if fileExists(url) {
                         return url
                     }
                 } else if let data = file as? Data {
@@ -568,9 +597,7 @@ private enum LockMockWallpaper {
                         options: [.withoutUI, .withoutMounting],
                         relativeTo: nil,
                         bookmarkDataIsStale: &isStale
-                    ),
-                        FileManager.default.fileExists(atPath: url.path)
-                    {
+                    ), fileExists(url) {
                         return url
                     }
                 }
@@ -593,10 +620,10 @@ private enum LockMockWallpaper {
             provider.contains("aerial")
         {
             let thumb = URL(
-                fileURLWithPath: NSHomeDirectory()
+                fileURLWithPath: homeDirectory
                     + "/Library/Application Support/com.apple.wallpaper/aerials/thumbnails/\(assetID).png"
             )
-            if FileManager.default.fileExists(atPath: thumb.path) {
+            if fileExists(thumb) {
                 return thumb
             }
         }

@@ -483,4 +483,78 @@ struct SettingsTests {
         settings.collapsedWaveformsAccent = false
         #expect(settings.soundwaveMotion == .live)
     }
+
+    @Test func lockScreenAccessoryCatalogIncludesFocus() {
+        #expect(
+            LockScreenAccessory.allCases == [
+                .weather, .bluetooth, .battery, .focus,
+            ]
+        )
+        #expect(LockScreenAccessory.focus.title == "Focus")
+        #expect(LockScreenAccessory.focus.id == "focus")
+    }
+
+    @Test func lockScreenWeatherGraphKindsHaveTitles() {
+        #expect(
+            LockScreenWeatherGraphKind.allCases == [
+                .temperature, .precipitation, .both,
+            ]
+        )
+        #expect(LockScreenWeatherGraphKind.temperature.title == "Temperature")
+        #expect(LockScreenWeatherGraphKind.precipitation.title == "Precipitation")
+        #expect(LockScreenWeatherGraphKind.both.title == "Temperature + rain")
+        #expect(LockScreenWeatherGraphKind(rawValue: "both") == .both)
+        #expect(LockScreenWeatherGraphKind(rawValue: "nope") == nil)
+    }
+
+    @Test @MainActor func enabledLockScreenAccessoriesHonorsFocusToggle() {
+        let settings = AppSettings.shared
+        let originalOrder = settings.lockScreenAccessoryOrder
+        let originalWeather = settings.lockScreenWeatherAccessory
+        let originalBluetooth = settings.lockScreenBluetoothAccessory
+        let originalBattery = settings.lockScreenBatteryAccessory
+        let originalFocus = settings.lockScreenFocusAccessory
+        defer {
+            settings.lockScreenAccessoryOrder = originalOrder
+            settings.lockScreenWeatherAccessory = originalWeather
+            settings.lockScreenBluetoothAccessory = originalBluetooth
+            settings.lockScreenBatteryAccessory = originalBattery
+            settings.lockScreenFocusAccessory = originalFocus
+        }
+
+        settings.lockScreenAccessoryOrder = [
+            .weather, .focus, .bluetooth, .battery,
+        ]
+        settings.lockScreenWeatherAccessory = false
+        settings.lockScreenBluetoothAccessory = false
+        settings.lockScreenBatteryAccessory = false
+        settings.lockScreenFocusAccessory = true
+        #expect(settings.enabledLockScreenAccessories == [.focus])
+        #expect(settings.isLockScreenAccessoryEnabled(.focus))
+        #expect(!settings.isLockScreenAccessoryEnabled(.weather))
+
+        settings.lockScreenFocusAccessory = false
+        #expect(settings.enabledLockScreenAccessories.isEmpty)
+        #expect(
+            UserDefaults.standard.object(forKey: "lockScreenFocusAccessory")
+                as? Bool == false
+        )
+    }
+
+    @Test @MainActor func lockScreenWeatherGraphKindPersists() {
+        let settings = AppSettings.shared
+        let original = settings.lockScreenWeatherGraphKind
+        defer { settings.lockScreenWeatherGraphKind = original }
+
+        settings.lockScreenWeatherGraphKind = .precipitation
+        #expect(
+            UserDefaults.standard.string(forKey: "lockScreenWeatherGraphKind")
+                == "precipitation"
+        )
+        settings.lockScreenWeatherGraphKind = .both
+        #expect(
+            UserDefaults.standard.string(forKey: "lockScreenWeatherGraphKind")
+                == "both"
+        )
+    }
 }
