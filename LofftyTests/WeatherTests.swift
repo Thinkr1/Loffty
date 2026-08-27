@@ -16,6 +16,10 @@ struct WeatherTests {
         #expect(WeatherFormatting.temperature(0, metric: false) == 32)
         #expect(WeatherFormatting.temperature(16, metric: false) == 61)
         #expect(WeatherFormatting.temperatureLabel(16, metric: true) == "16°")
+        #expect(
+            WeatherFormatting.highLowLabel(highC: 37, lowC: 25, metric: false)
+                == "H:99° L:77°"
+        )
     }
 
     @Test func windLabelUsesLocaleUnits() {
@@ -200,6 +204,58 @@ struct WeatherTests {
         #expect(WeatherGraph.normalized([]) == [])
         #expect(WeatherGraph.normalized([10, 10]) == [0.5, 0.5])
         #expect(WeatherGraph.normalized([0, 10]) == [0, 1])
+    }
+
+    @Test func upcomingHourListSkipsTheCurrentHour() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = calendar.date(
+            from: DateComponents(year: 2026, month: 8, day: 24, hour: 10, minute: 30)
+        )!
+        let hours = [10, 11, 12, 13].map { hour -> WeatherHour in
+            WeatherHour(
+                date: calendar.date(
+                    from: DateComponents(
+                        year: 2026,
+                        month: 8,
+                        day: 24,
+                        hour: hour
+                    )
+                )!,
+                temperatureC: Double(hour),
+                weatherCode: 0,
+                precipChance: 0,
+                precipMm: 0
+            )
+        }
+        let listed = WeatherHourList.upcoming(hours, now: now, limit: 4)
+        #expect(listed.map(\.temperatureC) == [11, 12, 13])
+        #expect(WeatherGraph.currentIndex(in: hours, now: now) == 0)
+    }
+
+    @Test func upcomingHourListFallsBackWhenAllHoursHavePassed() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let hours = [
+            WeatherHour(
+                date: Date(timeIntervalSince1970: 10),
+                temperatureC: 1,
+                weatherCode: 0,
+                precipChance: 0,
+                precipMm: 0
+            ),
+            WeatherHour(
+                date: Date(timeIntervalSince1970: 20),
+                temperatureC: 2,
+                weatherCode: 0,
+                precipChance: 0,
+                precipMm: 0
+            ),
+        ]
+        #expect(
+            WeatherHourList.upcoming(hours, now: now, limit: 6).map(
+                \.temperatureC
+            ) == [1, 2]
+        )
+        #expect(WeatherGraph.currentIndex(in: hours, now: now) == 1)
     }
 }
 

@@ -83,7 +83,7 @@ struct NotchMetricsTests {
         )
         #expect(idleMusic.height == 196)
         #expect(idleMusic.width == 392)
-        #expect(weather.height == 240)
+        #expect(weather.height == 168)
         #expect(weather.width == 392)
         #expect(weather.topRadius == 22)
         #expect(weather.bottomRadius == 30)
@@ -110,9 +110,9 @@ struct NotchMetricsTests {
             swipeExpansion: 0.5
         )
         #expect(base.width == 392)
-        #expect(base.height == 240)
+        #expect(base.height == 168)
         #expect(expanded.width == 408)
-        #expect(expanded.height == 252)
+        #expect(expanded.height == 180)
     }
 
     @Test func expandedIdle() {

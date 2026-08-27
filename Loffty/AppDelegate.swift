@@ -875,7 +875,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let panelH: CGFloat =
             customizing
             ? MediaToolbarCustomizeLayout.expandedHeight(showAlbum: true)
-            : (vm.expandedPage == .weather ? 240 : 206)
+            : (vm.expandedPage == .weather ? 168 : 206)
         let margin: CGFloat = 36
         expandedZone = CGRect(
             x: notch.midX - panelW / 2 - margin,

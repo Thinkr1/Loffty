@@ -1655,7 +1655,7 @@ final class AppSettings: ObservableObject {
             as? Bool ?? true
         weatherHourCount =
             UserDefaults.standard.object(forKey: Self.weatherHourCountKey)
-            as? Int ?? 6
+            as? Int ?? 4
         weatherRefreshMinutes =
             UserDefaults.standard.object(forKey: Self.weatherRefreshMinutesKey)
             as? Double ?? 15

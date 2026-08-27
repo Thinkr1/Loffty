@@ -49,6 +49,29 @@ enum WeatherGraph {
         }
         return values.map { CGFloat(($0 - min) / span) }
     }
+
+    nonisolated static func currentIndex(
+        in hours: [WeatherHour],
+        now: Date = Date()
+    ) -> Int {
+        var index = 0
+        for (offset, hour) in hours.enumerated() where hour.date <= now {
+            index = offset
+        }
+        return index
+    }
+}
+
+enum WeatherHourList {
+    nonisolated static func upcoming(
+        _ hours: [WeatherHour],
+        now: Date = Date(),
+        limit: Int
+    ) -> [WeatherHour] {
+        let future = hours.filter { $0.date > now }
+        let source = future.isEmpty ? hours : future
+        return Array(source.prefix(max(0, limit)))
+    }
 }
 
 enum WeatherStatus: Equatable, Sendable {
@@ -92,6 +115,14 @@ enum WeatherFormatting {
         metric: Bool
     ) -> String {
         "\(temperature(celsius, metric: metric))°"
+    }
+
+    nonisolated static func highLowLabel(
+        highC: Double,
+        lowC: Double,
+        metric: Bool
+    ) -> String {
+        "H:\(temperatureLabel(highC, metric: metric)) L:\(temperatureLabel(lowC, metric: metric))"
     }
 
     nonisolated static func windLabel(

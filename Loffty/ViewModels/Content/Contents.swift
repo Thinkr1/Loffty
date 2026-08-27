@@ -46,25 +46,30 @@ struct ExpandedContent: View {
             if vm.expandedPage == .weather, settings.weatherEnabled,
                 !toolbar.isCustomizing
             {
-                VStack(spacing: 5) {
-                    ForEach(WeatherSlide.allCases, id: \.rawValue) { slide in
-                        Capsule()
-                            .fill(
-                                .white.opacity(
-                                    slide == vm.weatherSlide ? 0.85 : 0.3
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: m.notchH)
+                    VStack(spacing: 4) {
+                        ForEach(WeatherSlide.allCases, id: \.rawValue) {
+                            slide in
+                            Capsule()
+                                .fill(
+                                    .white.opacity(
+                                        slide == vm.weatherSlide ? 0.85 : 0.28
+                                    )
                                 )
-                            )
-                            .frame(
-                                width: 3,
-                                height: slide == vm.weatherSlide ? 14 : 5
-                            )
+                                .frame(
+                                    width: 3,
+                                    height: slide == vm.weatherSlide ? 12 : 4
+                                )
+                        }
                     }
+                    .frame(maxHeight: .infinity)
+                    Color.clear.frame(height: 12)
                 }
-                .frame(width: 30, height: m.height, alignment: .center)
-                .padding(.trailing, 18)
+                .frame(width: 14)
+                .padding(.trailing, 8)
                 .allowsHitTesting(false)
-                .opacity(1)
-                .transition(.opacity)
+                .animation(.easeOut(duration: 0.18), value: vm.weatherSlide)
             }
         }
         .animation(.easeInOut(duration: 0.22), value: vm.isIdle)

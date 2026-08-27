@@ -82,7 +82,7 @@ struct NotchMetrics {
             )
         }
         if expanded {
-            if weather { return 240 + swipeExpansion * 24 }
+            if weather { return 168 + swipeExpansion * 24 }
             if idle, idleSuggestions {
                 return notchH + IdleNotchLayout.suggestionsBody
             }
