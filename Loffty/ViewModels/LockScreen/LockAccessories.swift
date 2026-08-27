@@ -25,9 +25,9 @@ enum LockAccessoriesMetrics {
     static let graphLabelsExtra: CGFloat = 14
     static let defaultTopInsetFraction: CGFloat = 0.30
     static let minTopInsetFraction: CGFloat = 0.18
-    static let maxTopInsetFraction: CGFloat = 0.42
+    static let maxTopInsetFraction: CGFloat = 0.92
     static let minTopInset: CGFloat = 200
-    static let maxTopInset: CGFloat = 460
+    static let bottomMargin: CGFloat = 16
 
     @MainActor
     static func height(settings: AppSettings = .shared) -> CGFloat {
@@ -61,7 +61,12 @@ enum LockAccessoriesMetrics {
         let fraction = clampedTopInsetFraction(
             settings.lockScreenAccessoriesTopInsetFraction
         )
-        return min(max(screenHeight * fraction, minTopInset), maxTopInset)
+        let panelHeight = height(settings: settings)
+        let maxInset = max(
+            minTopInset,
+            screenHeight - panelHeight - bottomMargin
+        )
+        return min(max(screenHeight * fraction, minTopInset), maxInset)
     }
 
     @MainActor
@@ -211,7 +216,6 @@ struct LockAccessoriesRootView: View {
 struct LockAccessoriesView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var weather = WeatherController.shared
-    @ObservedObject private var status = LockAccessoryStatus.shared
 
     private var accessories: [LockScreenAccessory] {
         settings.enabledLockScreenAccessories
@@ -222,25 +226,14 @@ struct LockAccessoriesView: View {
             VStack(spacing: 6) {
                 HStack(spacing: 18) {
                     ForEach(accessories) { accessory in
-                        chip(for: accessory)
+                        LockAccessoryChip(accessory: accessory)
                     }
                 }
                 .frame(maxWidth: .infinity)
 
-                if accessories.contains(.weather),
-                    settings.lockScreenWeatherShowGraph,
-                    let hours = weather.snapshot?.hours, hours.count >= 3
-                {
-                    LockWeatherSparkline(
-                        hours: hours,
-                        kind: settings.lockScreenWeatherGraphKind,
-                        showLabels: settings.lockScreenWeatherShowGraphLabels,
-                        metricTemperature:
-                            WeatherFormatting.usesMetricTemperature(
-                                settings.weatherTemperatureUnit
-                            )
-                    )
-                    .frame(maxWidth: 220)
+                if accessories.contains(.weather) {
+                    LockWeatherSparklinePane()
+                        .frame(maxWidth: 220)
                 }
             }
             .padding(.horizontal, 8)
@@ -252,18 +245,23 @@ struct LockAccessoriesView: View {
             }
         }
     }
+}
 
-    @ViewBuilder
-    private func chip(for accessory: LockScreenAccessory) -> some View {
-        switch accessory {
-        case .weather:
-            weatherChip
-        case .bluetooth:
-            bluetoothChip
-        case .battery:
-            batteryChip
-        case .focus:
-            focusChip
+struct LockAccessoryChip: View {
+    var accessory: LockScreenAccessory
+
+    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var weather = WeatherController.shared
+    @ObservedObject private var status = LockAccessoryStatus.shared
+
+    var body: some View {
+        Group {
+            switch accessory {
+            case .weather: weatherChip
+            case .bluetooth: bluetoothChip
+            case .battery: batteryChip
+            case .focus: focusChip
+            }
         }
     }
 
@@ -456,7 +454,27 @@ struct LockAccessoriesView: View {
     }
 }
 
-private struct LockWeatherSparkline: View {
+struct LockWeatherSparklinePane: View {
+    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var weather = WeatherController.shared
+
+    var body: some View {
+        if settings.lockScreenWeatherShowGraph,
+            let hours = weather.snapshot?.hours, hours.count >= 3
+        {
+            LockWeatherSparkline(
+                hours: hours,
+                kind: settings.lockScreenWeatherGraphKind,
+                showLabels: settings.lockScreenWeatherShowGraphLabels,
+                metricTemperature: WeatherFormatting.usesMetricTemperature(
+                    settings.weatherTemperatureUnit
+                )
+            )
+        }
+    }
+}
+
+struct LockWeatherSparkline: View {
     var hours: [WeatherHour]
     var kind: LockScreenWeatherGraphKind
     var showLabels: Bool

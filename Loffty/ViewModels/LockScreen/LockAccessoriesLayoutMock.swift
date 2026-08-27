@@ -11,6 +11,7 @@ import SwiftUI
 
 struct LockAccessoriesLayoutMock: View {
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var weather = WeatherController.shared
 
     @State private var dragMode: DragMode = .idle
     @State private var dragTranslation: CGSize = .zero
@@ -20,8 +21,17 @@ struct LockAccessoriesLayoutMock: View {
     @State private var wallpaper: NSImage?
 
     private let mockHeight: CGFloat = 320
-    private let stripHeight: CGFloat = 36
     private let clockBottom: CGFloat = 84
+    /// Lock accessories are sized for a full display; shrink them to match the mini preview.
+    private let previewScale: CGFloat = 0.58
+
+    private var unscaledPanelHeight: CGFloat {
+        max(44, LockAccessoriesMetrics.height(settings: settings))
+    }
+
+    private var panelHeight: CGFloat {
+        unscaledPanelHeight * previewScale
+    }
 
     private enum DragMode: Equatable {
         case idle
@@ -43,8 +53,7 @@ struct LockAccessoriesLayoutMock: View {
                 ZStack(alignment: .top) {
                     background
                     chrome
-                    accessoryStrip
-                        .frame(maxWidth: .infinity)
+                    accessoryPanel(mockWidth: width)
                         .padding(.top, displayedStripTop)
                 }
                 .frame(width: width, height: mockHeight)
@@ -56,18 +65,25 @@ struct LockAccessoriesLayoutMock: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .strokeBorder(.white.opacity(0.08), lineWidth: 1)
                 }
-                .onPreferenceChange(LockAccessoryChipFrameKey.self) {
-                    chipFrames = $0
+                .onPreferenceChange(LockAccessoryChipFrameKey.self) { frames in
+                    if case .reorder = dragMode { return }
+                    chipFrames = frames
+                }
+                .transaction { transaction in
+                    if dragMode != .idle {
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
                 }
             }
             .frame(height: mockHeight)
-            .onAppear(perform: loadWallpaper)
+            .onAppear(perform: prepareLivePreview)
             .onReceive(
                 NotificationCenter.default.publisher(
                     for: NSApplication.didBecomeActiveNotification
                 )
             ) { _ in
-                loadWallpaper()
+                prepareLivePreview()
             }
         }
     }
@@ -84,8 +100,14 @@ struct LockAccessoriesLayoutMock: View {
     }
 
     private func clampedStripTop(_ raw: CGFloat) -> CGFloat {
-        let maxTop = max(clockBottom, mockHeight - stripHeight - 16)
+        let maxTop = mockHeight - 22
         return min(max(raw, clockBottom), maxTop)
+    }
+
+    private func prepareLivePreview() {
+        loadWallpaper()
+        LockAccessoryStatus.shared.start()
+        weather.refreshIfStale()
     }
 
     private var background: some View {
@@ -149,40 +171,67 @@ struct LockAccessoriesLayoutMock: View {
         .allowsHitTesting(false)
     }
 
-    private var accessoryStrip: some View {
-        HStack(spacing: 10) {
-            verticalHandle
+    private func accessoryPanel(mockWidth: CGFloat) -> some View {
+        let handleWidth: CGFloat = 28
+        let spacing: CGFloat = 8
+        let horizontalPadding: CGFloat = 8
+        let contentWidth = max(
+            120,
+            mockWidth - handleWidth - spacing - horizontalPadding * 2
+        )
 
-            ForEach(settings.lockScreenAccessoryOrder) { accessory in
-                chip(accessory)
-                    .opacity(chipOpacity(accessory))
-                    .offset(chipOffset(accessory))
-                    .zIndex(dragMode == .reorder(accessory) ? 10 : 0)
-                    .background(chipFrameReader(accessory))
-                    .highPriorityGesture(chipGesture(for: accessory))
+        return HStack(alignment: .top, spacing: spacing) {
+            verticalHandle
+                .frame(width: handleWidth)
+                .padding(.top, 2)
+                .zIndex(2)
+
+            VStack(spacing: 5) {
+                HStack(spacing: 12) {
+                    ForEach(settings.lockScreenAccessoryOrder) { accessory in
+                        LockAccessoryChip(accessory: accessory)
+                            .opacity(chipOpacity(accessory))
+                            .offset(chipOffset(accessory))
+                            .zIndex(dragMode == .reorder(accessory) ? 10 : 0)
+                            .background(chipFrameReader(accessory))
+                            .contentShape(Rectangle())
+                            .help(accessory.title)
+                            .highPriorityGesture(chipGesture(for: accessory))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                if settings.isLockScreenAccessoryEnabled(.weather) {
+                    LockWeatherSparklinePane()
+                        .frame(maxWidth: min(200, contentWidth / previewScale))
+                }
             }
+            .frame(width: contentWidth / previewScale, alignment: .topLeading)
+            .scaleEffect(previewScale, anchor: .topLeading)
+            .frame(
+                width: contentWidth,
+                height: panelHeight,
+                alignment: .topLeading
+            )
+            .clipped()
         }
-        .padding(.horizontal, 4)
-        .transaction { transaction in
-            if dragMode != .idle {
-                transaction.animation = nil
-            }
-        }
+        .padding(.horizontal, horizontalPadding)
+        .frame(width: mockWidth, alignment: .topLeading)
     }
 
     private var verticalHandle: some View {
         Image(systemName: "line.3.horizontal")
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(.white.opacity(0.55))
-            .frame(width: 22, height: 28)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.8))
+            .frame(width: 26, height: 34)
             .background(
                 Capsule(style: .continuous)
-                    .fill(.white.opacity(0.12))
+                    .fill(.white.opacity(0.18))
             )
             .contentShape(Capsule())
             .help("Drag to move the row")
             .highPriorityGesture(handleGesture)
-            .opacity(dragMode == .vertical ? 0.85 : 1)
+            .opacity(dragMode == .vertical ? 0.75 : 1)
     }
 
     private var handleGesture: some Gesture {
@@ -195,9 +244,10 @@ struct LockAccessoriesLayoutMock: View {
                 guard dragMode == .vertical,
                     let start = verticalDragStartTop
                 else { return }
-                previewStripTop = clampedStripTop(
-                    start + value.translation.height
-                )
+                let next = clampedStripTop(start + value.translation.height)
+                if previewStripTop != next {
+                    previewStripTop = next
+                }
             }
             .onEnded { _ in
                 commitVerticalPreview()
@@ -205,31 +255,17 @@ struct LockAccessoriesLayoutMock: View {
             }
     }
 
-    private func chip(_ accessory: LockScreenAccessory) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: accessory.mockSymbol)
-                .font(.system(size: 12, weight: .semibold))
-            Text(accessory.mockLabel)
-                .font(.system(size: 12, weight: .semibold))
-                .monospacedDigit()
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .contentShape(Rectangle())
-        .help(accessory.title)
-    }
-
     private func chipOpacity(_ accessory: LockScreenAccessory) -> Double {
-        if dragMode == .reorder(accessory) { return 0.9 }
+        if dragMode == .reorder(accessory) { return 0.92 }
         return settings.isLockScreenAccessoryEnabled(accessory) ? 1 : 0.38
     }
 
     private func chipOffset(_ accessory: LockScreenAccessory) -> CGSize {
         guard dragMode == .reorder(accessory) else { return .zero }
-        return dragTranslation
+        return CGSize(
+            width: dragTranslation.width / previewScale,
+            height: dragTranslation.height / previewScale
+        )
     }
 
     private func chipFrameReader(_ accessory: LockScreenAccessory) -> some View
@@ -247,7 +283,7 @@ struct LockAccessoriesLayoutMock: View {
     private func chipGesture(for accessory: LockScreenAccessory) -> some Gesture
     {
         DragGesture(
-            minimumDistance: 4,
+            minimumDistance: 3,
             coordinateSpace: .named("lockAccessoryMock")
         )
         .onChanged { value in
@@ -268,6 +304,7 @@ struct LockAccessoriesLayoutMock: View {
         let fraction = preview / mockHeight
         var transaction = Transaction()
         transaction.animation = nil
+        transaction.disablesAnimations = true
         withTransaction(transaction) {
             settings.lockScreenAccessoriesTopInsetFraction =
                 LockAccessoriesMetrics.clampedTopInsetFraction(fraction)
@@ -279,35 +316,54 @@ struct LockAccessoriesLayoutMock: View {
         fingerX: CGFloat
     ) {
         let ordered = settings.lockScreenAccessoryOrder
-        guard ordered.firstIndex(of: dragging) != nil else { return }
-
-        let centers: [(LockScreenAccessory, CGFloat)] = ordered.compactMap {
-            accessory in
-            guard let frame = chipFrames[accessory] else { return nil }
-            return (accessory, frame.midX)
-        }
-        guard !centers.isEmpty else { return }
-
-        let target =
-            centers.min(by: { abs($0.1 - fingerX) < abs($1.1 - fingerX) })?
-            .0
-        guard let target,
-            let to = ordered.firstIndex(of: target),
-            ordered.firstIndex(of: dragging) != to
+        guard let from = ordered.firstIndex(of: dragging),
+            let fromMid = chipFrames[dragging]?.midX
         else { return }
 
+        let left = from > 0 ? ordered[from - 1] : nil
+        let right = from + 1 < ordered.count ? ordered[from + 1] : nil
+
+        let destination: (index: Int, midX: CGFloat)? = {
+            if let left, let midX = chipFrames[left]?.midX, fingerX < midX {
+                return (from - 1, midX)
+            }
+            if let right, let midX = chipFrames[right]?.midX, fingerX > midX {
+                return (from + 1, midX)
+            }
+            return nil
+        }()
+
+        guard let destination else { return }
+
+        let swapped = ordered[destination.index]
         var transaction = Transaction()
         transaction.animation = nil
+        transaction.disablesAnimations = true
         withTransaction(transaction) {
-            settings.moveLockScreenAccessory(dragging, to: to)
+            settings.moveLockScreenAccessory(dragging, to: destination.index)
+        }
+
+        dragTranslation.width -= (destination.midX - fromMid)
+        if var draggedFrame = chipFrames[dragging] {
+            draggedFrame.origin.x += destination.midX - fromMid
+            chipFrames[dragging] = draggedFrame
+        }
+        if var swappedFrame = chipFrames[swapped] {
+            swappedFrame.origin.x += fromMid - destination.midX
+            chipFrames[swapped] = swappedFrame
         }
     }
 
     private func endDrag() {
-        dragMode = .idle
-        dragTranslation = .zero
-        verticalDragStartTop = nil
-        previewStripTop = nil
+        var transaction = Transaction()
+        transaction.animation = nil
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            dragMode = .idle
+            dragTranslation = .zero
+            verticalDragStartTop = nil
+            previewStripTop = nil
+        }
     }
 
     private static var sampleDate: String {
@@ -326,26 +382,6 @@ private struct LockAccessoryChipFrameKey: PreferenceKey {
         nextValue: () -> [LockScreenAccessory: CGRect]
     ) {
         value.merge(nextValue(), uniquingKeysWith: { _, next in next })
-    }
-}
-
-extension LockScreenAccessory {
-    fileprivate var mockSymbol: String {
-        switch self {
-        case .weather: "cloud.sun.fill"
-        case .bluetooth: "airpodspro"
-        case .battery: "battery.100"
-        case .focus: "moon.fill"
-        }
-    }
-
-    fileprivate var mockLabel: String {
-        switch self {
-        case .weather: "25°"
-        case .bluetooth: "AirPods"
-        case .battery: "80%"
-        case .focus: "Focus"
-        }
     }
 }
 
