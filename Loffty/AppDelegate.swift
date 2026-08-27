@@ -132,6 +132,21 @@ enum LockScreenPolicy {
         )
     }
 
+    static func defaultIdleFrame(screenFrame: CGRect) -> CGRect {
+        let size = CGSize(
+            width: LockCardMetrics.idleWidth,
+            height: LockCardMetrics.idleHeight
+        )
+        return CGRect(
+            x: screenFrame.midX - size.width / 2,
+            y: screenFrame.minY
+                + LockCardMetrics.lockProfilePictureTopInset
+                + LockCardMetrics.idleSpacingAboveProfile,
+            width: size.width,
+            height: size.height
+        )
+    }
+
     @MainActor
     static func defaultAccessoriesFrame(screenFrame: CGRect) -> CGRect {
         LockAccessoriesMetrics.defaultFrame(screenFrame: screenFrame)

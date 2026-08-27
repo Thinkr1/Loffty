@@ -145,6 +145,22 @@ struct LockScreenPolicyTests {
         #expect(rect.midY == window.height / 2)
     }
 
+    @Test func defaultIdleFrameSitsJustAboveProfilePicture() {
+        let screen = CGRect(x: 100, y: 50, width: 1512, height: 982)
+        let idle = LockScreenPolicy.defaultIdleFrame(screenFrame: screen)
+        let card = LockScreenPolicy.defaultCardFrame(screenFrame: screen)
+        #expect(idle.width == LockCardMetrics.idleWidth)
+        #expect(idle.height == LockCardMetrics.idleHeight)
+        #expect(idle.midX == screen.midX)
+        #expect(
+            idle.minY == screen.minY
+                + LockCardMetrics.lockProfilePictureTopInset
+                + LockCardMetrics.idleSpacingAboveProfile
+        )
+        #expect(idle.minY < card.midY)
+        #expect(idle.maxY < card.maxY)
+    }
+
     @Test @MainActor func accessoriesHeightGrowsWithWeatherGraph() {
         let settings = AppSettings.shared
         let originalWeather = settings.lockScreenWeatherAccessory

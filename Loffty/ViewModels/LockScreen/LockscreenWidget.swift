@@ -283,6 +283,7 @@ final class LockScreenWidget {
                     self.hideFullScreenArt()
                     if self.vm.isLocked {
                         self.showAccessories()
+                        self.syncCardHitRegion()
                     }
                 }
             }
@@ -292,6 +293,12 @@ final class LockScreenWidget {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self, self.vm.isLocked else { return }
+                if self.vm.isIdle {
+                    self.vm.setLockScreenArtExpanded(false)
+                    if self.placement.isFlying {
+                        self.restoreCompactWindowFrameIfNeeded()
+                    }
+                }
                 self.showCard()
             }
             .store(in: &cancellables)
@@ -316,9 +323,11 @@ final class LockScreenWidget {
                 self.hideAccessories()
                 self.hideCard()
                 self.appliedCachedFrameThisLock = false
-                if let frame = self.cardWindow?.frame {
+                if let frame = self.cardWindow?.frame,
+                    Self.isPlayingCardFrame(frame)
+                {
                     self.cachedCardFrame = frame
-                } else {
+                } else if self.cachedCardFrame == nil {
                     self.cachedCardFrame =
                         Self.defaultCardFrame(for: self.targetScreen())
                 }
@@ -346,8 +355,9 @@ final class LockScreenWidget {
 
     private func applyMovableSetting(_ movable: Bool) {
         guard !vm.lockScreenArtExpanded else { return }
-        cardWindow?.applyMovable(movable)
-        cardController?.allowsWindowDrag = movable
+        let canMove = movable && !vm.isIdle
+        cardWindow?.applyMovable(canMove)
+        cardController?.allowsWindowDrag = canMove
     }
 
     private func hideCard() {
@@ -405,24 +415,37 @@ final class LockScreenWidget {
         let win = cardWindow ?? makeCardWindow()
         cardWindow = win
         if !vm.lockScreenArtExpanded {
-            if !appliedCachedFrameThisLock {
-                let frame =
-                    cachedCardFrame
-                    ?? Self.defaultCardFrame(for: targetScreen())
-                win.setFrame(frame, display: true)
-                appliedCachedFrameThisLock = true
-            }
+            syncCardFrame(win)
             win.alphaValue = 1
-            win.ignoresMouseEvents = false
+            win.ignoresMouseEvents = vm.isIdle
             win.orderFrontRegardless()
             win.displayIfNeeded()
-            cardController?.updateHitRegion(
-                cardRect: .null,
-                hitsFullWindow: true
-            )
+            applyMovableSetting(AppSettings.shared.movableWidget)
+            syncCardHitRegion()
         }
         LockScreenSpace.interactive.ensureShown()
         LockScreenSpace.interactive.add(win)
+    }
+
+    private func syncCardFrame(_ win: SkyPanel) {
+        if vm.isIdle {
+            if Self.isPlayingCardFrame(win.frame) {
+                cachedCardFrame = win.frame
+            }
+            let frame = Self.defaultIdleFrame(for: targetScreen())
+            if win.frame != frame {
+                win.setFrame(frame, display: true)
+            }
+            appliedCachedFrameThisLock = true
+            return
+        }
+        if !appliedCachedFrameThisLock || !Self.isPlayingCardFrame(win.frame) {
+            let frame =
+                cachedCardFrame
+                ?? Self.defaultCardFrame(for: targetScreen())
+            win.setFrame(frame, display: true)
+            appliedCachedFrameThisLock = true
+        }
     }
 
     private func showFullScreenArt() {
@@ -483,7 +506,15 @@ final class LockScreenWidget {
         placement.compactRect = CGRect(origin: .zero, size: compact.size)
         placement.isFlying = false
         applyMovableSetting(AppSettings.shared.movableWidget)
-        cardController?.updateHitRegion(cardRect: .null, hitsFullWindow: true)
+        syncCardHitRegion()
+    }
+
+    private func syncCardHitRegion() {
+        guard !vm.lockScreenArtExpanded else { return }
+        cardController?.updateHitRegion(
+            cardRect: .null,
+            hitsFullWindow: true
+        )
     }
 
     private static func convert(
@@ -497,11 +528,21 @@ final class LockScreenWidget {
         guard !placement.isFlying else { return }
         let frame = Self.defaultCardFrame(for: targetScreen())
         cachedCardFrame = frame
+        guard !vm.isIdle else { return }
         cardWindow?.setFrame(frame, display: true)
     }
 
     private static func defaultCardFrame(for screen: NSScreen) -> NSRect {
         LockScreenPolicy.defaultCardFrame(screenFrame: screen.frame)
+    }
+
+    private static func defaultIdleFrame(for screen: NSScreen) -> NSRect {
+        LockScreenPolicy.defaultIdleFrame(screenFrame: screen.frame)
+    }
+
+    private static func isPlayingCardFrame(_ frame: NSRect) -> Bool {
+        abs(frame.width - LockCardMetrics.width) < 1
+            && abs(frame.height - LockCardMetrics.height) < 1
     }
 
     private static func defaultAccessoriesFrame(for screen: NSScreen) -> NSRect
@@ -521,10 +562,14 @@ final class LockScreenWidget {
     }
 
     private func makeCardWindow() -> SkyPanel {
-        let movable = AppSettings.shared.movableWidget
-        let frame =
+        let playing =
             cachedCardFrame ?? Self.defaultCardFrame(for: targetScreen())
-        cachedCardFrame = frame
+        cachedCardFrame = playing
+        let frame =
+            vm.isIdle
+            ? Self.defaultIdleFrame(for: targetScreen())
+            : playing
+        let movable = AppSettings.shared.movableWidget && !vm.isIdle
         let win = SkyPanel(frame: frame, movableByBackground: movable)
         win.hasShadow = false
         let controller = LockCardHostingController(
@@ -560,7 +605,7 @@ private struct LockCardRootView: View {
     var onHitRegionChange: (CGRect, Bool) -> Void
 
     var body: some View {
-        if placement.isFlying {
+        if placement.isFlying, !vm.isIdle {
             LockMorphCardView(
                 vm: vm,
                 placement: placement,
@@ -585,19 +630,31 @@ struct LockCardView: View {
 
     var body: some View {
         Group {
-            #if compiler(>=6.2)
-                if #available(macOS 26.0, *) {
-                    GlassEffectContainer { cardBody }
-                } else {
+            if vm.isIdle {
+                LockCardIdleView()
+            } else {
+                #if compiler(>=6.2)
+                    if #available(macOS 26.0, *) {
+                        GlassEffectContainer { cardBody }
+                    } else {
+                        cardBody
+                    }
+                #else
                     cardBody
-                }
-            #else
-                cardBody
-            #endif
+                #endif
+            }
         }
         .frame(
-            width: LockCardMetrics.width,
-            height: LockCardMetrics.height
+            width: vm.isIdle
+                ? LockCardMetrics.idleWidth
+                : LockCardMetrics.width,
+            height: vm.isIdle
+                ? LockCardMetrics.idleHeight
+                : LockCardMetrics.height
+        )
+        .animation(
+            .spring(response: 0.42, dampingFraction: 0.86),
+            value: vm.isIdle
         )
         .animation(
             .spring(response: 0.42, dampingFraction: 0.86),
@@ -616,6 +673,27 @@ struct LockCardView: View {
             }
             vm.setLockScreenArtExpanded(true)
         }
+    }
+}
+
+private struct LockCardIdleView: View {
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "music.note")
+                .font(.system(size: 12, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+            Text("Not Playing")
+                .font(.system(size: 15, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white.opacity(0.92))
+        .shadow(color: .black.opacity(0.55), radius: 6, y: 1)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Not Playing")
     }
 }
 

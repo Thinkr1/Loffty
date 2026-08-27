@@ -15,6 +15,10 @@ enum LockCardMetrics {
     static let width: CGFloat = 356
     static let height: CGFloat = 174
     static let cornerRadius: CGFloat = 38
+    static let idleWidth: CGFloat = 168
+    static let idleHeight: CGFloat = 22
+    static let lockProfilePictureTopInset: CGFloat = 210
+    static let idleSpacingAboveProfile: CGFloat = 16
 }
 
 enum LockAccessoriesMetrics {
