@@ -5,6 +5,8 @@
 //  Created by Pierre-Louis ML on 25/08/2026.
 //
 
+import AppKit
+import Darwin
 import SwiftUI
 
 struct LockAccessoriesLayoutMock: View {
@@ -15,13 +17,11 @@ struct LockAccessoriesLayoutMock: View {
     @State private var verticalDragStartTop: CGFloat?
     @State private var previewStripTop: CGFloat?
     @State private var chipFrames: [LockScreenAccessory: CGRect] = [:]
+    @State private var wallpaper: NSImage?
 
     private let mockHeight: CGFloat = 320
     private let stripHeight: CGFloat = 36
     private let clockBottom: CGFloat = 84
-    private var cardTop: CGFloat {
-        mockHeight - mockHeight * 0.19 - 56
-    }
 
     private enum DragMode: Equatable {
         case idle
@@ -61,6 +61,14 @@ struct LockAccessoriesLayoutMock: View {
                 }
             }
             .frame(height: mockHeight)
+            .onAppear(perform: loadWallpaper)
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: NSApplication.didBecomeActiveNotification
+                )
+            ) { _ in
+                loadWallpaper()
+            }
         }
     }
 
@@ -76,22 +84,46 @@ struct LockAccessoriesLayoutMock: View {
     }
 
     private func clampedStripTop(_ raw: CGFloat) -> CGFloat {
-        let maxTop = max(clockBottom, cardTop - stripHeight - 12)
+        let maxTop = max(clockBottom, mockHeight - stripHeight - 16)
         return min(max(raw, clockBottom), maxTop)
     }
 
     private var background: some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.22, green: 0.28, blue: 0.24),
-                        Color(red: 0.12, green: 0.14, blue: 0.13),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+        ZStack {
+            fallbackBackground
+            if let wallpaper {
+                Image(nsImage: wallpaper)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            }
+            LinearGradient(
+                colors: [
+                    .black.opacity(0.18),
+                    .black.opacity(0.08),
+                    .black.opacity(0.28),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
             )
+        }
+    }
+
+    private var fallbackBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.22, green: 0.28, blue: 0.24),
+                Color(red: 0.12, green: 0.14, blue: 0.13),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func loadWallpaper() {
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        wallpaper = LockMockWallpaper.image(for: screen)
     }
 
     private var chrome: some View {
@@ -112,33 +144,6 @@ struct LockAccessoriesLayoutMock: View {
                 .padding(.top, 1)
 
             Spacer(minLength: 0)
-
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(0.14))
-                .frame(width: 150, height: 54)
-                .overlay {
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(.white.opacity(0.28))
-                            .frame(width: 28, height: 28)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Capsule()
-                                .fill(.white.opacity(0.55))
-                                .frame(width: 64, height: 5)
-                            Capsule()
-                                .fill(.white.opacity(0.28))
-                                .frame(width: 44, height: 4)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 10)
-                }
-                .padding(.bottom, mockHeight * 0.19)
-
-            Circle()
-                .fill(.white.opacity(0.22))
-                .frame(width: 18, height: 18)
-                .padding(.bottom, 14)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
@@ -342,4 +347,238 @@ extension LockScreenAccessory {
         case .focus: "Focus"
         }
     }
+}
+
+private enum LockMockWallpaper {
+    static func image(for screen: NSScreen?) -> NSImage? {
+        if let captured = captureDesktopWindow(matching: screen) {
+            return captured
+        }
+        if let url = indexDesktopImageURL(),
+            let image = NSImage(contentsOf: url)
+        {
+            return image
+        }
+        if let screen,
+            let url = NSWorkspace.shared.desktopImageURL(for: screen),
+            !isFallbackSystemDesktop(url),
+            let image = NSImage(contentsOf: url)
+        {
+            return image
+        }
+        return nil
+    }
+
+    private static func isFallbackSystemDesktop(_ url: URL) -> Bool {
+        let path = url.path
+        return path.contains("/DefaultDesktop.")
+            || path.contains("/.wallpapers/")
+            || path.localizedCaseInsensitiveContains("screensaver")
+    }
+
+    private static func captureDesktopWindow(matching screen: NSScreen?)
+        -> NSImage?
+    {
+        guard
+            let createImage = cgWindowListCreateImage,
+            let info = CGWindowListCopyWindowInfo(
+                .optionAll,
+                kCGNullWindowID
+            ) as? [[String: Any]]
+        else { return nil }
+
+        let targetName = currentSpaceUUID().map { "Wallpaper-\($0)" }
+        let screenFrame = screen?.frame ?? NSScreen.main?.frame
+
+        var ranked: [(score: Int, windowID: CGWindowID)] = []
+        for window in info {
+            let name = window[kCGWindowName as String] as? String ?? ""
+            guard name.hasPrefix("Wallpaper-"),
+                let windowID = window[kCGWindowNumber as String] as? CGWindowID
+            else { continue }
+
+            var score = 100
+            if let targetName, name == targetName {
+                score = 0
+            } else if let screenFrame,
+                let bounds = window[kCGWindowBounds as String]
+                    as? [String: CGFloat]
+            {
+                let width = bounds["Width"] ?? 0
+                let height = bounds["Height"] ?? 0
+                score =
+                    Int(
+                        abs(width - screenFrame.width)
+                            + abs(height - screenFrame.height)
+                    ) + 10
+            }
+            ranked.append((score, windowID))
+        }
+        ranked.sort { $0.score < $1.score }
+        guard let best = ranked.first else { return nil }
+
+        let options = CGWindowImageOption(arrayLiteral: .bestResolution)
+        guard
+            let unmanaged = createImage(
+                .null,
+                .optionIncludingWindow,
+                best.windowID,
+                options
+            )
+        else { return nil }
+        let cgImage = unmanaged.takeRetainedValue()
+
+        return NSImage(
+            cgImage: cgImage,
+            size: NSSize(width: cgImage.width, height: cgImage.height)
+        )
+    }
+
+    private static func currentSpaceUUID() -> String? {
+        let url = URL(
+            fileURLWithPath: NSHomeDirectory()
+                + "/Library/Preferences/com.apple.spaces.plist"
+        )
+        guard
+            let root = NSDictionary(contentsOf: url) as? [String: Any],
+            let config = root["SpacesDisplayConfiguration"] as? [String: Any],
+            let management = config["Management Data"] as? [String: Any],
+            let monitors = management["Monitors"] as? [[String: Any]]
+        else { return nil }
+
+        let preferred =
+            monitors.first(where: {
+                ($0["Display Identifier"] as? String) == "Main"
+            }) ?? monitors.first
+        let current = preferred?["Current Space"] as? [String: Any]
+        return current?["uuid"] as? String
+    }
+
+    private static func indexDesktopImageURL() -> URL? {
+        let store = URL(
+            fileURLWithPath: NSHomeDirectory()
+                + "/Library/Application Support/com.apple.wallpaper/Store/Index.plist"
+        )
+        guard
+            let root = NSDictionary(contentsOf: store) as? [String: Any]
+        else { return nil }
+
+        let spaceID = currentSpaceUUID()
+        let desktopNodes: [[String: Any]] = {
+            var nodes: [[String: Any]] = []
+            if let spaceID,
+                let spaces = root["Spaces"] as? [String: Any],
+                let space = spaces[spaceID] as? [String: Any]
+            {
+                if let displays = space["Displays"] as? [String: Any] {
+                    for display in displays.values {
+                        if let display = display as? [String: Any],
+                            let desktop = display["Desktop"] as? [String: Any]
+                        {
+                            nodes.append(desktop)
+                        }
+                    }
+                }
+                if let fallback = space["Default"] as? [String: Any],
+                    let desktop = fallback["Desktop"] as? [String: Any]
+                {
+                    nodes.append(desktop)
+                }
+            }
+            if let displays = root["Displays"] as? [String: Any] {
+                for display in displays.values {
+                    if let display = display as? [String: Any],
+                        let desktop = display["Desktop"] as? [String: Any]
+                    {
+                        nodes.append(desktop)
+                    }
+                }
+            }
+            if let system = root["SystemDefault"] as? [String: Any],
+                let desktop = system["Desktop"] as? [String: Any]
+            {
+                nodes.append(desktop)
+            }
+            return nodes
+        }()
+
+        for desktop in desktopNodes {
+            if let url = imageURL(fromDesktop: desktop) { return url }
+        }
+        return nil
+    }
+
+    private static func imageURL(fromDesktop desktop: [String: Any]) -> URL? {
+        guard
+            let content = desktop["Content"] as? [String: Any],
+            let choices = content["Choices"] as? [[String: Any]],
+            let choice = choices.first
+        else { return nil }
+
+        let provider = choice["Provider"] as? String ?? ""
+        if provider.contains("screen-saver") { return nil }
+
+        if let files = choice["Files"] as? [Any] {
+            for file in files {
+                if let path = file as? String {
+                    let url = URL(fileURLWithPath: path)
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        return url
+                    }
+                } else if let data = file as? Data {
+                    var isStale = false
+                    if let url = try? URL(
+                        resolvingBookmarkData: data,
+                        options: [.withoutUI, .withoutMounting],
+                        relativeTo: nil,
+                        bookmarkDataIsStale: &isStale
+                    ),
+                        FileManager.default.fileExists(atPath: url.path)
+                    {
+                        return url
+                    }
+                }
+            }
+        }
+
+        let configuration: [String: Any]? = {
+            if let data = choice["Configuration"] as? Data,
+                let object = try? PropertyListSerialization
+                    .propertyList(from: data, format: nil)
+                    as? [String: Any]
+            {
+                return object
+            }
+            return choice["Configuration"] as? [String: Any]
+        }()
+
+        if let assetID = configuration?["assetID"] as? String
+            ?? (configuration?["identifier"] as? String),
+            provider.contains("aerial")
+        {
+            let thumb = URL(
+                fileURLWithPath: NSHomeDirectory()
+                    + "/Library/Application Support/com.apple.wallpaper/aerials/thumbnails/\(assetID).png"
+            )
+            if FileManager.default.fileExists(atPath: thumb.path) {
+                return thumb
+            }
+        }
+        return nil
+    }
+
+    private typealias CGWindowListCreateImageFn =
+        @convention(c) (
+            CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption
+        ) -> Unmanaged<CGImage>?
+
+    private static let cgWindowListCreateImage: CGWindowListCreateImageFn? = {
+        guard
+            let symbol = dlsym(
+                UnsafeMutableRawPointer(bitPattern: -2),
+                "CGWindowListCreateImage"
+            )
+        else { return nil }
+        return unsafeBitCast(symbol, to: CGWindowListCreateImageFn.self)
+    }()
 }
