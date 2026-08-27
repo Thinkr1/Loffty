@@ -557,4 +557,36 @@ struct SettingsTests {
                 == "both"
         )
     }
+
+    @Test @MainActor func idlePlaySettingsPersist() {
+        let settings = AppSettings.shared
+        let originalButton = settings.idlePlayButton
+        let originalApp = settings.idlePlayApp
+        let originalRecents = settings.idleRecentSuggestions
+        defer {
+            settings.idlePlayButton = originalButton
+            settings.idlePlayApp = originalApp
+            settings.idleRecentSuggestions = originalRecents
+        }
+
+        settings.idlePlayButton = true
+        settings.idlePlayApp = .spotify
+        settings.idleRecentSuggestions = true
+        #expect(UserDefaults.standard.bool(forKey: "idlePlayButton"))
+        #expect(UserDefaults.standard.string(forKey: "idlePlayApp") == "spotify")
+        #expect(UserDefaults.standard.bool(forKey: "idleRecentSuggestions"))
+        #expect(settings.idlePlayApp.title == "Spotify")
+        #expect(IdlePlayApp.automatic.title == "Automatic")
+
+        settings.idlePlayButton = false
+        settings.idleRecentSuggestions = false
+        #expect(
+            UserDefaults.standard.object(forKey: "idlePlayButton") as? Bool
+                == false
+        )
+        #expect(
+            UserDefaults.standard.object(forKey: "idleRecentSuggestions")
+                as? Bool == false
+        )
+    }
 }

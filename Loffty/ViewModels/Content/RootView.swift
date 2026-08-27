@@ -30,6 +30,7 @@ struct NotchMetrics {
     var customizingToolbar: Bool = false
     var weather: Bool = false
     var swipeExpansion: CGFloat = 0
+    var idleSuggestions: Bool = false
     let gapExtended: CGFloat = 12
     let edgePad: CGFloat = 14
     let barsW: CGFloat = 18
@@ -82,6 +83,9 @@ struct NotchMetrics {
         }
         if expanded {
             if weather { return 240 + swipeExpansion * 24 }
+            if idle, idleSuggestions {
+                return notchH + IdleNotchLayout.suggestionsBody
+            }
             return showAlbum ? 206 : 196
         }
         if hudActive { return notchH + hudExtra }
@@ -551,6 +555,12 @@ final class NotchViewModel: ObservableObject {
         let previousContentID = nowPlaying.contentItemIdentifier
         nowPlaying = incoming
         let nowIdle = isIdle
+        if !nowIdle {
+            RecentPlaybackCache.shared.record(
+                incoming,
+                enabled: AppSettings.shared.idleRecentSuggestions
+            )
+        }
         if nowIdle, !wasIdle {
             accentTask?.cancel()
             withAnimation(.easeOut(duration: 0.45)) {
@@ -1073,6 +1083,7 @@ struct NotchRootView: View {
     @ObservedObject private var notifications = NotificationController.shared
     @ObservedObject private var toolbar =
         MediaToolbarCustomizer.shared
+    @ObservedObject private var recents = RecentPlaybackCache.shared
     @Namespace private var ns
     @State private var trackPulse: CGFloat = 0
     @State private var airDropPulse: CGFloat = 0
@@ -1161,7 +1172,12 @@ struct NotchRootView: View {
             weather: vm.isExpanded && vm.expandedPage == .weather
                 && !toolbar.isCustomizing
                 && !airDropActive && !notificationActive,
-            swipeExpansion: swipeExpansion
+            swipeExpansion: swipeExpansion,
+            idleSuggestions: vm.isExpanded && vm.isIdle
+                && !toolbar.isCustomizing
+                && settings.idleRecentSuggestions
+                && !recents.suggestions.isEmpty
+                && !airDropActive && !notificationActive
         )
     }
     private var persistentEdgeColor: Color? {
@@ -1225,6 +1241,7 @@ struct NotchRootView: View {
             value: m.extended
         )
         .animation(NotchViewModel.notchExpandSpring, value: vm.isIdle)
+        .animation(NotchViewModel.notchExpandSpring, value: recents.items.count)
         .animation(NotchViewModel.notchExpandSpring, value: vm.expandedPage)
         .animation(NotchViewModel.sideHUDSpring, value: vm.hud)
         .animation(NotchViewModel.sideHUDSpring, value: vm.hudDisplay)

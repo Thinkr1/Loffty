@@ -12,6 +12,7 @@ struct ExpandedContent: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var toolbar =
         MediaToolbarCustomizer.shared
+    @ObservedObject private var recents = RecentPlaybackCache.shared
     let ns: Namespace.ID
     let m: NotchMetrics
 
@@ -129,26 +130,109 @@ struct ExpandedContent: View {
     }
 
     private var idleContent: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "music.note")
-                .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(.white.opacity(0.28))
-            Text("Nothing Playing")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.78))
-            Text(
-                settings.weatherEnabled
-                    ? "Swipe for weather" : "Waiting for media"
-            )
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.white.opacity(0.34))
+        let suggestions =
+            settings.idleRecentSuggestions ? recents.suggestions : []
+        return VStack(spacing: 0) {
+            Color.clear.frame(height: m.notchH)
+            VStack(spacing: 0) {
+                if !suggestions.isEmpty {
+                    idleSuggestionsRow(suggestions)
+                        .padding(.top, 8)
+                        .padding(.bottom, 14)
+                } else if !settings.idlePlayButton {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 22, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.28))
+                        .padding(.bottom, 8)
+                }
+                Text("Nothing Playing")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.78))
+                if settings.idlePlayButton {
+                    idlePlayButton
+                        .padding(.top, 10)
+                        .padding(.bottom, 8)
+                }
+                Text(idleSubtitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.34))
+            }
+            .padding(.top, suggestions.isEmpty ? 8 : 0)
+            .padding(.bottom, 14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.top, m.notchH)
-        .padding(.bottom, 16)
         .contentShape(Rectangle())
         .onTapGesture {
             if settings.weatherEnabled { vm.setExpandedPage(.weather) }
+        }
+        .animation(.easeInOut(duration: 0.22), value: suggestions.count)
+    }
+
+    private var idleSubtitle: String {
+        settings.weatherEnabled ? "Swipe for weather" : "Waiting for media"
+    }
+
+    private var idlePlayShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: IdleNotchLayout.playCornerRadius,
+            style: .continuous
+        )
+    }
+
+    private var idlePlayButton: some View {
+        Button {
+            IdleMediaLaunch.openPreferred(
+                app: settings.idlePlayApp,
+                lastPlayedBundle: recents.items.first?.bundleIdentifier
+            )
+        } label: {
+            Image(systemName: "play.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .offset(x: 1)
+                .frame(
+                    width: IdleNotchLayout.playWidth,
+                    height: IdleNotchLayout.playHeight
+                )
+                .contentShape(idlePlayShape)
+                .idlePlayGlass()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Play")
+    }
+
+    private func idleSuggestionsRow(_ items: [RecentPlaybackItem]) -> some View
+    {
+        HStack(alignment: .top, spacing: IdleNotchLayout.suggestionSpacing) {
+            ForEach(items) { item in
+                Button {
+                    IdleMediaLaunch.open(item)
+                } label: {
+                    VStack(spacing: 4) {
+                        ArtworkThumbnail(
+                            artwork: item.artwork,
+                            unavailable: false,
+                            size: IdleNotchLayout.suggestionArt,
+                            cornerRadius: 11,
+                            trackKey: item.trackKey,
+                            bundleIdentifier: item.bundleIdentifier,
+                            showPlayerBadge: true,
+                            showsShadow: true
+                        )
+                        Text(item.title)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .lineLimit(1)
+                            .frame(
+                                width: IdleNotchLayout.suggestionArt,
+                                alignment: .center
+                            )
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(NotchControlButtonStyle())
+                .accessibilityLabel(item.title)
+            }
         }
     }
 
@@ -331,5 +415,34 @@ struct CollapsedContent: View {
         .padding(.leading, m.gap)
         .opacity(m.extended || sideKind != nil ? 1 : 0)
         .animation(NotchViewModel.sideHUDSpring, value: sideKind)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    fileprivate func idlePlayGlass() -> some View {
+        let shape = RoundedRectangle(
+            cornerRadius: IdleNotchLayout.playCornerRadius,
+            style: .continuous
+        )
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                self.glassEffect(.regular.interactive(), in: shape)
+            } else {
+                idlePlayGlassFallback(shape)
+            }
+        #else
+            idlePlayGlassFallback(shape)
+        #endif
+    }
+
+    fileprivate func idlePlayGlassFallback<S: InsettableShape>(_ shape: S)
+        -> some View
+    {
+        self
+            .background(shape.fill(Color.white.opacity(0.14)))
+            .overlay {
+                shape.strokeBorder(.white.opacity(0.16), lineWidth: 1)
+            }
     }
 }

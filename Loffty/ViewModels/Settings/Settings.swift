@@ -493,6 +493,9 @@ final class AppSettings: ObservableObject {
     private static let showAlbumKey = "showAlbum"
     private static let automaticUpdatesKey = "automaticUpdates"
     private static let showAirPlayButtonKey = "showAirPlayButton"
+    private static let idlePlayButtonKey = "idlePlayButton"
+    private static let idlePlayAppKey = "idlePlayApp"
+    private static let idleRecentSuggestionsKey = "idleRecentSuggestions"
     private static let showSpotifyLikeButtonKey = "showSpotifyLikeButton"
     private static let mediaToolbarItemsKey = "mediaToolbarItems"
     private static let spotifyLibraryTokenExpirationKey =
@@ -1003,6 +1006,33 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var idlePlayButton: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                idlePlayButton,
+                forKey: Self.idlePlayButtonKey
+            )
+        }
+    }
+
+    @Published var idlePlayApp: IdlePlayApp {
+        didSet {
+            UserDefaults.standard.set(
+                idlePlayApp.rawValue,
+                forKey: Self.idlePlayAppKey
+            )
+        }
+    }
+
+    @Published var idleRecentSuggestions: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                idleRecentSuggestions,
+                forKey: Self.idleRecentSuggestionsKey
+            )
+        }
+    }
+
     @Published var showSpotifyLikeButton: Bool {
         didSet {
             UserDefaults.standard.set(
@@ -1495,6 +1525,19 @@ final class AppSettings: ObservableObject {
         showAirPlayButton =
             UserDefaults.standard.object(forKey: Self.showAirPlayButtonKey)
             as? Bool ?? true
+        idlePlayButton = UserDefaults.standard.bool(
+            forKey: Self.idlePlayButtonKey
+        )
+        if let raw = UserDefaults.standard.string(forKey: Self.idlePlayAppKey),
+            let app = IdlePlayApp(rawValue: raw)
+        {
+            idlePlayApp = app
+        } else {
+            idlePlayApp = .automatic
+        }
+        idleRecentSuggestions = UserDefaults.standard.bool(
+            forKey: Self.idleRecentSuggestionsKey
+        )
         showSpotifyLikeButton =
             UserDefaults.standard.object(forKey: Self.showSpotifyLikeButtonKey)
             as? Bool ?? true

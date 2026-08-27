@@ -122,6 +122,25 @@ struct NotchMetricsTests {
         #expect(m.width == 392)
     }
 
+    @Test func expandedIdleWithSuggestionsIsTaller() {
+        let plain = base(expanded: true, idle: true)
+        let recents = NotchMetrics(
+            notchW: 200,
+            notchH: 32,
+            expanded: true,
+            idle: true,
+            extended: false,
+            hudActive: false,
+            idleSuggestions: true
+        )
+        #expect(plain.height == 196)
+        #expect(
+            recents.height == 32 + IdleNotchLayout.suggestionsBody
+        )
+        #expect(recents.height > plain.height)
+        #expect(recents.width == 392)
+    }
+
     @Test func hudActiveExtendsHeight() {
         let m = base(hudActive: true)
         #expect(m.height == 32 + m.hudExtra)

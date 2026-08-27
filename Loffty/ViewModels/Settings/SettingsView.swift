@@ -758,6 +758,52 @@ struct SettingsView: View {
             ),
             SettingsGroup(
                 page: .media,
+                title: "When Nothing Is Playing",
+                note:
+                    "The expanded music notch can offer a play control and a few recent tracks. Recents are stored locally only while the option is on.",
+                entries: [
+                    SettingsEntry(
+                        "idlePlayButton",
+                        title: "Play button",
+                        detail: "Opens Music or Spotify from the idle notch.",
+                        keywords: [
+                            "idle", "launch", "apple music", "spotify", "play",
+                        ]
+                    ) {
+                        SettingsToggle(isOn: $settings.idlePlayButton)
+                    },
+                    SettingsEntry(
+                        "idlePlayApp",
+                        title: "Open",
+                        detail:
+                            "Automatic uses the last source, then Music, then Spotify.",
+                        keywords: [
+                            "idle", "music", "spotify", "default", "app",
+                        ],
+                        isEnabled: settings.idlePlayButton
+                    ) {
+                        SettingsMenu(selection: $settings.idlePlayApp) {
+                            ForEach(IdlePlayApp.allCases) { app in
+                                Text(app.title).tag(app)
+                            }
+                        }
+                    },
+                    SettingsEntry(
+                        "idleRecentSuggestions",
+                        title: "Recent tracks",
+                        detail:
+                            "Shows a few recently played songs from different apps.",
+                        keywords: [
+                            "idle", "history", "recents", "suggestions",
+                            "cache",
+                        ]
+                    ) {
+                        SettingsToggle(isOn: $settings.idleRecentSuggestions)
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .media,
                 title: "Soundwaves",
                 note:
                     "Live soundwaves listen to system audio. macOS may ask for Screen & System Audio Recording.",
