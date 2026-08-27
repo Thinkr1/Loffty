@@ -54,28 +54,11 @@ struct WeatherNotchContent: View {
                     overview(snap)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .charts:
-                    VStack(alignment: .leading, spacing: 8) {
-                        slideTitle("Forecast trends", subtitle: "Next 24 hours")
-                        if snap.hours.count >= 3 {
-                            WeatherSparklineCard(
-                                title: "Temperature",
-                                values: snap.hours.map(\.temperatureC),
-                                labels: hourGraphLabels(snap.hours),
-                                metric: metricTemp
-                            )
-                        }
-                        if settings.weatherShowPrecip, snap.hours.count >= 3 {
-                            WeatherPrecipCard(hours: snap.hours)
-                        }
-                    }
+                    charts(snap)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .forecast:
-                    VStack(alignment: .leading, spacing: 8) {
-                        slideTitle(
-                            "Daily forecast",
-                            subtitle: "Next several days"
-                        )
-                        if snap.days.count >= 2 { days(snap) }
-                    }
+                    forecast(snap)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .frame(
@@ -115,14 +98,42 @@ struct WeatherNotchContent: View {
     }
 
     private func slideTitle(_ title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title)
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.92))
+            Spacer(minLength: 4)
             Text(subtitle)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.white.opacity(0.34))
         }
+    }
+
+    private func charts(_ snap: WeatherSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            slideTitle("Forecast trends", subtitle: "Next 24 hours")
+            if snap.hours.count >= 3 {
+                WeatherSparklineCard(
+                    title: "Temperature",
+                    values: snap.hours.map(\.temperatureC),
+                    labels: hourGraphLabels(snap.hours),
+                    metric: metricTemp
+                )
+            }
+            if settings.weatherShowPrecip, snap.hours.count >= 3 {
+                WeatherPrecipCard(hours: snap.hours)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.trailing, 8)
+    }
+
+    private func forecast(_ snap: WeatherSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            slideTitle("Daily forecast", subtitle: "Next 4 days")
+            if snap.days.count >= 2 { days(snap) }
+        }
+        .padding(.trailing, 8)
     }
 
     @ViewBuilder
@@ -375,50 +386,48 @@ struct WeatherNotchContent: View {
     }
 
     private func days(_ snap: WeatherSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Next days")
-            VStack(spacing: 6) {
-                ForEach(Array(snap.days.prefix(4).enumerated()), id: \.offset) {
-                    _,
-                    day in
-                    HStack(spacing: 10) {
-                        Text(WeatherFormatting.weekdayLabel(day.date))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                            .frame(width: 34, alignment: .leading)
-                        Image(
-                            systemName: WeatherSymbol.systemName(
-                                code: day.weatherCode,
-                                isDay: true
-                            )
-                        )
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .frame(width: 16)
-                        Text(
-                            WeatherFormatting.temperatureLabel(
-                                day.lowC,
-                                metric: metricTemp
-                            )
-                        )
+        let items = Array(snap.days.prefix(4))
+        return VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.offset) { index, day in
+                if index > 0 { Spacer(minLength: 4) }
+                HStack(spacing: 10) {
+                    Text(WeatherFormatting.weekdayLabel(day.date))
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.38))
-                        .monospacedDigit()
-                        WeatherDayRangeBar()
-                            .frame(height: 4)
-                        Text(
-                            WeatherFormatting.temperatureLabel(
-                                day.highC,
-                                metric: metricTemp
-                            )
+                        .foregroundStyle(.white.opacity(0.5))
+                        .frame(width: 34, alignment: .leading)
+                    Image(
+                        systemName: WeatherSymbol.systemName(
+                            code: day.weatherCode,
+                            isDay: true
                         )
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.82))
-                        .monospacedDigit()
-                    }
+                    )
+                    .font(.system(size: 12, weight: .regular))
+                    .symbolRenderingMode(.multicolor)
+                    .frame(width: 16)
+                    Text(
+                        WeatherFormatting.temperatureLabel(
+                            day.lowC,
+                            metric: metricTemp
+                        )
+                    )
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.38))
+                    .monospacedDigit()
+                    WeatherDayRangeBar()
+                        .frame(height: 4)
+                    Text(
+                        WeatherFormatting.temperatureLabel(
+                            day.highC,
+                            metric: metricTemp
+                        )
+                    )
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .monospacedDigit()
                 }
             }
         }
+        .frame(maxHeight: .infinity)
     }
 
     private func hourGraphLabels(_ hours: [WeatherHour]) -> (String, String) {
@@ -429,14 +438,6 @@ struct WeatherNotchContent: View {
             WeatherFormatting.hourLabel(first.date),
             WeatherFormatting.hourLabel(last.date)
         )
-    }
-
-    private func sectionLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.32))
-            .textCase(.uppercase)
-            .tracking(0.4)
     }
 }
 
@@ -616,7 +617,7 @@ private struct WeatherSparklineCard: View {
     var metric: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(title)
                     .font(.system(size: 10, weight: .semibold))
@@ -634,7 +635,7 @@ private struct WeatherSparklineCard: View {
                 }
             }
             WeatherSparkline(values: values)
-                .frame(height: 32)
+                .frame(height: 22)
             HStack {
                 Text(labels.0)
                 Spacer()
@@ -650,14 +651,14 @@ private struct WeatherPrecipCard: View {
     var hours: [WeatherHour]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 3) {
             Text("Precipitation")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.32))
                 .textCase(.uppercase)
                 .tracking(0.4)
             WeatherPrecipBars(values: hours.map(\.precipMm))
-                .frame(height: 26)
+                .frame(height: 16)
         }
     }
 }
@@ -687,7 +688,17 @@ private struct WeatherSparkline: View {
             }
             fill.addLine(to: CGPoint(x: size.width, y: size.height))
             fill.closeSubpath()
-            context.fill(fill, with: .color(.white.opacity(0.08)))
+            context.fill(
+                fill,
+                with: .linearGradient(
+                    Gradient(stops: [
+                        .init(color: .white.opacity(0.18), location: 0),
+                        .init(color: .white.opacity(0), location: 1),
+                    ]),
+                    startPoint: CGPoint(x: 0, y: 0),
+                    endPoint: CGPoint(x: 0, y: size.height)
+                )
+            )
             context.stroke(
                 line,
                 with: .color(.white.opacity(0.72)),
