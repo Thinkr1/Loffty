@@ -1451,7 +1451,7 @@ struct NotchRootView: View {
                 .frame(width: m.width, height: m.height, alignment: .top)
                 .clipShape(islandShape)
                 .contentShape(islandShape)
-                .notchLiquidGlass(islandShape)
+                .notchLiquidGlass(islandShape, tinted: vm.isFullScreen)
                 .overlay {
                     if let edge = persistentEdgeColor {
                         NotchBottomEdge(
@@ -1474,7 +1474,7 @@ struct NotchRootView: View {
                         alignment: .center
                     )
                     .contentShape(hudTailShape)
-                    .notchLiquidGlass(hudTailShape)
+                    .notchLiquidGlass(hudTailShape, tinted: vm.isFullScreen)
                     .transition(
                         .opacity.combined(
                             with: .scale(scale: 0.92, anchor: .top)
@@ -1488,22 +1488,27 @@ struct NotchRootView: View {
 
 extension View {
     @ViewBuilder
-    fileprivate func notchLiquidGlass<S: Shape>(_ shape: S) -> some View {
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                self
-                    .glassEffect(.clear.interactive(), in: shape)
-                    .preferredColorScheme(.dark)
-            } else {
-                notchLiquidGlassFallback(shape)
-            }
-        #else
+    fileprivate func notchLiquidGlass<S: Shape>(
+        _ shape: S,
+        tinted: Bool = false
+    ) -> some View {
+#if compiler(>=6.2)
+        if #available(macOS 26.0, *) {
+            self
+                .glassEffect(
+                    tinted ? .regular.interactive() : .identity.interactive(),
+                    in: shape
+                )
+                .preferredColorScheme(.dark)
+        } else {
             notchLiquidGlassFallback(shape)
-        #endif
+        }
+#else
+        notchLiquidGlassFallback(shape)
+#endif
     }
-
-    fileprivate func notchLiquidGlassFallback<S: Shape>(_ shape: S) -> some View
-    {
+    
+    fileprivate func notchLiquidGlassFallback<S: Shape>(_ shape: S) -> some View {
         self
             .background(.ultraThinMaterial, in: shape)
             .preferredColorScheme(.dark)
