@@ -1496,7 +1496,7 @@ extension View {
         if #available(macOS 26.0, *) {
             self
                 .glassEffect(
-                    tinted ? .regular.interactive() : .identity.interactive(),
+                    tinted ? .regular.interactive() : .clear.interactive(),
                     in: shape
                 )
                 .preferredColorScheme(.dark)
