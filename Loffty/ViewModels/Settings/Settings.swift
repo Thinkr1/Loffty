@@ -85,6 +85,33 @@ enum NotchEdgeStyle: String, CaseIterable, Identifiable {
     }
 }
 
+enum LiquidGlassTint: String, CaseIterable, Identifiable {
+    case clear
+    case regular
+    case identity
+
+    static let windowedStorageKey = "liquidGlassTintWhenNotFullScreen"
+    static let fullScreenStorageKey = "liquidGlassTintFullScreen"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .clear: "Clear"
+        case .regular: "Regular"
+        case .identity: "Identity"
+        }
+    }
+
+    nonisolated static func resolved(
+        isFullScreen: Bool,
+        windowed: LiquidGlassTint,
+        fullScreen: LiquidGlassTint
+    ) -> LiquidGlassTint {
+        isFullScreen ? fullScreen : windowed
+    }
+}
+
 enum SoundwaveMotion: String, CaseIterable, Identifiable {
     case live
     case decorative
@@ -505,6 +532,10 @@ final class AppSettings: ObservableObject {
     private static let hideNotchFullScreenAppsKey = "hideNotchFullScreenApps"
     private static let notchOutlineWhenNotFullScreenKey =
         "notchOutlineWhenNotFullScreen"
+    private static let liquidGlassTintWhenNotFullScreenKey =
+        LiquidGlassTint.windowedStorageKey
+    private static let liquidGlassTintFullScreenKey =
+        LiquidGlassTint.fullScreenStorageKey
     private static let weatherEnabledKey = "weatherEnabled"
     private static let weatherSwipeEnabledKey = "weatherSwipeEnabled"
     private static let weatherShowLocationKey = "weatherShowLocation"
@@ -1110,6 +1141,24 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var liquidGlassTintWhenNotFullScreen: LiquidGlassTint {
+        didSet {
+            UserDefaults.standard.set(
+                liquidGlassTintWhenNotFullScreen.rawValue,
+                forKey: Self.liquidGlassTintWhenNotFullScreenKey
+            )
+        }
+    }
+
+    @Published var liquidGlassTintFullScreen: LiquidGlassTint {
+        didSet {
+            UserDefaults.standard.set(
+                liquidGlassTintFullScreen.rawValue,
+                forKey: Self.liquidGlassTintFullScreenKey
+            )
+        }
+    }
+
     @Published var weatherEnabled: Bool {
         didSet {
             UserDefaults.standard.set(
@@ -1586,6 +1635,20 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.notchOutlineWhenNotFullScreenKey
             ) as? Bool ?? true
+        if let raw = UserDefaults.standard.string(
+            forKey: Self.liquidGlassTintWhenNotFullScreenKey
+        ), let tint = LiquidGlassTint(rawValue: raw) {
+            liquidGlassTintWhenNotFullScreen = tint
+        } else {
+            liquidGlassTintWhenNotFullScreen = .clear
+        }
+        if let raw = UserDefaults.standard.string(
+            forKey: Self.liquidGlassTintFullScreenKey
+        ), let tint = LiquidGlassTint(rawValue: raw) {
+            liquidGlassTintFullScreen = tint
+        } else {
+            liquidGlassTintFullScreen = .regular
+        }
         weatherEnabled =
             UserDefaults.standard.object(forKey: Self.weatherEnabledKey)
             as? Bool ?? true

@@ -1180,6 +1180,14 @@ struct NotchRootView: View {
                 && !airDropActive && !notificationActive
         )
     }
+    private var notchLiquidGlassTint: LiquidGlassTint {
+        LiquidGlassTint.resolved(
+            isFullScreen: vm.isFullScreen,
+            windowed: settings.liquidGlassTintWhenNotFullScreen,
+            fullScreen: settings.liquidGlassTintFullScreen
+        )
+    }
+
     private var persistentEdgeColor: Color? {
         guard
             NotchEdgeStyle.shouldDraw(
@@ -1267,6 +1275,14 @@ struct NotchRootView: View {
         .animation(
             .easeInOut(duration: 0.35),
             value: settings.notchOutlineWhenNotFullScreen
+        )
+        .animation(
+            .easeInOut(duration: 0.35),
+            value: settings.liquidGlassTintWhenNotFullScreen
+        )
+        .animation(
+            .easeInOut(duration: 0.35),
+            value: settings.liquidGlassTintFullScreen
         )
         .animation(.easeInOut(duration: 0.35), value: vm.isFullScreen)
         .onChange(of: vm.trackChangeToken) { _, token in
@@ -1451,7 +1467,7 @@ struct NotchRootView: View {
                 .frame(width: m.width, height: m.height, alignment: .top)
                 .clipShape(islandShape)
                 .contentShape(islandShape)
-                .notchLiquidGlass(islandShape, tinted: vm.isFullScreen)
+                .notchLiquidGlass(islandShape, tint: notchLiquidGlassTint)
                 .overlay {
                     if let edge = persistentEdgeColor {
                         NotchBottomEdge(
@@ -1474,7 +1490,7 @@ struct NotchRootView: View {
                         alignment: .center
                     )
                     .contentShape(hudTailShape)
-                    .notchLiquidGlass(hudTailShape, tinted: vm.isFullScreen)
+                    .notchLiquidGlass(hudTailShape, tint: notchLiquidGlassTint)
                     .transition(
                         .opacity.combined(
                             with: .scale(scale: 0.92, anchor: .top)
@@ -1490,28 +1506,46 @@ extension View {
     @ViewBuilder
     fileprivate func notchLiquidGlass<S: Shape>(
         _ shape: S,
-        tinted: Bool = false
+        tint: LiquidGlassTint
     ) -> some View {
         #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 self
-                    .glassEffect(
-                        tinted ? .regular.interactive() : .clear.interactive(),
-                        in: shape
-                    )
+                    .glassEffect(tint.interactiveGlass, in: shape)
                     .preferredColorScheme(.dark)
             } else {
-                notchLiquidGlassFallback(shape)
+                notchLiquidGlassFallback(shape, tint: tint)
             }
         #else
-            notchLiquidGlassFallback(shape)
+            notchLiquidGlassFallback(shape, tint: tint)
         #endif
     }
 
-    fileprivate func notchLiquidGlassFallback<S: Shape>(_ shape: S) -> some View
-    {
-        self
-            .background(.ultraThinMaterial, in: shape)
-            .preferredColorScheme(.dark)
+    @ViewBuilder
+    fileprivate func notchLiquidGlassFallback<S: Shape>(
+        _ shape: S,
+        tint: LiquidGlassTint
+    ) -> some View {
+        switch tint {
+        case .identity:
+            self.preferredColorScheme(.dark)
+        case .clear, .regular:
+            self
+                .background(.ultraThinMaterial, in: shape)
+                .preferredColorScheme(.dark)
+        }
     }
 }
+
+#if compiler(>=6.2)
+    @available(macOS 26.0, *)
+    extension LiquidGlassTint {
+        fileprivate var interactiveGlass: Glass {
+            switch self {
+            case .clear: .clear.interactive()
+            case .regular: .regular.interactive()
+            case .identity: .identity
+            }
+        }
+    }
+#endif

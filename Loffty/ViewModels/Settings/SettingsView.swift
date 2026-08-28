@@ -457,6 +457,50 @@ struct SettingsView: View {
                         SettingsToggle(isOn: $settings.extendNotch)
                     },
                     SettingsEntry(
+                        "liquidGlassTintWhenNotFullScreen",
+                        title: "Liquid Glass",
+                        keywords: [
+                            "glass", "liquid", "tint", "clear", "regular",
+                            "identity", "frosted", "material", "off",
+                        ]
+                    ) {
+                        Picker(
+                            "",
+                            selection: $settings
+                                .liquidGlassTintWhenNotFullScreen
+                        ) {
+                            ForEach(LiquidGlassTint.allCases) { tint in
+                                Text(tint.title).tag(tint)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    },
+                    SettingsEntry(
+                        "liquidGlassTintFullScreen",
+                        title: "Liquid Glass in full screen",
+                        keywords: [
+                            "glass", "liquid", "tint", "clear", "regular",
+                            "identity", "frosted", "fullscreen", "full screen",
+                            "material", "off",
+                        ]
+                    ) {
+                        Picker(
+                            "",
+                            selection: $settings.liquidGlassTintFullScreen
+                        ) {
+                            ForEach(LiquidGlassTint.allCases) { tint in
+                                Text(tint.title).tag(tint)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    },
+                    SettingsEntry(
                         "hudDuration",
                         title: "Overlay duration",
                         keywords: ["hud", "timing", "seconds", "dismiss"],

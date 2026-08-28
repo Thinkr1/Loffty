@@ -221,3 +221,63 @@ struct NotchEdgeStyleTests {
         )
     }
 }
+
+@Suite("Liquid Glass tint")
+struct LiquidGlassTintTests {
+    @Test func rawValueRoundTrip() {
+        for tint in LiquidGlassTint.allCases {
+            #expect(LiquidGlassTint(rawValue: tint.rawValue) == tint)
+        }
+    }
+
+    @Test func titles() {
+        #expect(LiquidGlassTint.clear.title == "Clear")
+        #expect(LiquidGlassTint.regular.title == "Regular")
+        #expect(LiquidGlassTint.identity.title == "Identity")
+    }
+
+    @Test func resolvedFollowsFullScreen() {
+        #expect(
+            LiquidGlassTint.resolved(
+                isFullScreen: false,
+                windowed: .clear,
+                fullScreen: .regular
+            ) == .clear
+        )
+        #expect(
+            LiquidGlassTint.resolved(
+                isFullScreen: true,
+                windowed: .clear,
+                fullScreen: .regular
+            ) == .regular
+        )
+        #expect(
+            LiquidGlassTint.resolved(
+                isFullScreen: false,
+                windowed: .regular,
+                fullScreen: .clear
+            ) == .regular
+        )
+        #expect(
+            LiquidGlassTint.resolved(
+                isFullScreen: true,
+                windowed: .regular,
+                fullScreen: .clear
+            ) == .clear
+        )
+        #expect(
+            LiquidGlassTint.resolved(
+                isFullScreen: true,
+                windowed: .clear,
+                fullScreen: .identity
+            ) == .identity
+        )
+        #expect(
+            LiquidGlassTint.resolved(
+                isFullScreen: false,
+                windowed: .identity,
+                fullScreen: .regular
+            ) == .identity
+        )
+    }
+}
