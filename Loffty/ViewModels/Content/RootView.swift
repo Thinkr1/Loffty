@@ -1291,170 +1291,158 @@ struct NotchRootView: View {
         }
     }
 
+    private var showsNotchAmbient: Bool {
+        islandRaised || hudVisible || notificationActive
+    }
+
+    private var notchAmbient: some View {
+        let shape = NotchShape(
+            topRadius: m.topRadius,
+            bottomRadius: m.bottomRadius
+        )
+        return ZStack {
+            shape
+                .fill(.ultraThinMaterial)
+                .blur(radius: 14)
+                .scaleEffect(x: 1.05, y: 1.1, anchor: .top)
+                .opacity(showsNotchAmbient ? 0.7 : 0)
+            shape
+                .fill(Color.black.opacity(0.38))
+                .blur(radius: 18)
+                .offset(y: 6)
+                .scaleEffect(x: 1.025, y: 1.06, anchor: .top)
+                .opacity(showsNotchAmbient ? 1 : 0)
+            shape
+                .fill(vm.accentColor.opacity(0.32 * trackPulse))
+                .blur(radius: 20)
+                .scaleEffect(x: 1.05, y: 1.08, anchor: .top)
+        }
+        .frame(width: m.width, height: m.height)
+        .allowsHitTesting(false)
+    }
+
     private var rootContent: some View {
         VStack(spacing: hudBelowExpanded ? 6 : 0) {
             ZStack(alignment: .top) {
-                NotchShape(
-                    topRadius: m.topRadius,
-                    bottomRadius: m.bottomRadius
-                )
-                .fill(.black)
-                .frame(width: m.width, height: m.height)
-                .overlay {
-                    if airDropActive {
+                notchAmbient
+
+                ZStack(alignment: .top) {
+                    NotchShape(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                    .fill(.black)
+                    .overlay {
+                        if airDropActive {
+                            NotchShape(
+                                topRadius: m.topRadius,
+                                bottomRadius: m.bottomRadius
+                            )
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.white.opacity(
+                                            0.05 + 0.03 * airDropPulse
+                                        ),
+                                        .clear,
+                                    ],
+                                    center: UnitPoint(x: 0.5, y: 0.12),
+                                    startRadius: 1,
+                                    endRadius: m.height * 0.9
+                                )
+                            )
+                        }
+                    }
+                    .overlay {
                         NotchShape(
                             topRadius: m.topRadius,
                             bottomRadius: m.bottomRadius
                         )
-                        .fill(
-                            RadialGradient(
-                                colors: [
-                                    Color.white.opacity(
-                                        0.05 + 0.03 * airDropPulse
-                                    ),
-                                    .clear,
-                                ],
-                                center: UnitPoint(x: 0.5, y: 0.12),
-                                startRadius: 1,
-                                endRadius: m.height * 0.9
-                            )
+                        .stroke(
+                            airDropActive
+                                ? Color.white.opacity(
+                                    0.08 + 0.05 * airDropPulse
+                                )
+                                : vm.accentColor.opacity(0.55 * trackPulse),
+                            lineWidth: airDropActive ? 1 : 1.5
+                        )
+                        .blur(
+                            radius: airDropActive
+                                ? 0.8 : trackPulse * 1.5
+                        )
+                        .scaleEffect(
+                            1
+                                + (airDropActive
+                                    ? airDropPulse * 0.004 : trackPulse * 0.018)
                         )
                     }
-                }
-                .overlay {
-                    NotchShape(
-                        topRadius: m.topRadius,
-                        bottomRadius: m.bottomRadius
-                    )
-                    .stroke(
-                        airDropActive
-                            ? Color.white.opacity(
-                                0.08 + 0.05 * airDropPulse
-                            )
-                            : vm.accentColor.opacity(0.55 * trackPulse),
-                        lineWidth: airDropActive ? 1 : 1.5
-                    )
-                    .blur(
-                        radius: airDropActive
-                            ? 0.8 : trackPulse * 1.5
-                    )
-                    .scaleEffect(
-                        1
-                            + (airDropActive
-                                ? airDropPulse * 0.004 : trackPulse * 0.018)
-                    )
-                }
-                .background {
-                    NotchShape(
-                        topRadius: m.topRadius,
-                        bottomRadius: m.bottomRadius
-                    )
-                    .fill(
-                        airDropActive
-                            ? Color.white.opacity(0.045)
-                            : vm.accentColor.opacity(0.22 * trackPulse)
-                    )
-                    .blur(radius: airDropActive ? 18 : 28)
-                    .scaleEffect(x: 1.06, y: 1.1)
-                    .opacity(
-                        airDropActive
-                            ? 0.55
-                            : ((vm.isExpanded || hudVisible
-                                || notificationActive
-                                ? 0.55 : 0)
-                                + trackPulse * 0.35)
-                    )
-                    .frame(width: m.width, height: m.height)
-                }
-                .background {
-                    NotchShape(
-                        topRadius: m.topRadius,
-                        bottomRadius: m.bottomRadius
-                    )
-                    .fill(Color.black.opacity(0.95))
-                    .blur(radius: 28)
-                    .scaleEffect(x: 1.12, y: 1.18)
-                    .opacity(
-                        airDropActive || vm.isExpanded
-                            || hudVisible || notificationActive ? 0.55 : 0
-                    )
-                    .frame(width: m.width, height: m.height)
-                }
 
-                if airDropActive {
-                    AirDropNotchContent(airDrop: airDrop)
-                        .frame(
-                            maxWidth: .infinity,
-                            maxHeight: .infinity,
-                            alignment: .top
-                        )
-                } else if notificationActive {
-                    NotificationNotchContent(
-                        notifications: notifications,
-                        m: m
-                    )
-                    .frame(
-                        maxWidth: .infinity,
-                        maxHeight: .infinity,
-                        alignment: .top
-                    )
-                } else if vm.isExpanded || toolbar.isCustomizing {
-                    ExpandedContent(ns: ns, m: m)
-                        .frame(
-                            maxWidth: .infinity,
-                            maxHeight: .infinity,
-                            alignment: .top
-                        )
-                } else {
-                    ZStack(alignment: .top) {
-                        CollapsedContent(ns: ns, m: m)
-                            .opacity(hudIntegrated ? 0 : 1)
-
-                        if hudIntegrated, let kind = vm.hudDisplay {
-                            VStack(spacing: 0) {
-                                Color.clear.frame(height: m.notchH)
-                                HUDChip(kind: kind)
-                                    .padding(.horizontal, 40)
-                                    .frame(
-                                        height: m.hudExtra,
-                                        alignment: .center
-                                    )
-                            }
+                    if airDropActive {
+                        AirDropNotchContent(airDrop: airDrop)
                             .frame(
-                                width: m.width,
-                                height: m.height,
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
                                 alignment: .top
                             )
+                    } else if notificationActive {
+                        NotificationNotchContent(
+                            notifications: notifications,
+                            m: m
+                        )
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .top
+                        )
+                    } else if vm.isExpanded || toolbar.isCustomizing {
+                        ExpandedContent(ns: ns, m: m)
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .top
+                            )
+                    } else {
+                        ZStack(alignment: .top) {
+                            CollapsedContent(ns: ns, m: m)
+                                .opacity(hudIntegrated ? 0 : 1)
+
+                            if hudIntegrated, let kind = vm.hudDisplay {
+                                VStack(spacing: 0) {
+                                    Color.clear.frame(height: m.notchH)
+                                    HUDChip(kind: kind)
+                                        .padding(.horizontal, 40)
+                                        .frame(
+                                            height: m.hudExtra,
+                                            alignment: .center
+                                        )
+                                }
+                                .frame(
+                                    width: m.width,
+                                    height: m.height,
+                                    alignment: .top
+                                )
+                            }
                         }
+                    }
+                }
+                .frame(width: m.width, height: m.height, alignment: .top)
+                .clipShape(
+                    NotchShape(
+                        topRadius: m.topRadius,
+                        bottomRadius: m.bottomRadius
+                    )
+                )
+                .overlay {
+                    if let edge = persistentEdgeColor {
+                        NotchBottomEdge(
+                            topRadius: m.topRadius,
+                            bottomRadius: m.bottomRadius
+                        )
+                        .stroke(edge, lineWidth: 1)
                     }
                 }
             }
             .frame(width: m.width, height: m.height, alignment: .top)
-            .clipShape(
-                NotchShape(
-                    topRadius: m.topRadius,
-                    bottomRadius: m.bottomRadius
-                )
-            )
-            .overlay {
-                if let edge = persistentEdgeColor {
-                    NotchBottomEdge(
-                        topRadius: m.topRadius,
-                        bottomRadius: m.bottomRadius
-                    )
-                    .stroke(edge, lineWidth: 1)
-                }
-            }
-            .shadow(
-                color: .black.opacity(islandRaised ? 0.38 : 0),
-                radius: islandRaised ? 22 : 0,
-                y: islandRaised ? 12 : 0
-            )
-            .shadow(
-                color: .black.opacity(islandRaised ? 0.2 : 0),
-                radius: islandRaised ? 5 : 0,
-                y: islandRaised ? 2 : 0
-            )
             .offset(x: swipeExpansionOffset)
 
             if hudBelowExpanded, let kind = vm.hudDisplay {
