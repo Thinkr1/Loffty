@@ -283,6 +283,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         installHoverMonitor(screen: screen, notch: info.notchRect)
         lockWidget = LockScreenWidget(vm: vm, notchWindow: window)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(activeSpaceDidChange),
+            name: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil
+        )
         MediaToolbarCustomizer.shared.$isCustomizing
             .removeDuplicates()
             .receive(on: RunLoop.main)
@@ -372,6 +378,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             beginNormalOperation()
         }
+    }
+
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
     private func beginNormalOperation() {
@@ -502,30 +512,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fadeNotch(to: 0)
             return
         }
-        
+
         fadeNotch(to: 1)
         let notes = NotificationController.shared
         let airDropActive = AirDropController.shared.phase.isActive
         let shouldInteract =
-        interactive
-        ?? (hoverExpanded || airDropActive
-            || notes.wantsKeyWindow
-            || MediaToolbarCustomizer.shared.isCustomizing)
-        
+            interactive
+            ?? (hoverExpanded || airDropActive
+                || notes.wantsKeyWindow
+                || MediaToolbarCustomizer.shared.isCustomizing)
+
         if vm.isLocked {
             window.ignoresMouseEvents = true
             window.acceptsInteraction = false
             lockWidget.setNotchInteractive(hoverExpanded)
             return
         }
-        
+
         window.ignoresMouseEvents = !shouldInteract
         window.acceptsInteraction = shouldInteract
         if shouldInteract {
             window.orderFrontRegardless()
-            if !vm.isFullScreen {
-                window.makeKey()
-            }
+            window.makeKey()
         } else if window.isKeyWindow, !hoverExpanded, !airDropActive {
             window.resignKey()
         }
@@ -638,6 +646,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             return event
+        }
+    }
+
+    @objc private func activeSpaceDidChange() {
+        DispatchQueue.main.async { [weak self] in
+            self?.applyWindowInteraction()
         }
     }
 

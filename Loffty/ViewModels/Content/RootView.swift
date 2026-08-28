@@ -1492,23 +1492,24 @@ extension View {
         _ shape: S,
         tinted: Bool = false
     ) -> some View {
-#if compiler(>=6.2)
-        if #available(macOS 26.0, *) {
-            self
-                .glassEffect(
-                    tinted ? .regular.interactive() : .clear.interactive(),
-                    in: shape
-                )
-                .preferredColorScheme(.dark)
-        } else {
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                self
+                    .glassEffect(
+                        tinted ? .regular.interactive() : .clear.interactive(),
+                        in: shape
+                    )
+                    .preferredColorScheme(.dark)
+            } else {
+                notchLiquidGlassFallback(shape)
+            }
+        #else
             notchLiquidGlassFallback(shape)
-        }
-#else
-        notchLiquidGlassFallback(shape)
-#endif
+        #endif
     }
-    
-    fileprivate func notchLiquidGlassFallback<S: Shape>(_ shape: S) -> some View {
+
+    fileprivate func notchLiquidGlassFallback<S: Shape>(_ shape: S) -> some View
+    {
         self
             .background(.ultraThinMaterial, in: shape)
             .preferredColorScheme(.dark)
