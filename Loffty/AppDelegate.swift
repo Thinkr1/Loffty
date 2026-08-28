@@ -384,10 +384,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
-    deinit {
-        NSWorkspace.shared.notificationCenter.removeObserver(self)
-    }
-
     private func beginNormalOperation() {
         vm.start()
         lockWidget.start()
@@ -653,12 +649,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    @objc private func activeSpaceDidChange() {
-        DispatchQueue.main.async { [weak self] in
-            self?.applyWindowInteraction()
-        }
-    }
-
     @objc private func activeSpaceDidChange() {
         DispatchQueue.main.async { [weak self] in
             self?.applyWindowInteraction()
