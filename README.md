@@ -74,6 +74,8 @@ Some things I'm currently working on:
   - Support more apps for push notifications
   - Show profile picture in push notifications
   - Dual Discord/server image badges for notifications
+  - Flip album on track change (unlocked only)
+  - Click album cover to open (currently playing+idle mode)
   - Improve lock screen widget (+show music video option)
   - Screensaver music video
   - Auto-expand on track change?
