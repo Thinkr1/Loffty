@@ -21,12 +21,7 @@ struct WaveBars: View {
 
     private var barColor: Color {
         if let tint { return tint }
-        return vm.isExpanded ? vm.accentColor : .primary
-    }
-
-    private var barBlend: BlendMode {
-        if tint != nil { return .normal }
-        return vm.isExpanded ? .normal : .difference
+        return vm.isExpanded ? vm.accentColor : .white
     }
 
     private var barsActive: Bool {
@@ -43,7 +38,6 @@ struct WaveBars: View {
                     ForEach(0..<barCount, id: \.self) { i in
                         Capsule()
                             .fill(barColor)
-                            .blendMode(barBlend)
                             .frame(width: 2.5, height: height(i, t))
                     }
                 }
@@ -57,7 +51,6 @@ struct WaveBars: View {
             Image(systemName: "pause.fill")
                 .font(.system(size: maxHeight * 0.8, weight: .semibold))
                 .foregroundStyle(barColor)
-                .blendMode(barBlend)
                 .opacity(barsActive ? 0 : 1)
                 .scaleEffect(barsActive ? 0.5 : 1)
                 .blur(radius: barsActive ? 3 : 0)

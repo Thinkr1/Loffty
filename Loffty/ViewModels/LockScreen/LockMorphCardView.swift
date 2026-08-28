@@ -360,7 +360,7 @@ struct LockMorphCardView: View {
             maxHeight: 16,
             tint: settings.lockScreenWaveformsAccent
                 ? vm.accentColor
-                : .white.opacity(0.72)
+                : .white
         )
         .frame(width: width)
         .position(x: x, y: art.midY)

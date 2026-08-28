@@ -804,7 +804,7 @@ struct LockCardBody: View {
                         maxHeight: 16,
                         tint: settings.lockScreenWaveformsAccent
                             ? vm.accentColor
-                            : .white.opacity(0.72)
+                            : .white
                     )
                     .padding(.trailing, 14)
                     .frame(width: 22)

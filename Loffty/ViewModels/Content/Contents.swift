@@ -410,7 +410,7 @@ struct CollapsedContent: View {
                     isPlaying: vm.nowPlaying.isPlaying,
                     tint: settings.collapsedWaveformsAccent
                         ? vm.accentColor
-                        : nil
+                        : .white
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
