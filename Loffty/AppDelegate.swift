@@ -502,32 +502,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fadeNotch(to: 0)
             return
         }
-
+        
         fadeNotch(to: 1)
         let notes = NotificationController.shared
         let airDropActive = AirDropController.shared.phase.isActive
         let shouldInteract =
-            interactive
-            ?? (hoverExpanded || airDropActive
-                || notes.wantsKeyWindow
-                || MediaToolbarCustomizer.shared.isCustomizing)
-
+        interactive
+        ?? (hoverExpanded || airDropActive
+            || notes.wantsKeyWindow
+            || MediaToolbarCustomizer.shared.isCustomizing)
+        
         if vm.isLocked {
             window.ignoresMouseEvents = true
             window.acceptsInteraction = false
             lockWidget.setNotchInteractive(hoverExpanded)
             return
         }
-
+        
         window.ignoresMouseEvents = !shouldInteract
         window.acceptsInteraction = shouldInteract
-        if notes.wantsKeyWindow {
-            window.makeKey()
-        } else if window.isKeyWindow, !hoverExpanded, !airDropActive {
-            window.resignKey()
-        }
         if shouldInteract {
             window.orderFrontRegardless()
+            if !vm.isFullScreen {
+                window.makeKey()
+            }
+        } else if window.isKeyWindow, !hoverExpanded, !airDropActive {
+            window.resignKey()
         }
     }
 
