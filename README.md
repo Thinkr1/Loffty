@@ -76,6 +76,7 @@ Some things I'm currently working on:
   - Dual Discord/server image badges for notifications
   - Flip album on track change (unlocked only)
   - Click album cover to open (currently playing+idle mode)
+  - .clear lock screen widget shows incorrect background when triggered with multiple displays bearing different wallpapers
   - Improve lock screen widget (+show music video option)
   - Screensaver music video
   - Auto-expand on track change?
