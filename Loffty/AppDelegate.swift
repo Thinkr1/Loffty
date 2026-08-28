@@ -379,6 +379,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             beginNormalOperation()
         }
     }
+    
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
 
     deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -646,6 +650,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             return event
+        }
+    }
+    
+    @objc private func activeSpaceDidChange() {
+        DispatchQueue.main.async { [weak self] in
+            self?.applyWindowInteraction()
         }
     }
 
