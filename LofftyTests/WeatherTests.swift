@@ -257,6 +257,104 @@ struct WeatherTests {
         )
         #expect(WeatherGraph.currentIndex(in: hours, now: now) == 1)
     }
+
+    @Test func cacheFreshnessUsesRefreshInterval() {
+        let fetched = Date(timeIntervalSince1970: 1_000)
+        #expect(
+            WeatherCache.isFresh(
+                fetchedAt: fetched,
+                now: fetched.addingTimeInterval(60),
+                interval: 15 * 60
+            )
+        )
+        #expect(
+            !WeatherCache.isFresh(
+                fetchedAt: fetched,
+                now: fetched.addingTimeInterval(16 * 60),
+                interval: 15 * 60
+            )
+        )
+    }
+
+    @Test func cacheNearbyUsesKilometerWindow() {
+        #expect(
+            WeatherCache.isNearby(
+                lat1: 49.28,
+                lon1: -123.12,
+                lat2: 49.281,
+                lon2: -123.121
+            )
+        )
+        #expect(
+            !WeatherCache.isNearby(
+                lat1: 49.28,
+                lon1: -123.12,
+                lat2: 48.4,
+                lon2: -123.12
+            )
+        )
+    }
+
+    @Test func cacheRecordRoundTripsThroughDefaults() {
+        let defaults = UserDefaults(suiteName: "loffty.weather.cache.tests")!
+        defaults.removePersistentDomain(forName: "loffty.weather.cache.tests")
+        let snapshot = WeatherSnapshot(
+            locality: "Vancouver",
+            temperatureC: 16,
+            weatherCode: 2,
+            highC: 20,
+            lowC: 12,
+            uvIndex: 3,
+            windKmh: 8,
+            hours: [
+                WeatherHour(
+                    date: Date(timeIntervalSince1970: 1_200),
+                    temperatureC: 17,
+                    weatherCode: 1,
+                    precipChance: 10,
+                    precipMm: 0
+                )
+            ],
+            days: [
+                WeatherDay(
+                    date: Date(timeIntervalSince1970: 1_000),
+                    highC: 20,
+                    lowC: 12,
+                    weatherCode: 2,
+                    precipChance: 10
+                )
+            ],
+            fetchedAt: Date(timeIntervalSince1970: 1_100),
+            isDay: true
+        )
+        let record = WeatherCache.Record(
+            snapshot: snapshot,
+            latitude: 49.28,
+            longitude: -123.12,
+            locationMode: WeatherLocationMode.current.rawValue,
+            manualQuery: ""
+        )
+        WeatherCache.save(record, to: defaults)
+        let loaded = WeatherCache.load(from: defaults)
+        #expect(loaded == record)
+        #expect(
+            WeatherCache.matches(
+                record,
+                mode: .current,
+                manualQuery: ""
+            )
+        )
+        #expect(
+            !WeatherCache.matches(
+                record,
+                mode: .manual,
+                manualQuery: "Paris"
+            )
+        )
+        WeatherCache.clear(in: defaults)
+        #expect(WeatherCache.load(from: defaults) == nil)
+        defaults.removePersistentDomain(forName: "loffty.weather.cache.tests")
+    }
 }
 
 @Suite("Expanded page swipe")

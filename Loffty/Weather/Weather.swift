@@ -10,7 +10,7 @@ import Combine
 import CoreLocation
 import Foundation
 
-struct WeatherHour: Equatable, Sendable {
+struct WeatherHour: Codable, Equatable, Sendable {
     var date: Date
     var temperatureC: Double
     var weatherCode: Int
@@ -18,7 +18,7 @@ struct WeatherHour: Equatable, Sendable {
     var precipMm: Double
 }
 
-struct WeatherDay: Equatable, Sendable {
+struct WeatherDay: Codable, Equatable, Sendable {
     var date: Date
     var highC: Double
     var lowC: Double
@@ -26,7 +26,7 @@ struct WeatherDay: Equatable, Sendable {
     var precipChance: Int
 }
 
-struct WeatherSnapshot: Equatable, Sendable {
+struct WeatherSnapshot: Codable, Equatable, Sendable {
     var locality: String
     var temperatureC: Double
     var weatherCode: Int
@@ -71,6 +71,68 @@ enum WeatherHourList {
         let future = hours.filter { $0.date > now }
         let source = future.isEmpty ? hours : future
         return Array(source.prefix(max(0, limit)))
+    }
+}
+
+enum WeatherCache {
+    static let storageKey = "weather.cachedSnapshot.v1"
+
+    struct Record: Codable, Equatable, Sendable {
+        var snapshot: WeatherSnapshot
+        var latitude: Double
+        var longitude: Double
+        var locationMode: String
+        var manualQuery: String
+    }
+
+    nonisolated static func isFresh(
+        fetchedAt: Date,
+        now: Date = Date(),
+        interval: TimeInterval
+    ) -> Bool {
+        now.timeIntervalSince(fetchedAt) < interval
+    }
+
+    nonisolated static func isNearby(
+        lat1: Double,
+        lon1: Double,
+        lat2: Double,
+        lon2: Double,
+        meters: Double = 2500
+    ) -> Bool {
+        let a = CLLocation(latitude: lat1, longitude: lon1)
+        let b = CLLocation(latitude: lat2, longitude: lon2)
+        return a.distance(from: b) <= meters
+    }
+
+    nonisolated static func matches(
+        _ record: Record,
+        mode: WeatherLocationMode,
+        manualQuery: String
+    ) -> Bool {
+        guard record.locationMode == mode.rawValue else { return false }
+        if mode == .manual {
+            return record.manualQuery == manualQuery
+        }
+        return true
+    }
+
+    static func load(from defaults: UserDefaults = .standard) -> Record? {
+        guard let data = defaults.data(forKey: storageKey) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        return try? decoder.decode(Record.self, from: data)
+    }
+
+    static func save(_ record: Record, to defaults: UserDefaults = .standard) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        guard let data = try? encoder.encode(record) else { return }
+        defaults.set(data, forKey: storageKey)
+    }
+
+    static func clear(in defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: storageKey)
     }
 }
 
@@ -460,10 +522,12 @@ final class WeatherController: NSObject, ObservableObject {
     private var locationAttempts = 0
     private var accessWindow: NSWindow?
     private var previousActivationPolicy: NSApplication.ActivationPolicy?
+    private var cacheRecord: WeatherCache.Record?
 
     override init() {
         super.init()
         configureLocationManager()
+        restoreCache()
     }
 
     private func configureLocationManager() {
@@ -471,8 +535,59 @@ final class WeatherController: NSObject, ObservableObject {
         location.desiredAccuracy = kCLLocationAccuracyKilometer
     }
 
+    private var hasFreshSnapshot: Bool {
+        guard let snapshot,
+            WeatherCache.isFresh(
+                fetchedAt: snapshot.fetchedAt,
+                interval: refreshInterval
+            )
+        else { return false }
+        guard let cacheRecord else { return true }
+        return WeatherCache.matches(
+            cacheRecord,
+            mode: AppSettings.shared.weatherLocationMode,
+            manualQuery: AppSettings.shared.weatherManualLocation
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private func restoreCache() {
+        guard snapshot == nil,
+            let record = WeatherCache.load(),
+            WeatherCache.matches(
+                record,
+                mode: AppSettings.shared.weatherLocationMode,
+                manualQuery: AppSettings.shared.weatherManualLocation
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        else { return }
+        cacheRecord = record
+        snapshot = record.snapshot
+        lastCoordinate = CLLocationCoordinate2D(
+            latitude: record.latitude,
+            longitude: record.longitude
+        )
+        status = .ready
+    }
+
+    private func persistCache(for location: CLLocation) {
+        guard let snapshot else { return }
+        let record = WeatherCache.Record(
+            snapshot: snapshot,
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            locationMode: AppSettings.shared.weatherLocationMode.rawValue,
+            manualQuery: AppSettings.shared.weatherManualLocation
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        cacheRecord = record
+        WeatherCache.save(record)
+    }
+
     func prepare(forcePrompt: Bool = false) {
         guard AppSettings.shared.weatherEnabled else { return }
+        restoreCache()
+        if hasFreshSnapshot { return }
         if AppSettings.shared.weatherLocationMode == .manual,
             !AppSettings.shared.weatherManualLocation
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -487,11 +602,15 @@ final class WeatherController: NSObject, ObservableObject {
         manualLocationTask?.cancel()
         fetchTask?.cancel()
         snapshot = nil
+        cacheRecord = nil
+        lastCoordinate = nil
+        WeatherCache.clear()
         status = .locating
         loadManualLocation()
     }
 
     private func loadManualLocation() {
+        if hasFreshSnapshot { return }
         guard status != .locating || manualLocationTask == nil else { return }
         let query = AppSettings.shared.weatherManualLocation
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -677,15 +796,13 @@ final class WeatherController: NSObject, ObservableObject {
 
     func refreshIfStale() {
         guard status != .denied else { return }
-        if let snapshot,
-            Date().timeIntervalSince(snapshot.fetchedAt) < refreshInterval
-        {
-            return
-        }
+        restoreCache()
+        if hasFreshSnapshot { return }
         prepare()
     }
 
     private func startUpdating() {
+        if hasFreshSnapshot { return }
         guard status != .locating else { return }
         if status != .ready { status = .locating }
         locationAttempts = 0
@@ -722,6 +839,17 @@ final class WeatherController: NSObject, ObservableObject {
     }
 
     private func loadForecast(for location: CLLocation) {
+        if let last = lastCoordinate,
+            hasFreshSnapshot,
+            WeatherCache.isNearby(
+                lat1: last.latitude,
+                lon1: last.longitude,
+                lat2: location.coordinate.latitude,
+                lon2: location.coordinate.longitude
+            )
+        {
+            return
+        }
         fetchTask?.cancel()
         lastCoordinate = location.coordinate
         let url = OpenMeteo.forecastURL(
@@ -741,6 +869,7 @@ final class WeatherController: NSObject, ObservableObject {
                 guard !Task.isCancelled else { return }
                 self.snapshot = snap
                 self.status = .ready
+                self.persistCache(for: location)
             } catch {
                 guard !Task.isCancelled else { return }
                 if self.snapshot == nil { self.status = .failed }
