@@ -21,6 +21,30 @@ enum LockCardMetrics {
     static let idleSpacingAboveProfile: CGFloat = 16
 }
 
+enum LockGlassPlacement {
+    static func wallpaperSwiftUIOffset(
+        plate: CGRect,
+        screenFrame: CGRect
+    ) -> CGSize {
+        CGSize(
+            width: screenFrame.minX - plate.minX,
+            height: plate.maxY - screenFrame.maxY
+        )
+    }
+
+    static func screenPlate(
+        fromLocalTopLeft rect: CGRect,
+        windowFrame: CGRect
+    ) -> CGRect {
+        CGRect(
+            x: windowFrame.minX + rect.minX,
+            y: windowFrame.minY + windowFrame.height - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+    }
+}
+
 enum LockAccessoriesMetrics {
     static let width: CGFloat = 340
     static let rowHeight: CGFloat = 44

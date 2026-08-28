@@ -362,3 +362,77 @@ struct LockScreenPolicyTests {
         )
     }
 }
+
+@Suite("Lock glass placement")
+struct LockGlassPlacementTests {
+    @Test func convertDefaultCardFrameIsNotTopLeft() {
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let card = LockScreenPolicy.defaultCardFrame(screenFrame: screen)
+        let local = LockScreenPolicy.convertToLocalTopLeft(card, in: screen)
+        #expect(local.minX > 1)
+        #expect(local.minY > 1)
+        #expect(abs(local.width - LockCardMetrics.width) < 0.5)
+        #expect(abs(local.height - LockCardMetrics.height) < 0.5)
+    }
+
+    @Test func convertUsesActualWindowFrameAfterExpand() {
+        let screen = CGRect(x: 100, y: 50, width: 1512, height: 982)
+        let card = LockScreenPolicy.defaultCardFrame(screenFrame: screen)
+        let local = LockScreenPolicy.convertToLocalTopLeft(card, in: screen)
+        #expect(abs(local.minX - (card.minX - screen.minX)) < 0.5)
+        #expect(local.maxY < screen.height)
+    }
+
+    @Test func wallpaperOffsetIsZeroWhenPlateFillsScreen() {
+        let screen = CGRect(x: 100, y: 50, width: 1512, height: 982)
+        let offset = LockGlassPlacement.wallpaperSwiftUIOffset(
+            plate: screen,
+            screenFrame: screen
+        )
+        #expect(offset == .zero)
+    }
+
+    @Test func wallpaperOffsetIsZeroAtScreenTopLeft() {
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let plate = CGRect(x: 0, y: 808, width: 356, height: 174)
+        let offset = LockGlassPlacement.wallpaperSwiftUIOffset(
+            plate: plate,
+            screenFrame: screen
+        )
+        #expect(offset == .zero)
+    }
+
+    @Test func wallpaperOffsetShiftsOppositeToPlate() {
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let plate = CGRect(x: 200, y: 100, width: 356, height: 174)
+        let offset = LockGlassPlacement.wallpaperSwiftUIOffset(
+            plate: plate,
+            screenFrame: screen
+        )
+        #expect(abs(offset.width - (-200)) < 0.5)
+        #expect(abs(offset.height - (-708)) < 0.5)
+    }
+
+    @Test func screenPlateMapsLocalTopLeftIntoWindow() {
+        let window = CGRect(x: 100, y: 50, width: 1512, height: 982)
+        let local = CGRect(x: 200, y: 80, width: 356, height: 174)
+        let plate = LockGlassPlacement.screenPlate(
+            fromLocalTopLeft: local,
+            windowFrame: window
+        )
+        #expect(plate.minX == 300)
+        #expect(plate.width == 356)
+        #expect(plate.height == 174)
+        #expect(plate.maxY == window.maxY - 80)
+    }
+
+    @Test func screenPlateOfFullWindowMatchesWindow() {
+        let window = CGRect(x: 100, y: 50, width: 356, height: 174)
+        let local = CGRect(origin: .zero, size: window.size)
+        let plate = LockGlassPlacement.screenPlate(
+            fromLocalTopLeft: local,
+            windowFrame: window
+        )
+        #expect(plate == window)
+    }
+}

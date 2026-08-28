@@ -123,7 +123,28 @@ private final class LockCardHostingView<Content: View>: NSHostingView<Content> {
     var hitRect: CGRect = .null
     var hitsFullWindow = true
 
+    override var isOpaque: Bool { false }
     override var mouseDownCanMoveWindow: Bool { allowsWindowDrag }
+
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+        wantsLayer = true
+        layer?.isOpaque = false
+        layer?.backgroundColor = NSColor.clear.cgColor
+        sceneBridgingOptions = []
+    }
+
+    @MainActor required dynamic init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        layer?.isOpaque = false
+        layer?.backgroundColor = NSColor.clear.cgColor
+        window?.isOpaque = false
+        window?.backgroundColor = .clear
+    }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         if hitsFullWindow || hitRect.isNull || hitRect.isEmpty {
@@ -196,6 +217,21 @@ final class LockScreenWidget {
             .receive(on: RunLoop.main)
             .sink { [weak self] movable in
                 self?.applyMovableSetting(movable)
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSWindow.didMoveNotification)
+            .merge(
+                with: NotificationCenter.default.publisher(
+                    for: NSWindow.didResizeNotification
+                )
+            )
+            .receive(on: RunLoop.main)
+            .sink { [weak self] note in
+                guard let self,
+                    note.object as? NSWindow === self.cardWindow
+                else { return }
+                self.syncCardWallpaperPlate()
             }
             .store(in: &cancellables)
 
@@ -337,6 +373,7 @@ final class LockScreenWidget {
     }
 
     private func presentLockUI() {
+        refreshLockWallpaper()
         LockScreenSpace.interactive.ensureShown()
         if AppSettings.shared.lockScreenNotch {
             showLockNotch()
@@ -422,6 +459,7 @@ final class LockScreenWidget {
             win.displayIfNeeded()
             applyMovableSetting(AppSettings.shared.movableWidget)
             syncCardHitRegion()
+            syncCardWallpaperPlate()
         }
         LockScreenSpace.interactive.ensureShown()
         LockScreenSpace.interactive.add(win)
@@ -469,6 +507,7 @@ final class LockScreenWidget {
         cardWindow.applyMovable(false)
         cardController?.allowsWindowDrag = false
         placement.isFlying = true
+        syncCardWallpaperPlate()
         DispatchQueue.main.async { [weak self] in
             self?.placement.requestExpand()
         }
@@ -507,6 +546,7 @@ final class LockScreenWidget {
         placement.isFlying = false
         applyMovableSetting(AppSettings.shared.movableWidget)
         syncCardHitRegion()
+        syncCardWallpaperPlate()
     }
 
     private func syncCardHitRegion() {
@@ -530,6 +570,7 @@ final class LockScreenWidget {
         cachedCardFrame = frame
         guard !vm.isIdle else { return }
         cardWindow?.setFrame(frame, display: true)
+        syncCardWallpaperPlate()
     }
 
     private static func defaultCardFrame(for screen: NSScreen) -> NSRect {
@@ -590,6 +631,18 @@ final class LockScreenWidget {
         return win
     }
 
+    private func refreshLockWallpaper() {
+        let screen = targetScreen()
+        placement.wallpaper = LockMockWallpaper.image(for: screen)
+        placement.wallpaperScreenFrame = screen.frame
+        syncCardWallpaperPlate()
+    }
+
+    private func syncCardWallpaperPlate() {
+        guard let card = cardWindow else { return }
+        placement.cardScreenFrame = card.frame
+    }
+
     private func makeAccessoriesWindow(frame: NSRect) -> SkyPanel {
         let win = SkyPanel(frame: frame)
         win.hasShadow = false
@@ -599,22 +652,56 @@ final class LockScreenWidget {
     }
 }
 
+struct LockCardWallpaperBackdrop: View {
+    var image: NSImage?
+    var screenFrame: CGRect
+    var plate: CGRect
+
+    var body: some View {
+        GeometryReader { geo in
+            let drawPlate =
+                plate.width > 1
+                ? plate
+                : CGRect(origin: .zero, size: geo.size)
+            if let image, screenFrame.width > 1 {
+                let offset = LockGlassPlacement.wallpaperSwiftUIOffset(
+                    plate: drawPlate,
+                    screenFrame: screenFrame
+                )
+                Image(nsImage: image)
+                    .resizable()
+                    .frame(
+                        width: screenFrame.width,
+                        height: screenFrame.height,
+                        alignment: .topLeading
+                    )
+                    .offset(x: offset.width, y: offset.height)
+            }
+        }
+        .clipped()
+        .allowsHitTesting(false)
+    }
+}
+
 private struct LockCardRootView: View {
     @ObservedObject var vm: NotchViewModel
     @ObservedObject var placement: LockCardPlacement
     var onHitRegionChange: (CGRect, Bool) -> Void
 
     var body: some View {
-        if placement.isFlying, !vm.isIdle {
-            LockMorphCardView(
-                vm: vm,
-                placement: placement,
-                onHitRegionChange: onHitRegionChange
-            )
-        } else {
-            LockCardView()
-                .environmentObject(vm)
+        Group {
+            if placement.isFlying, !vm.isIdle {
+                LockMorphCardView(
+                    vm: vm,
+                    placement: placement,
+                    onHitRegionChange: onHitRegionChange
+                )
+            } else {
+                LockCardView(placement: placement)
+                    .environmentObject(vm)
+            }
         }
+        .containerBackground(.clear, for: .window)
     }
 }
 
@@ -627,21 +714,14 @@ enum LockCardMatchID {
 
 struct LockCardView: View {
     @EnvironmentObject var vm: NotchViewModel
+    @ObservedObject var placement: LockCardPlacement
 
     var body: some View {
         Group {
             if vm.isIdle {
                 LockCardIdleView()
             } else {
-                #if compiler(>=6.2)
-                    if #available(macOS 26.0, *) {
-                        GlassEffectContainer { cardBody }
-                    } else {
-                        cardBody
-                    }
-                #else
-                    cardBody
-                #endif
+                cardBody
             }
         }
         .frame(
@@ -667,12 +747,28 @@ struct LockCardView: View {
     }
 
     private var cardBody: some View {
-        LockCardBody {
-            guard AppSettings.shared.lockScreenFullScreenArt else {
-                return
-            }
-            vm.setLockScreenArtExpanded(true)
+        let shape = RoundedRectangle(
+            cornerRadius: LockCardMetrics.cornerRadius,
+            style: .continuous
+        )
+        return ZStack {
+            LockCardWallpaperBackdrop(
+                image: placement.wallpaper,
+                screenFrame: placement.wallpaperScreenFrame,
+                plate: placement.cardScreenFrame
+            )
+            .lockWidgetChrome(shape)
+            LockCardBody(
+                onArtworkTap: {
+                    guard AppSettings.shared.lockScreenFullScreenArt else {
+                        return
+                    }
+                    vm.setLockScreenArtExpanded(true)
+                },
+                showsChrome: false
+            )
         }
+        .clipShape(shape)
     }
 }
 
@@ -858,56 +954,36 @@ extension View {
 }
 
 extension View {
-    @ViewBuilder
-    private func lockCardGlassBackground<S: Shape>(_ shape: S)
-        -> some View
-    {
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                self.glassEffect(.clear, in: shape)
-            } else {
-                lockCardMaterialBackground(shape)
-            }
-        #else
-            lockCardMaterialBackground(shape)
-        #endif
-    }
-
-    private func lockCardMaterialBackground<S: Shape>(_ shape: S) -> some View {
-        self
-            .background(Color.black.opacity(0.35), in: shape)
-            .background(.ultraThinMaterial, in: shape)
-    }
-
     func lockWidgetChrome<S: InsettableShape>(_ shape: S) -> some View {
         self
-            .lockCardGlassBackground(shape)
-            .overlay {
-                shape
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(0.38),
-                                .white.opacity(0.10),
-                                .white.opacity(0.18),
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.75
-                    )
+            .background {
+                shape.fill(Color.white.opacity(0.08))
             }
             .overlay {
-                shape
-                    .strokeBorder(
-                        .white.opacity(0.06),
-                        lineWidth: 6
-                    )
-                    .blur(radius: 8)
-                    .clipShape(shape)
-                    .allowsHitTesting(false)
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.16),
+                        Color.white.opacity(0.05),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .clipShape(shape)
+                .allowsHitTesting(false)
             }
-            .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
-            .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
+            .overlay {
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.42),
+                            Color.white.opacity(0.10),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.9
+                )
+                .allowsHitTesting(false)
+            }
     }
 }

@@ -5,6 +5,7 @@
 //  Created by Pierre-Louis ML on 09/08/2026.
 //
 
+import AppKit
 import Combine
 import SwiftUI
 
@@ -13,6 +14,9 @@ final class LockCardPlacement: ObservableObject {
     @Published var compactRect: CGRect
     @Published var isFlying: Bool
     @Published var expandNonce: UInt = 0
+    @Published var wallpaper: NSImage?
+    @Published var wallpaperScreenFrame: CGRect = .zero
+    @Published var cardScreenFrame: CGRect = .zero
 
     init(compactRect: CGRect = .zero, isFlying: Bool = false) {
         self.compactRect = compactRect
@@ -296,11 +300,20 @@ struct LockMorphCardView: View {
             cornerRadius: radius,
             style: .continuous
         )
-        return Color.clear
-            .frame(width: rect.width, height: rect.height)
-            .lockWidgetChrome(shape)
-            .position(x: rect.midX, y: rect.midY)
-            .allowsHitTesting(false)
+        let plate = LockGlassPlacement.screenPlate(
+            fromLocalTopLeft: rect,
+            windowFrame: placement.cardScreenFrame
+        )
+        return LockCardWallpaperBackdrop(
+            image: placement.wallpaper,
+            screenFrame: placement.wallpaperScreenFrame,
+            plate: plate
+        )
+        .lockWidgetChrome(shape)
+        .frame(width: rect.width, height: rect.height)
+        .clipShape(shape)
+        .position(x: rect.midX, y: rect.midY)
+        .allowsHitTesting(false)
     }
 
     private func flyingText(rect: CGRect) -> some View {
