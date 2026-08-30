@@ -1467,7 +1467,12 @@ struct NotchRootView: View {
                 .frame(width: m.width, height: m.height, alignment: .top)
                 .clipShape(islandShape)
                 .contentShape(islandShape)
-                .notchLiquidGlass(islandShape, tint: notchLiquidGlassTint)
+                .notchLiquidGlass(
+                    islandShape,
+                    tint: notchLiquidGlassTint,
+                    shade: hudIntegrated
+                        ? HUDChrome.glassShade(notchLiquidGlassTint) : nil
+                )
                 .overlay {
                     if let edge = persistentEdgeColor {
                         NotchBottomEdge(
@@ -1490,7 +1495,11 @@ struct NotchRootView: View {
                         alignment: .center
                     )
                     .contentShape(hudTailShape)
-                    .notchLiquidGlass(hudTailShape, tint: notchLiquidGlassTint)
+                    .notchLiquidGlass(
+                        hudTailShape,
+                        tint: notchLiquidGlassTint,
+                        shade: HUDChrome.glassShade(notchLiquidGlassTint)
+                    )
                     .transition(
                         .opacity.combined(
                             with: .scale(scale: 0.92, anchor: .top)
@@ -1506,31 +1515,42 @@ extension View {
     @ViewBuilder
     fileprivate func notchLiquidGlass<S: Shape>(
         _ shape: S,
-        tint: LiquidGlassTint
+        tint: LiquidGlassTint,
+        shade: Color? = nil
     ) -> some View {
         #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 self
-                    .glassEffect(tint.interactiveGlass, in: shape)
+                    .glassEffect(
+                        tint.interactiveGlass.shaded(shade),
+                        in: shape
+                    )
                     .preferredColorScheme(.dark)
             } else {
-                notchLiquidGlassFallback(shape, tint: tint)
+                notchLiquidGlassFallback(shape, tint: tint, shade: shade)
             }
         #else
-            notchLiquidGlassFallback(shape, tint: tint)
+            notchLiquidGlassFallback(shape, tint: tint, shade: shade)
         #endif
     }
 
     @ViewBuilder
     fileprivate func notchLiquidGlassFallback<S: Shape>(
         _ shape: S,
-        tint: LiquidGlassTint
+        tint: LiquidGlassTint,
+        shade: Color? = nil
     ) -> some View {
         switch tint {
         case .identity:
-            self.preferredColorScheme(.dark)
+            if let shade {
+                self.background(shade, in: shape)
+                    .preferredColorScheme(.dark)
+            } else {
+                self.preferredColorScheme(.dark)
+            }
         case .clear, .regular:
             self
+                .background(shade ?? .clear, in: shape)
                 .background(.ultraThinMaterial, in: shape)
                 .preferredColorScheme(.dark)
         }
@@ -1546,6 +1566,14 @@ extension View {
             case .regular: .regular.interactive()
             case .identity: .identity
             }
+        }
+    }
+
+    @available(macOS 26.0, *)
+    extension Glass {
+        fileprivate func shaded(_ color: Color?) -> Glass {
+            guard let color else { return self }
+            return tint(color)
         }
     }
 #endif

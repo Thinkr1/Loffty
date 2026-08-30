@@ -143,6 +143,17 @@ struct HUDChip: View {
     }
 }
 
+enum HUDChrome {
+    static func glassShade(_ tint: LiquidGlassTint) -> Color? {
+        switch tint {
+        case .clear, .identity:
+            Color.black.opacity(0.22)
+        case .regular:
+            nil
+        }
+    }
+}
+
 enum BatteryIcon {
     static func symbol(percent: Int, charging: Bool) -> String {
         if charging { return "battery.100.bolt" }

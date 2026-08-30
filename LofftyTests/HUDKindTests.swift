@@ -56,6 +56,12 @@ struct HUDKindTests {
         )
     }
 
+    @Test func glassShadeDarkensClearHUD() {
+        #expect(HUDChrome.glassShade(.clear) != nil)
+        #expect(HUDChrome.glassShade(.identity) != nil)
+        #expect(HUDChrome.glassShade(.regular) == nil)
+    }
+
     @Test func accents() {
         let focusOn = HUDKind.focus(enabled: true, name: "Work").accent
         let focusOff = HUDKind.focus(enabled: false, name: "Work").accent
