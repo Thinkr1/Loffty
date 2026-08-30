@@ -92,6 +92,7 @@ enum LiquidGlassTint: String, CaseIterable, Identifiable {
 
     static let windowedStorageKey = "liquidGlassTintWhenNotFullScreen"
     static let fullScreenStorageKey = "liquidGlassTintFullScreen"
+    static let lockScreenStorageKey = "lockScreenLiquidGlassTint"
 
     var id: String { rawValue }
 
@@ -477,6 +478,8 @@ final class AppSettings: ObservableObject {
     private static let lockScreenWaveformsKey = "lockScreenWaveforms"
     private static let lockScreenWaveformsAccentKey =
         "lockScreenWaveformsAccent"
+    private static let lockScreenLiquidGlassTintKey =
+        LiquidGlassTint.lockScreenStorageKey
     private static let lockScreenAccessoryOrderKey =
         "lockScreenAccessoryOrder"
     private static let lockScreenAccessoriesTopInsetFractionKey =
@@ -729,6 +732,15 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.set(
                 lockScreenWaveformsAccent,
                 forKey: Self.lockScreenWaveformsAccentKey
+            )
+        }
+    }
+
+    @Published var lockScreenLiquidGlassTint: LiquidGlassTint {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenLiquidGlassTint.rawValue,
+                forKey: Self.lockScreenLiquidGlassTintKey
             )
         }
     }
@@ -1435,6 +1447,13 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.lockScreenWaveformsAccentKey
             ) as? Bool ?? false
+        if let raw = UserDefaults.standard.string(
+            forKey: Self.lockScreenLiquidGlassTintKey
+        ), let tint = LiquidGlassTint(rawValue: raw) {
+            lockScreenLiquidGlassTint = tint
+        } else {
+            lockScreenLiquidGlassTint = .clear
+        }
         let storedAccessories =
             UserDefaults.standard.stringArray(
                 forKey: Self.lockScreenAccessoryOrderKey

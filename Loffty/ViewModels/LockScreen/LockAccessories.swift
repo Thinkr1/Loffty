@@ -22,6 +22,14 @@ enum LockCardMetrics {
 }
 
 enum LockGlassPlacement {
+    static func showsWallpaper(_ tint: LiquidGlassTint) -> Bool {
+        tint == .clear
+    }
+
+    static func showsFrostedPlate(_ tint: LiquidGlassTint) -> Bool {
+        tint == .regular
+    }
+
     static func wallpaperSwiftUIOffset(
         plate: CGRect,
         screenFrame: CGRect

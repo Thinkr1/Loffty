@@ -1215,6 +1215,27 @@ struct SettingsView: View {
                 title: "Widget",
                 entries: [
                     SettingsEntry(
+                        "lockScreenLiquidGlassTint",
+                        title: "Liquid Glass",
+                        keywords: [
+                            "glass", "liquid", "tint", "clear", "regular",
+                            "identity", "frosted", "material", "off",
+                        ]
+                    ) {
+                        Picker(
+                            "",
+                            selection: $settings.lockScreenLiquidGlassTint
+                        ) {
+                            ForEach(LiquidGlassTint.allCases) { tint in
+                                Text(tint.title).tag(tint)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    },
+                    SettingsEntry(
                         "movableWidget",
                         title: "Allow moving the widget",
                         keywords: ["drag", "position", "place"]

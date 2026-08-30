@@ -397,6 +397,33 @@ struct SettingsTests {
         #expect(settings.liquidGlassTintFullScreen == .regular)
     }
 
+    @Test @MainActor func lockScreenLiquidGlassTintPersists() {
+        let settings = AppSettings.shared
+        let original = settings.lockScreenLiquidGlassTint
+        defer { settings.lockScreenLiquidGlassTint = original }
+
+        settings.lockScreenLiquidGlassTint = .regular
+        #expect(
+            UserDefaults.standard.string(forKey: "lockScreenLiquidGlassTint")
+                == "regular"
+        )
+        #expect(settings.lockScreenLiquidGlassTint == .regular)
+
+        settings.lockScreenLiquidGlassTint = .identity
+        #expect(
+            UserDefaults.standard.string(forKey: "lockScreenLiquidGlassTint")
+                == "identity"
+        )
+        #expect(settings.lockScreenLiquidGlassTint == .identity)
+
+        settings.lockScreenLiquidGlassTint = .clear
+        #expect(
+            UserDefaults.standard.string(forKey: "lockScreenLiquidGlassTint")
+                == "clear"
+        )
+        #expect(settings.lockScreenLiquidGlassTint == .clear)
+    }
+
     @Test @MainActor func watchesFullScreenAppsForOutlineWhenNotFullScreen() {
         let settings = AppSettings.shared
         let originalStyle = settings.notchEdgeStyle

@@ -300,20 +300,34 @@ struct LockMorphCardView: View {
             cornerRadius: radius,
             style: .continuous
         )
+        let tint = settings.lockScreenLiquidGlassTint
         let plate = LockGlassPlacement.screenPlate(
             fromLocalTopLeft: rect,
             windowFrame: placement.cardScreenFrame
         )
-        return LockCardWallpaperBackdrop(
-            image: placement.wallpaper,
-            screenFrame: placement.wallpaperScreenFrame,
-            plate: plate
-        )
-        .lockWidgetChrome(shape)
-        .frame(width: rect.width, height: rect.height)
-        .clipShape(shape)
-        .position(x: rect.midX, y: rect.midY)
-        .allowsHitTesting(false)
+        return lockFlyingPlate(shape: shape, tint: tint, plate: plate)
+            .frame(width: rect.width, height: rect.height)
+            .clipShape(shape)
+            .position(x: rect.midX, y: rect.midY)
+            .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func lockFlyingPlate(
+        shape: RoundedRectangle,
+        tint: LiquidGlassTint,
+        plate: CGRect
+    ) -> some View {
+        if LockGlassPlacement.showsWallpaper(tint) {
+            LockCardWallpaperBackdrop(
+                image: placement.wallpaper,
+                screenFrame: placement.wallpaperScreenFrame,
+                plate: plate
+            )
+            .lockWidgetChrome(shape, tint: tint)
+        } else if LockGlassPlacement.showsFrostedPlate(tint) {
+            Color.clear.lockWidgetChrome(shape, tint: tint)
+        }
     }
 
     private func flyingText(rect: CGRect) -> some View {

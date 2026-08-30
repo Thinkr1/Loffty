@@ -365,6 +365,17 @@ struct LockScreenPolicyTests {
 
 @Suite("Lock glass placement")
 struct LockGlassPlacementTests {
+    @Test func chromePolicyFollowsTint() {
+        #expect(LockGlassPlacement.showsWallpaper(.clear))
+        #expect(!LockGlassPlacement.showsFrostedPlate(.clear))
+
+        #expect(!LockGlassPlacement.showsWallpaper(.regular))
+        #expect(LockGlassPlacement.showsFrostedPlate(.regular))
+
+        #expect(!LockGlassPlacement.showsWallpaper(.identity))
+        #expect(!LockGlassPlacement.showsFrostedPlate(.identity))
+    }
+
     @Test func convertDefaultCardFrameIsNotTopLeft() {
         let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let card = LockScreenPolicy.defaultCardFrame(screenFrame: screen)
