@@ -321,10 +321,7 @@ struct ExpandedContent: View {
             MediaProgressRow(accent: vm.accentColor)
                 .frame(maxWidth: .infinity)
             if toolbar.isCustomizing {
-                MediaToolbarCustomizeRow()
-                    .padding(.top, 2)
-                MediaToolbarCustomizeChrome()
-                    .padding(.top, 8)
+                MediaToolbarCustomizeSession()
             } else {
                 MediaTransportControls()
                     .padding(.top, 2)

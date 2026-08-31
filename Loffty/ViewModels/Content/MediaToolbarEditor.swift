@@ -5,9 +5,7 @@
 //  Created by Pierre-Louis ML on 20/08/2026.
 //
 
-import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 @MainActor
 final class MediaToolbarEditorOpener {
@@ -24,8 +22,75 @@ final class MediaToolbarEditorOpener {
     }
 }
 
+struct MediaToolbarCustomizeSession: View {
+    @ObservedObject private var customizer = MediaToolbarCustomizer.shared
+    @State private var previewLocation: CGPoint?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MediaToolbarCustomizeRow()
+                .padding(.top, 2)
+                .modifier(editDrag)
+            MediaToolbarCustomizeChrome(editDrag: editDrag)
+                .padding(.top, 8)
+        }
+        .coordinateSpace(name: MediaToolbarCustomizer.editSpace)
+        .onPreferenceChange(MediaToolbarEditGeometryKey.self) {
+            customizer.editGeometry = $0
+        }
+        .overlay {
+            if customizer.isDragging,
+                let item = customizer.draggingItem,
+                let loc = previewLocation
+            {
+                MediaToolbarChip(item: item, compact: true, tint: .white)
+                    .position(x: loc.x, y: loc.y)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private var editDrag: MediaToolbarEditDragModifier {
+        MediaToolbarEditDragModifier(
+            customizer: customizer,
+            previewLocation: $previewLocation
+        )
+    }
+}
+
+struct MediaToolbarEditDragModifier: ViewModifier {
+    let customizer: MediaToolbarCustomizer
+    @Binding var previewLocation: CGPoint?
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .highPriorityGesture(drag)
+    }
+
+    private var drag: some Gesture {
+        DragGesture(
+            minimumDistance: 3,
+            coordinateSpace: .named(MediaToolbarCustomizer.editSpace)
+        )
+        .onChanged { value in
+            if !customizer.isDragging {
+                customizer.beginDrag(at: value.startLocation)
+            }
+            guard customizer.isDragging else { return }
+            previewLocation = value.location
+            customizer.updateDrag(at: value.location)
+        }
+        .onEnded { value in
+            customizer.endDrag(at: value.location)
+            previewLocation = nil
+        }
+    }
+}
+
 struct MediaToolbarCustomizeChrome: View {
     @ObservedObject private var customizer = MediaToolbarCustomizer.shared
+    var editDrag: MediaToolbarEditDragModifier
 
     var body: some View {
         VStack(spacing: 12) {
@@ -44,6 +109,8 @@ struct MediaToolbarCustomizeChrome: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(.white.opacity(0.06))
                 )
+                .background(paletteBoundsReader)
+                .modifier(editDrag)
 
             HStack {
                 Button("Restore Defaults") {
@@ -59,20 +126,7 @@ struct MediaToolbarCustomizeChrome: View {
                 .settingsButton(prominent: true)
                 .keyboardShortcut(.defaultAction)
             }
-        }
-        .contentShape(Rectangle())
-        .overlay {
-            Color.clear
-                .contentShape(Rectangle())
-                .allowsHitTesting(
-                    customizer.isDragging && customizer.dragSource == .toolbar
-                )
-                .onDrop(
-                    of: [.plainText, .text, .utf8PlainText],
-                    delegate: MediaToolbarPaletteDropDelegate(
-                        customizer: customizer
-                    )
-                )
+            .allowsHitTesting(!customizer.isDragging)
         }
         .onExitCommand {
             MediaToolbarEditorOpener.shared.close()
@@ -89,18 +143,7 @@ struct MediaToolbarCustomizeChrome: View {
             ForEach(MediaToolbarItem.palette) { item in
                 MediaToolbarChip(item: item, compact: false, tint: .white)
                     .opacity(paletteOpacity(for: item))
-                    .onDrag {
-                        customizer.beginPaletteDrag(item)
-                        return NSItemProvider(
-                            object: item.rawValue as NSString
-                        )
-                    } preview: {
-                        MediaToolbarChip(
-                            item: item,
-                            compact: true,
-                            tint: .white
-                        )
-                    }
+                    .background(paletteItemFrameReader(item))
             }
         }
     }
@@ -110,11 +153,38 @@ struct MediaToolbarCustomizeChrome: View {
         return customizer.slots.contains(where: { $0.item == item })
             ? 0.42 : 1
     }
+
+    private var paletteBoundsReader: some View {
+        GeometryReader { geo in
+            Color.clear.preference(
+                key: MediaToolbarEditGeometryKey.self,
+                value: MediaToolbarEditGeometry(
+                    paletteBounds: geo.frame(
+                        in: .named(MediaToolbarCustomizer.editSpace)
+                    )
+                )
+            )
+        }
+    }
+
+    private func paletteItemFrameReader(_ item: MediaToolbarItem) -> some View {
+        GeometryReader { geo in
+            Color.clear.preference(
+                key: MediaToolbarEditGeometryKey.self,
+                value: MediaToolbarEditGeometry(
+                    paletteItems: [
+                        item: geo.frame(
+                            in: .named(MediaToolbarCustomizer.editSpace)
+                        )
+                    ]
+                )
+            )
+        }
+    }
 }
 
 struct MediaToolbarCustomizeRow: View {
     @ObservedObject private var customizer = MediaToolbarCustomizer.shared
-    @State private var frames: [UUID: CGRect] = [:]
 
     var body: some View {
         HStack(spacing: 8) {
@@ -122,25 +192,12 @@ struct MediaToolbarCustomizeRow: View {
                 cell(slot)
             }
         }
-        .coordinateSpace(name: "mediaToolbar")
-        .onPreferenceChange(MediaToolbarSlotFrameKey.self) { frames = $0 }
         .animation(
             .interactiveSpring(response: 0.28, dampingFraction: 0.86),
             value: customizer.displaySlots.map(\.id)
         )
         .frame(maxWidth: .infinity, minHeight: 58)
-        .overlay {
-            Color.clear
-                .contentShape(Rectangle())
-                .allowsHitTesting(customizer.isDragging)
-                .onDrop(
-                    of: [.plainText, .text, .utf8PlainText],
-                    delegate: MediaToolbarRowDropDelegate(
-                        customizer: customizer,
-                        frames: frames
-                    )
-                )
-        }
+        .background(toolbarBoundsReader)
     }
 
     @ViewBuilder
@@ -154,103 +211,58 @@ struct MediaToolbarCustomizeRow: View {
                 .background(slotFrameReader(slot.id))
         } else {
             MediaToolbarCustomizeItem(slot: slot)
-                .onDrag {
-                    if let index = customizer.slots.firstIndex(where: {
-                        $0.id == slot.id
-                    }) {
-                        customizer.beginToolbarDrag(slot, at: index)
-                    }
-                    return NSItemProvider(
-                        object: slot.item.rawValue as NSString
-                    )
-                } preview: {
-                    MediaToolbarChip(
-                        item: slot.item,
-                        compact: true,
-                        tint: .white
-                    )
-                }
                 .background(slotFrameReader(slot.id))
+        }
+    }
+
+    private var toolbarBoundsReader: some View {
+        GeometryReader { geo in
+            Color.clear.preference(
+                key: MediaToolbarEditGeometryKey.self,
+                value: MediaToolbarEditGeometry(
+                    toolbarBounds: geo.frame(
+                        in: .named(MediaToolbarCustomizer.editSpace)
+                    )
+                )
+            )
         }
     }
 
     private func slotFrameReader(_ id: UUID) -> some View {
         GeometryReader { geo in
             Color.clear.preference(
-                key: MediaToolbarSlotFrameKey.self,
-                value: [
-                    id: geo.frame(in: .named("mediaToolbar"))
-                ]
+                key: MediaToolbarEditGeometryKey.self,
+                value: MediaToolbarEditGeometry(
+                    slots: [
+                        id: geo.frame(
+                            in: .named(MediaToolbarCustomizer.editSpace)
+                        )
+                    ]
+                )
             )
         }
     }
 }
 
-private struct MediaToolbarSlotFrameKey: PreferenceKey {
-    static var defaultValue: [UUID: CGRect] = [:]
+private struct MediaToolbarEditGeometryKey: PreferenceKey {
+    static var defaultValue = MediaToolbarEditGeometry()
 
     static func reduce(
-        value: inout [UUID: CGRect],
-        nextValue: () -> [UUID: CGRect]
+        value: inout MediaToolbarEditGeometry,
+        nextValue: () -> MediaToolbarEditGeometry
     ) {
-        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
-    }
-}
-
-private struct MediaToolbarRowDropDelegate: DropDelegate {
-    let customizer: MediaToolbarCustomizer
-    let frames: [UUID: CGRect]
-
-    func validateDrop(info: DropInfo) -> Bool { true }
-
-    func dropEntered(info: DropInfo) {
-        update(info)
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        update(info)
-        return DropProposal(operation: .move)
-    }
-
-    func dropExited(info: DropInfo) {
-        customizer.leaveToolbar()
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        customizer.commitToolbarDrop()
-        return true
-    }
-
-    private func update(_ info: DropInfo) {
-        let pairs = frames.map { (id: $0.key, frame: $0.value) }
-        customizer.setInsertion(
-            MediaToolbarCustomizer.insertionIndex(
-                x: info.location.x,
-                frames: pairs,
-                placeholder: MediaToolbarCustomizer.placeholderID,
-                current: customizer.insertionIndex
-            )
+        let next = nextValue()
+        value.slots.merge(next.slots, uniquingKeysWith: { _, n in n })
+        value.paletteItems.merge(
+            next.paletteItems,
+            uniquingKeysWith: { _, n in n }
         )
-    }
-}
-
-private struct MediaToolbarPaletteDropDelegate: DropDelegate {
-    let customizer: MediaToolbarCustomizer
-
-    func validateDrop(info: DropInfo) -> Bool { true }
-
-    func dropEntered(info: DropInfo) {
-        customizer.hoverPalette()
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        customizer.hoverPalette()
-        return DropProposal(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        customizer.commitPaletteDrop()
-        return true
+        if next.toolbarBounds.width > 1 {
+            value.toolbarBounds = next.toolbarBounds
+        }
+        if next.paletteBounds.width > 1 {
+            value.paletteBounds = next.paletteBounds
+        }
     }
 }
 

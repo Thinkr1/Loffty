@@ -156,6 +156,24 @@ struct MediaToolbarSlot: Identifiable, Equatable {
     }
 }
 
+struct MediaToolbarEditGeometry: Equatable {
+    var slots: [UUID: CGRect] = [:]
+    var paletteItems: [MediaToolbarItem: CGRect] = [:]
+    var toolbarBounds: CGRect = .null
+    var paletteBounds: CGRect = .null
+}
+
+enum MediaToolbarDragHit: Equatable {
+    case toolbar(UUID)
+    case palette(MediaToolbarItem)
+}
+
+enum MediaToolbarDragZone: Equatable {
+    case toolbar
+    case palette
+    case outside
+}
+
 enum MediaToolbarCustomizeLayout {
     static let width: CGFloat = 540
     static let paletteHeight: CGFloat = 260
@@ -171,6 +189,7 @@ enum MediaToolbarCustomizeLayout {
 final class MediaToolbarCustomizer: ObservableObject {
     static let shared = MediaToolbarCustomizer()
     static let placeholderID = UUID()
+    static let editSpace = "mediaToolbarEdit"
 
     @Published private(set) var isCustomizing = false
     @Published private(set) var slots: [MediaToolbarSlot] = []
@@ -188,6 +207,9 @@ final class MediaToolbarCustomizer: ObservableObject {
     private(set) var reopenSettings = false
     private var drag: MediaToolbarSlot?
     private var didDrop = false
+    var editGeometry = MediaToolbarEditGeometry()
+
+    var draggingItem: MediaToolbarItem? { drag?.item }
 
     var displaySlots: [MediaToolbarSlot] {
         guard isCustomizing else { return slots }
@@ -211,6 +233,7 @@ final class MediaToolbarCustomizer: ObservableObject {
             MediaToolbarSlot(item: $0)
         }
         clearDrag()
+        editGeometry = MediaToolbarEditGeometry()
         isCustomizing = true
     }
 
@@ -229,6 +252,56 @@ final class MediaToolbarCustomizer: ObservableObject {
             MediaToolbarSlot(item: $0)
         }
         persist()
+    }
+
+    func beginDrag(at point: CGPoint, geometry: MediaToolbarEditGeometry? = nil)
+    {
+        let geometry = geometry ?? editGeometry
+        guard !isDragging else { return }
+        switch Self.hitTarget(at: point, geometry: geometry) {
+        case .toolbar(let id):
+            guard let index = slots.firstIndex(where: { $0.id == id })
+            else { return }
+            beginToolbarDrag(slots[index], at: index)
+        case .palette(let item):
+            beginPaletteDrag(item)
+        case nil:
+            return
+        }
+    }
+
+    func updateDrag(
+        at point: CGPoint,
+        geometry: MediaToolbarEditGeometry? = nil
+    ) {
+        let geometry = geometry ?? editGeometry
+        guard isDragging else { return }
+        switch Self.dragZone(
+            point: point,
+            toolbar: geometry.toolbarBounds,
+            palette: geometry.paletteBounds
+        ) {
+        case .palette:
+            hoverPalette()
+        case .toolbar:
+            let pairs = geometry.slots.map { (id: $0.key, frame: $0.value) }
+            setInsertion(
+                Self.insertionIndex(
+                    x: point.x,
+                    frames: pairs,
+                    placeholder: Self.placeholderID,
+                    current: insertionIndex
+                )
+            )
+        case .outside:
+            leaveDropZones()
+        }
+    }
+
+    func endDrag(at point: CGPoint, geometry: MediaToolbarEditGeometry? = nil) {
+        let geometry = geometry ?? editGeometry
+        updateDrag(at: point, geometry: geometry)
+        finishIfNeeded()
     }
 
     func beginToolbarDrag(_ slot: MediaToolbarSlot, at index: Int) {
@@ -274,6 +347,13 @@ final class MediaToolbarCustomizer: ObservableObject {
     func leaveToolbar() {
         guard isDragging else { return }
         isOverToolbar = false
+    }
+
+    func leaveDropZones() {
+        guard isDragging else { return }
+        isOverToolbar = false
+        isOverPalette = false
+        insertionIndex = nil
     }
 
     func commitToolbarDrop() {
@@ -345,6 +425,40 @@ final class MediaToolbarCustomizer: ObservableObject {
         isOverToolbar = false
         insertionIndex = nil
         didDrop = false
+    }
+
+    nonisolated static func hitTarget(
+        at point: CGPoint,
+        geometry: MediaToolbarEditGeometry
+    ) -> MediaToolbarDragHit? {
+        for (id, frame) in geometry.slots {
+            if id == placeholderID { continue }
+            if frame.insetBy(dx: -4, dy: -8).contains(point) {
+                return .toolbar(id)
+            }
+        }
+        for (item, frame) in geometry.paletteItems {
+            if frame.insetBy(dx: -4, dy: -4).contains(point) {
+                return .palette(item)
+            }
+        }
+        return nil
+    }
+
+    nonisolated static func dragZone(
+        point: CGPoint,
+        toolbar: CGRect,
+        palette: CGRect
+    ) -> MediaToolbarDragZone {
+        if !toolbar.isNull, toolbar.width > 1,
+            toolbar.insetBy(dx: 0, dy: -12).contains(point)
+        {
+            return .toolbar
+        }
+        if !palette.isNull, palette.width > 1, palette.contains(point) {
+            return .palette
+        }
+        return .outside
     }
 
     nonisolated static func insertionIndex(

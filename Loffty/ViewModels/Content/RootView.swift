@@ -1226,8 +1226,12 @@ struct NotchRootView: View {
         Group {
             #if compiler(>=6.2)
                 if #available(macOS 26.0, *) {
-                    GlassEffectContainer(spacing: 0) {
+                    if toolbar.isCustomizing {
                         rootContent
+                    } else {
+                        GlassEffectContainer(spacing: 0) {
+                            rootContent
+                        }
                     }
                 } else {
                     rootContent
@@ -1471,7 +1475,8 @@ struct NotchRootView: View {
                     islandShape,
                     tint: notchLiquidGlassTint,
                     shade: hudIntegrated
-                        ? HUDChrome.glassShade(notchLiquidGlassTint) : nil
+                        ? HUDChrome.glassShade(notchLiquidGlassTint) : nil,
+                    interactive: !toolbar.isCustomizing
                 )
                 .overlay {
                     if let edge = persistentEdgeColor {
@@ -1516,13 +1521,14 @@ extension View {
     fileprivate func notchLiquidGlass<S: Shape>(
         _ shape: S,
         tint: LiquidGlassTint,
-        shade: Color? = nil
+        shade: Color? = nil,
+        interactive: Bool = true
     ) -> some View {
         #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 self
                     .glassEffect(
-                        tint.interactiveGlass.shaded(shade),
+                        tint.glass(interactive: interactive).shaded(shade),
                         in: shape
                     )
                     .preferredColorScheme(.dark)
@@ -1560,10 +1566,10 @@ extension View {
 #if compiler(>=6.2)
     @available(macOS 26.0, *)
     extension LiquidGlassTint {
-        fileprivate var interactiveGlass: Glass {
+        fileprivate func glass(interactive: Bool) -> Glass {
             switch self {
-            case .clear: .clear.interactive()
-            case .regular: .regular.interactive()
+            case .clear: interactive ? .clear.interactive() : .clear
+            case .regular: interactive ? .regular.interactive() : .regular
             case .identity: .identity
             }
         }
