@@ -1213,6 +1213,9 @@ struct SettingsView: View {
             SettingsGroup(
                 page: .lockScreen,
                 title: "Widget",
+                note:
+                    "The mock shows the widget on the lock wallpaper.",
+                accessory: AnyView(LockWidgetGlassMock()),
                 entries: [
                     SettingsEntry(
                         "lockScreenLiquidGlassTint",
@@ -1231,9 +1234,21 @@ struct SettingsView: View {
                             }
                         }
                         .labelsHidden()
-                        .pickerStyle(.menu)
+                        .pickerStyle(.segmented)
                         .controlSize(.small)
-                        .fixedSize()
+                        .frame(maxWidth: 260)
+                    },
+                    SettingsEntry(
+                        "lockScreenLiquidGlassColorTint",
+                        title: "Glass colour",
+                        keywords: [
+                            "glass", "liquid", "tint", "colour", "color",
+                            "none",
+                        ],
+                        isEnabled: settings.lockScreenLiquidGlassTint
+                            != .identity
+                    ) {
+                        LockGlassColourControl()
                     },
                     SettingsEntry(
                         "movableWidget",
@@ -1956,6 +1971,60 @@ private struct SettingsToggle: View {
             .labelsHidden()
             .toggleStyle(.switch)
             .sensoryFeedback(.selection, trigger: isOn)
+    }
+}
+
+private struct LockGlassColourControl: View {
+    @ObservedObject private var settings = AppSettings.shared
+    @State private var draft: Color
+
+    init() {
+        _draft = State(
+            initialValue: AppSettings.shared.lockScreenLiquidGlassColor
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Picker(
+                "",
+                selection: $settings.lockScreenLiquidGlassColorTint
+            ) {
+                ForEach(LiquidGlassColorTint.allCases) { tint in
+                    Text(tint.title).tag(tint)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .frame(maxWidth: 160)
+
+            if settings.lockScreenLiquidGlassColorTint == .color {
+                ColorPicker(
+                    "",
+                    selection: $draft,
+                    supportsOpacity: true
+                )
+                .labelsHidden()
+            }
+        }
+        .onChange(of: draft) { _, newValue in
+            commit(newValue)
+        }
+    }
+
+    private func commit(_ color: Color) {
+        let encoded = LiquidGlassColorCodec.encode(color)
+        DispatchQueue.main.async {
+            let settings = AppSettings.shared
+            guard
+                encoded
+                    != LiquidGlassColorCodec.encode(
+                        settings.lockScreenLiquidGlassColor
+                    )
+            else { return }
+            settings.lockScreenLiquidGlassColor = color
+        }
     }
 }
 

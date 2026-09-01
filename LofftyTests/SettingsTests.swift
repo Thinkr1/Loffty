@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import Loffty
@@ -422,6 +423,38 @@ struct SettingsTests {
                 == "clear"
         )
         #expect(settings.lockScreenLiquidGlassTint == .clear)
+    }
+
+    @Test @MainActor func lockScreenLiquidGlassColorTintPersists() {
+        let settings = AppSettings.shared
+        let originalMode = settings.lockScreenLiquidGlassColorTint
+        let originalColor = settings.lockScreenLiquidGlassColor
+        defer {
+            settings.lockScreenLiquidGlassColorTint = originalMode
+            settings.lockScreenLiquidGlassColor = originalColor
+        }
+
+        settings.lockScreenLiquidGlassColorTint = .none
+        #expect(
+            UserDefaults.standard.string(
+                forKey: "lockScreenLiquidGlassColorTint"
+            ) == "none"
+        )
+        #expect(settings.lockScreenResolvedGlassColor == nil)
+
+        let color = Color(.sRGB, red: 0.2, green: 0.4, blue: 0.6, opacity: 0.8)
+        settings.lockScreenLiquidGlassColorTint = .color
+        settings.lockScreenLiquidGlassColor = color
+        #expect(
+            UserDefaults.standard.string(
+                forKey: "lockScreenLiquidGlassColorTint"
+            ) == "color"
+        )
+        #expect(settings.lockScreenResolvedGlassColor != nil)
+        #expect(
+            UserDefaults.standard.string(forKey: "lockScreenLiquidGlassColor")
+                == LiquidGlassColorCodec.encode(color)
+        )
     }
 
     @Test @MainActor func watchesFullScreenAppsForOutlineWhenNotFullScreen() {

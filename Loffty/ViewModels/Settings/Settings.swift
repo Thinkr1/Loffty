@@ -5,9 +5,11 @@
 //  Created by Pierre-Louis ML on 12/07/2026.
 //
 
+import AppKit
 import Combine
 import Network
 import ServiceManagement
+import SwiftUI
 
 @MainActor
 enum LaunchAtLogin {
@@ -110,6 +112,53 @@ enum LiquidGlassTint: String, CaseIterable, Identifiable {
         fullScreen: LiquidGlassTint
     ) -> LiquidGlassTint {
         isFullScreen ? fullScreen : windowed
+    }
+}
+
+enum LiquidGlassColorTint: String, CaseIterable, Identifiable {
+    case none
+    case color
+
+    static let lockScreenStorageKey = "lockScreenLiquidGlassColorTint"
+    static let lockScreenColorStorageKey = "lockScreenLiquidGlassColor"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none: "None"
+        case .color: "Colour"
+        }
+    }
+}
+
+nonisolated enum LiquidGlassColorCodec {
+    static let fallback = "1,1,1,1"
+
+    static func encode(_ color: Color) -> String {
+        let rgb = NSColor(color).usingColorSpace(NSColorSpace.sRGB)
+        guard let rgb else { return fallback }
+        return [
+            rgb.redComponent,
+            rgb.greenComponent,
+            rgb.blueComponent,
+            rgb.alphaComponent,
+        ]
+        .map { String(format: "%.6f", Double($0)) }
+        .joined(separator: ",")
+    }
+
+    static func decode(_ raw: String?) -> Color {
+        guard let raw else { return .white }
+        let parts = raw.split(separator: ",").compactMap { Double($0) }
+        guard parts.count == 4 else { return .white }
+        return Color(
+            .sRGB,
+            red: parts[0],
+            green: parts[1],
+            blue: parts[2],
+            opacity: parts[3]
+        )
     }
 }
 
@@ -480,6 +529,10 @@ final class AppSettings: ObservableObject {
         "lockScreenWaveformsAccent"
     private static let lockScreenLiquidGlassTintKey =
         LiquidGlassTint.lockScreenStorageKey
+    private static let lockScreenLiquidGlassColorTintKey =
+        LiquidGlassColorTint.lockScreenStorageKey
+    private static let lockScreenLiquidGlassColorKey =
+        LiquidGlassColorTint.lockScreenColorStorageKey
     private static let lockScreenAccessoryOrderKey =
         "lockScreenAccessoryOrder"
     private static let lockScreenAccessoriesTopInsetFractionKey =
@@ -743,6 +796,29 @@ final class AppSettings: ObservableObject {
                 forKey: Self.lockScreenLiquidGlassTintKey
             )
         }
+    }
+
+    @Published var lockScreenLiquidGlassColorTint: LiquidGlassColorTint {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenLiquidGlassColorTint.rawValue,
+                forKey: Self.lockScreenLiquidGlassColorTintKey
+            )
+        }
+    }
+
+    @Published var lockScreenLiquidGlassColor: Color {
+        didSet {
+            UserDefaults.standard.set(
+                LiquidGlassColorCodec.encode(lockScreenLiquidGlassColor),
+                forKey: Self.lockScreenLiquidGlassColorKey
+            )
+        }
+    }
+
+    var lockScreenResolvedGlassColor: Color? {
+        guard lockScreenLiquidGlassColorTint == .color else { return nil }
+        return lockScreenLiquidGlassColor
     }
 
     @Published var lockScreenAccessoryOrder: [LockScreenAccessory] {
@@ -1454,6 +1530,18 @@ final class AppSettings: ObservableObject {
         } else {
             lockScreenLiquidGlassTint = .clear
         }
+        if let raw = UserDefaults.standard.string(
+            forKey: Self.lockScreenLiquidGlassColorTintKey
+        ), let tint = LiquidGlassColorTint(rawValue: raw) {
+            lockScreenLiquidGlassColorTint = tint
+        } else {
+            lockScreenLiquidGlassColorTint = .none
+        }
+        lockScreenLiquidGlassColor = LiquidGlassColorCodec.decode(
+            UserDefaults.standard.string(
+                forKey: Self.lockScreenLiquidGlassColorKey
+            )
+        )
         let storedAccessories =
             UserDefaults.standard.stringArray(
                 forKey: Self.lockScreenAccessoryOrderKey

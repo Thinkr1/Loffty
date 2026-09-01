@@ -749,6 +749,16 @@ struct LockCardView: View {
             .easeInOut(duration: 0.22),
             value: settings.lockScreenLiquidGlassTint
         )
+        .animation(
+            .easeInOut(duration: 0.22),
+            value: settings.lockScreenLiquidGlassColorTint
+        )
+        .animation(
+            .easeInOut(duration: 0.22),
+            value: LiquidGlassColorCodec.encode(
+                settings.lockScreenLiquidGlassColor
+            )
+        )
     }
 
     private var cardBody: some View {
@@ -757,8 +767,9 @@ struct LockCardView: View {
             style: .continuous
         )
         let tint = settings.lockScreenLiquidGlassTint
+        let color = settings.lockScreenResolvedGlassColor
         return ZStack {
-            lockCardPlate(shape: shape, tint: tint)
+            lockCardPlate(shape: shape, tint: tint, color: color)
             LockCardBody(
                 onArtworkTap: {
                     guard AppSettings.shared.lockScreenFullScreenArt else {
@@ -775,7 +786,8 @@ struct LockCardView: View {
     @ViewBuilder
     private func lockCardPlate(
         shape: RoundedRectangle,
-        tint: LiquidGlassTint
+        tint: LiquidGlassTint,
+        color: Color?
     ) -> some View {
         if LockGlassPlacement.showsWallpaper(tint) {
             LockCardWallpaperBackdrop(
@@ -783,9 +795,9 @@ struct LockCardView: View {
                 screenFrame: placement.wallpaperScreenFrame,
                 plate: placement.cardScreenFrame
             )
-            .lockWidgetChrome(shape, tint: tint)
+            .lockWidgetChrome(shape, tint: tint, color: color)
         } else if LockGlassPlacement.showsFrostedPlate(tint) {
-            Color.clear.lockWidgetChrome(shape, tint: tint)
+            Color.clear.lockWidgetChrome(shape, tint: tint, color: color)
         }
     }
 }
@@ -953,7 +965,8 @@ struct LockCardBody: View {
         if showsChrome {
             content.lockWidgetChrome(
                 cardShape,
-                tint: settings.lockScreenLiquidGlassTint
+                tint: settings.lockScreenLiquidGlassTint,
+                color: settings.lockScreenResolvedGlassColor
             )
         } else {
             content
@@ -978,30 +991,34 @@ extension View {
     @ViewBuilder
     func lockWidgetChrome<S: InsettableShape>(
         _ shape: S,
-        tint: LiquidGlassTint
+        tint: LiquidGlassTint,
+        color: Color? = nil
     ) -> some View {
         switch tint {
         case .identity:
             self
         case .clear:
-            lockClearGlassPlate(shape)
+            lockClearGlassPlate(shape, color: color)
         case .regular:
-            lockRegularGlassPlate(shape)
+            lockRegularGlassPlate(shape, color: color)
         }
     }
 
-    private func lockClearGlassPlate<S: InsettableShape>(_ shape: S)
-        -> some View
-    {
-        self
+    private func lockClearGlassPlate<S: InsettableShape>(
+        _ shape: S,
+        color: Color?
+    ) -> some View {
+        let wash = color ?? .white
+        return
+            self
             .background {
-                shape.fill(Color.white.opacity(0.08))
+                shape.fill(wash.opacity(0.08))
             }
             .overlay {
                 LinearGradient(
                     colors: [
-                        Color.white.opacity(0.16),
-                        Color.white.opacity(0.05),
+                        wash.opacity(0.16),
+                        wash.opacity(0.05),
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -1013,8 +1030,8 @@ extension View {
                 shape.strokeBorder(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.42),
-                            Color.white.opacity(0.10),
+                            wash.opacity(0.42),
+                            wash.opacity(0.10),
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -1026,26 +1043,49 @@ extension View {
     }
 
     @ViewBuilder
-    private func lockRegularGlassPlate<S: InsettableShape>(_ shape: S)
-        -> some View
-    {
+    private func lockRegularGlassPlate<S: InsettableShape>(
+        _ shape: S,
+        color: Color?
+    ) -> some View {
         #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 self
-                    .glassEffect(.regular.interactive(), in: shape)
+                    .glassEffect(
+                        Glass.regular.interactive().lockTint(color),
+                        in: shape
+                    )
                     .preferredColorScheme(.dark)
             } else {
-                lockRegularGlassFallback(shape)
+                lockRegularGlassFallback(shape, color: color)
             }
         #else
-            lockRegularGlassFallback(shape)
+            lockRegularGlassFallback(shape, color: color)
         #endif
     }
 
-    private func lockRegularGlassFallback<S: Shape>(_ shape: S) -> some View {
+    private func lockRegularGlassFallback<S: Shape>(
+        _ shape: S,
+        color: Color?
+    ) -> some View {
         self
             .background(Color.black.opacity(0.35), in: shape)
             .background(.ultraThinMaterial, in: shape)
+            .overlay {
+                if let color {
+                    shape.fill(color.opacity(0.22))
+                        .allowsHitTesting(false)
+                }
+            }
             .preferredColorScheme(.dark)
     }
 }
+
+#if compiler(>=6.2)
+    @available(macOS 26.0, *)
+    extension Glass {
+        fileprivate func lockTint(_ color: Color?) -> Glass {
+            guard let color else { return self }
+            return tint(color)
+        }
+    }
+#endif

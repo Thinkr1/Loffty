@@ -301,21 +301,28 @@ struct LockMorphCardView: View {
             style: .continuous
         )
         let tint = settings.lockScreenLiquidGlassTint
+        let color = settings.lockScreenResolvedGlassColor
         let plate = LockGlassPlacement.screenPlate(
             fromLocalTopLeft: rect,
             windowFrame: placement.cardScreenFrame
         )
-        return lockFlyingPlate(shape: shape, tint: tint, plate: plate)
-            .frame(width: rect.width, height: rect.height)
-            .clipShape(shape)
-            .position(x: rect.midX, y: rect.midY)
-            .allowsHitTesting(false)
+        return lockFlyingPlate(
+            shape: shape,
+            tint: tint,
+            color: color,
+            plate: plate
+        )
+        .frame(width: rect.width, height: rect.height)
+        .clipShape(shape)
+        .position(x: rect.midX, y: rect.midY)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
     private func lockFlyingPlate(
         shape: RoundedRectangle,
         tint: LiquidGlassTint,
+        color: Color?,
         plate: CGRect
     ) -> some View {
         if LockGlassPlacement.showsWallpaper(tint) {
@@ -324,9 +331,9 @@ struct LockMorphCardView: View {
                 screenFrame: placement.wallpaperScreenFrame,
                 plate: plate
             )
-            .lockWidgetChrome(shape, tint: tint)
+            .lockWidgetChrome(shape, tint: tint, color: color)
         } else if LockGlassPlacement.showsFrostedPlate(tint) {
-            Color.clear.lockWidgetChrome(shape, tint: tint)
+            Color.clear.lockWidgetChrome(shape, tint: tint, color: color)
         }
     }
 

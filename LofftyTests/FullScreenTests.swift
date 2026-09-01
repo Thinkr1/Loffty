@@ -5,6 +5,7 @@
 
 import CoreGraphics
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import Loffty
@@ -278,6 +279,35 @@ struct LiquidGlassTintTests {
                 windowed: .identity,
                 fullScreen: .regular
             ) == .identity
+        )
+    }
+}
+
+@Suite("Liquid Glass colour tint")
+struct LiquidGlassColorTintTests {
+    @Test func rawValueRoundTrip() {
+        for tint in LiquidGlassColorTint.allCases {
+            #expect(LiquidGlassColorTint(rawValue: tint.rawValue) == tint)
+        }
+    }
+
+    @Test func titles() {
+        #expect(LiquidGlassColorTint.none.title == "None")
+        #expect(LiquidGlassColorTint.color.title == "Colour")
+    }
+
+    @Test func colorCodecRoundTripsComponents() {
+        let color = Color(.sRGB, red: 0.25, green: 0.5, blue: 0.75, opacity: 0.4)
+        let encoded = LiquidGlassColorCodec.encode(color)
+        let decoded = LiquidGlassColorCodec.decode(encoded)
+        #expect(LiquidGlassColorCodec.encode(decoded) == encoded)
+    }
+
+    @Test func colorCodecFallsBackForInvalidRaw() {
+        let decoded = LiquidGlassColorCodec.decode("not-a-color")
+        #expect(
+            LiquidGlassColorCodec.encode(decoded)
+                == LiquidGlassColorCodec.encode(.white)
         )
     }
 }

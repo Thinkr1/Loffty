@@ -194,6 +194,26 @@ struct LockScreenPolicyTests {
         #expect(LockMockLayout.previewScale == 0.58)
     }
 
+    @Test func widgetMockCardSitsBelowTheClock() {
+        let scaledHeight =
+            LockCardMetrics.height * LockWidgetMockLayout.cardScale
+        #expect(LockWidgetMockLayout.cardScale == 0.7)
+        #expect(
+            LockWidgetMockLayout.cardTop > LockMockLayout.clockBottom
+        )
+        #expect(
+            LockWidgetMockLayout.cardTop + scaledHeight
+                <= LockWidgetMockLayout.height - 8
+        )
+        #expect(
+            LockWidgetMockLayout.scaledCardSize
+                == CGSize(
+                    width: LockCardMetrics.width * 0.7,
+                    height: LockCardMetrics.height * 0.7
+                )
+        )
+    }
+
     @Test @MainActor func accessoriesHeightGrowsWithWeatherGraph() {
         let settings = AppSettings.shared
         let originalWeather = settings.lockScreenWeatherAccessory
