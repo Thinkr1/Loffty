@@ -19,7 +19,7 @@ enum AudioOutputRouter {
     static func availableDevices() -> [AudioOutputDevice] {
         let defaultID = OutputDeviceIcon.defaultOutputDevice()
         return allDeviceIDs()
-            .filter(hasOutputStreams)
+            .filter { hasOutputStreams($0) }
             .compactMap { id -> AudioOutputDevice? in
                 guard let name = OutputDeviceIcon.deviceName(id), !name.isEmpty
                 else { return nil }
@@ -89,7 +89,9 @@ enum AudioOutputRouter {
         return ids
     }
 
-    private static func hasOutputStreams(_ device: AudioDeviceID) -> Bool {
+    nonisolated private static func hasOutputStreams(_ device: AudioDeviceID)
+        -> Bool
+    {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyStreams,
             mScope: kAudioObjectPropertyScopeOutput,

@@ -287,7 +287,7 @@ enum WeatherTemperatureUnit: String, CaseIterable, Identifiable {
         }
     }
 
-    func usesMetric(locale: Locale = .current) -> Bool {
+    nonisolated func usesMetric(locale: Locale = .current) -> Bool {
         switch self {
         case .automatic: locale.measurementSystem == .metric
         case .celsius: true
@@ -312,7 +312,7 @@ enum WeatherWindUnit: String, CaseIterable, Identifiable {
         }
     }
 
-    func usesMetric(locale: Locale = .current) -> Bool {
+    nonisolated func usesMetric(locale: Locale = .current) -> Bool {
         switch self {
         case .automatic: locale.measurementSystem == .metric
         case .kilometers: true

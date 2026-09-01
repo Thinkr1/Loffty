@@ -829,7 +829,6 @@ final class WeatherController: NSObject, ObservableObject {
             if snapshot == nil { status = .failed }
             return
         }
-        let attempt = locationAttempts
         locationRetryTask?.cancel()
         locationRetryTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))

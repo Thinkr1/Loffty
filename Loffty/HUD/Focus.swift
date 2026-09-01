@@ -91,7 +91,7 @@ final class FocusHUDWatcher {
                 object: nil,
                 queue: .main
             ) { [weak self] note in
-                Task { @MainActor in
+                MainActor.assumeIsolated {
                     self?.announce(active: true, note: note)
                 }
             }
@@ -104,7 +104,7 @@ final class FocusHUDWatcher {
                 object: nil,
                 queue: .main
             ) { [weak self] note in
-                Task { @MainActor in
+                MainActor.assumeIsolated {
                     self?.announce(active: false, note: note)
                 }
             }
@@ -121,7 +121,7 @@ final class FocusHUDWatcher {
                     object: nil,
                     queue: .main
                 ) { [weak self] note in
-                    Task { @MainActor in
+                    MainActor.assumeIsolated {
                         self?.handleAmbiguous(note)
                     }
                 }

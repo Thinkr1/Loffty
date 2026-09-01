@@ -188,7 +188,7 @@ enum MediaToolbarCustomizeLayout {
 @MainActor
 final class MediaToolbarCustomizer: ObservableObject {
     static let shared = MediaToolbarCustomizer()
-    static let placeholderID = UUID()
+    nonisolated static let placeholderID = UUID()
     static let editSpace = "mediaToolbarEdit"
 
     @Published private(set) var isCustomizing = false
@@ -199,7 +199,7 @@ final class MediaToolbarCustomizer: ObservableObject {
     @Published private(set) var isDragging = false
     @Published private(set) var dragSource: DragSource?
 
-    enum DragSource {
+    nonisolated enum DragSource: Equatable, Sendable {
         case toolbar
         case palette
     }

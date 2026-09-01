@@ -213,8 +213,13 @@ enum OnboardingFlow {
     }
 
     @MainActor
-    static func markCompleted(settings: AppSettings = .shared) {
+    static func markCompleted(settings: AppSettings) {
         settings.hasCompletedOnboarding = true
+    }
+
+    @MainActor
+    static func markCompleted() {
+        markCompleted(settings: AppSettings.shared)
     }
 }
 

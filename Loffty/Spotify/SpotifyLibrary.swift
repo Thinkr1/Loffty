@@ -7,7 +7,6 @@
 
 import Foundation
 
-// Spotify like / OAuth is disabled; the heart uses Apple Music instead.
 #if false
 import AppKit
 import AuthenticationServices
@@ -17,10 +16,7 @@ import Security
 #endif
 #if false
 enum SpotifyConfig {
-    /// Public PKCE client ID for Loffty. This is not a secret.
-    /// Create one Spotify app for Loffty, add redirect URI
-    /// `loffty-spotify://oauth-callback`, then paste the Client ID here.
-    static let clientID = ""
+    static let clientID = "" // TODO: PKCE client id
     static let redirectURI = "loffty-spotify://oauth-callback"
     static let callbackScheme = "loffty-spotify"
 
@@ -33,7 +29,7 @@ enum SpotifyConfig {
 enum SpotifyTrack {
     static let clientBundle = "com.spotify.client"
 
-    static func id(from raw: String?) -> String? {
+    nonisolated static func id(from raw: String?) -> String? {
         guard let raw else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }

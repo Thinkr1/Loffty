@@ -231,7 +231,7 @@ final class FullScreenWatcher {
                     object: nil,
                     queue: .main
                 ) { [weak self] _ in
-                    Task { @MainActor in
+                    MainActor.assumeIsolated {
                         self?.refresh()
                     }
                 }
@@ -243,14 +243,14 @@ final class FullScreenWatcher {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                Task { @MainActor in
+                MainActor.assumeIsolated {
                     self?.refresh()
                 }
             }
         )
 
         let timer = Timer(timeInterval: 0.45, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 self?.refresh()
             }
         }

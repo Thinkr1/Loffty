@@ -66,7 +66,7 @@ enum LockAccessoriesMetrics {
     static let bottomMargin: CGFloat = 16
 
     @MainActor
-    static func height(settings: AppSettings = .shared) -> CGFloat {
+    static func height(settings: AppSettings) -> CGFloat {
         let accessories = settings.enabledLockScreenAccessories
         guard !accessories.isEmpty else { return 0 }
         var value = rowHeight
@@ -85,6 +85,11 @@ enum LockAccessoriesMetrics {
         return value
     }
 
+    @MainActor
+    static func height() -> CGFloat {
+        height(settings: AppSettings.shared)
+    }
+
     static func clampedTopInsetFraction(_ value: CGFloat) -> CGFloat {
         min(max(value, minTopInsetFraction), maxTopInsetFraction)
     }
@@ -92,7 +97,7 @@ enum LockAccessoriesMetrics {
     @MainActor
     static func topInset(
         screenHeight: CGFloat,
-        settings: AppSettings = .shared
+        settings: AppSettings
     ) -> CGFloat {
         let fraction = clampedTopInsetFraction(
             settings.lockScreenAccessoriesTopInsetFraction
@@ -106,9 +111,14 @@ enum LockAccessoriesMetrics {
     }
 
     @MainActor
+    static func topInset(screenHeight: CGFloat) -> CGFloat {
+        topInset(screenHeight: screenHeight, settings: AppSettings.shared)
+    }
+
+    @MainActor
     static func defaultFrame(
         screenFrame: CGRect,
-        settings: AppSettings = .shared
+        settings: AppSettings
     ) -> CGRect {
         let sizeHeight = height(settings: settings)
         guard sizeHeight > 0 else { return .zero }
@@ -122,6 +132,11 @@ enum LockAccessoriesMetrics {
             width: width,
             height: sizeHeight
         )
+    }
+
+    @MainActor
+    static func defaultFrame(screenFrame: CGRect) -> CGRect {
+        defaultFrame(screenFrame: screenFrame, settings: AppSettings.shared)
     }
 }
 
@@ -155,7 +170,7 @@ final class LockAccessoryStatus: ObservableObject {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) {
             [weak self] _ in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 self?.refreshBattery()
                 self?.refreshFocus()
             }

@@ -10,7 +10,7 @@ import Combine
 import Contacts
 import SwiftUI
 
-enum NotificationApp: String, CaseIterable, Sendable {
+nonisolated enum NotificationApp: String, CaseIterable, Sendable {
     case messages
     case whatsApp
     case discord
@@ -198,7 +198,7 @@ enum NotificationStyleCheck: Sendable {
     }
 }
 
-struct NotchNotification: Equatable, Identifiable, Sendable {
+nonisolated struct NotchNotification: Equatable, Identifiable, Sendable {
     let id: String
     let app: NotificationApp
     let sender: String
@@ -1277,10 +1277,8 @@ enum NotificationReply {
                 let url = try writeReplyScript(source)
                 let task = try NSUserAppleScriptTask(url: url)
                 task.execute(withAppleEvent: nil) { _, error in
-                    withExtendedLifetime(task) {
-                        try? FileManager.default.removeItem(at: url)
-                        continuation.resume(returning: error == nil)
-                    }
+                    try? FileManager.default.removeItem(at: url)
+                    continuation.resume(returning: error == nil)
                 }
             } catch {
                 continuation.resume(returning: false)
