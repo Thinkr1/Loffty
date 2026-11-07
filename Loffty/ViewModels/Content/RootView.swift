@@ -1047,6 +1047,29 @@ struct NotchShape: Shape {
     }
 }
 
+struct TopBleedShape<Base: Shape>: Shape {
+    var base: Base
+    var bleed: CGFloat = 8
+
+    var animatableData: Base.AnimatableData {
+        get { base.animatableData }
+        set { base.animatableData = newValue }
+    }
+
+    func path(in r: CGRect) -> Path {
+        base.path(in: r).union(
+            Path(
+                CGRect(
+                    x: r.minX,
+                    y: r.minY - bleed,
+                    width: r.width,
+                    height: bleed + 1
+                )
+            )
+        )
+    }
+}
+
 struct NotchBottomEdge: Shape {
     var topRadius: CGFloat = 20
     var bottomRadius: CGFloat = 30
@@ -1200,6 +1223,7 @@ struct NotchRootView: View {
     }
     private var notchLiquidGlassTint: LiquidGlassTint {
         LiquidGlassTint.resolved(
+            followsSystem: settings.liquidGlassFollowsSystem,
             isFullScreen: vm.isFullScreen,
             windowed: settings.liquidGlassTintWhenNotFullScreen,
             fullScreen: settings.liquidGlassTintFullScreen
@@ -1305,6 +1329,14 @@ struct NotchRootView: View {
         .animation(
             .easeInOut(duration: 0.35),
             value: settings.liquidGlassTintFullScreen
+        )
+        .animation(
+            .easeInOut(duration: 0.35),
+            value: settings.liquidGlassFollowsSystem
+        )
+        .animation(
+            .easeOut(duration: 0.2),
+            value: settings.liquidGlassTintAmount
         )
         .animation(.easeInOut(duration: 0.35), value: vm.isFullScreen)
         .onChange(of: vm.trackChangeToken) { _, token in
@@ -1490,11 +1522,12 @@ struct NotchRootView: View {
                 .clipShape(islandShape)
                 .contentShape(islandShape)
                 .notchLiquidGlass(
-                    islandShape,
+                    TopBleedShape(base: islandShape),
                     tint: notchLiquidGlassTint,
                     shade: hudIntegrated
-                        ? HUDChrome.glassShade(notchLiquidGlassTint) : nil,
-                    interactive: !toolbar.isCustomizing
+                        ? HUDChrome.glassShade(notchLiquidGlassTint)
+                            ?? settings.notchGlassShade
+                        : settings.notchGlassShade
                 )
                 .overlay {
                     if let edge = persistentEdgeColor {
@@ -1522,6 +1555,7 @@ struct NotchRootView: View {
                         hudTailShape,
                         tint: notchLiquidGlassTint,
                         shade: HUDChrome.glassShade(notchLiquidGlassTint)
+                            ?? settings.notchGlassShade
                     )
                     .transition(
                         .opacity.combined(
@@ -1539,14 +1573,13 @@ extension View {
     fileprivate func notchLiquidGlass<S: Shape>(
         _ shape: S,
         tint: LiquidGlassTint,
-        shade: Color? = nil,
-        interactive: Bool = true
+        shade: Color? = nil
     ) -> some View {
         #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 self
                     .glassEffect(
-                        tint.glass(interactive: interactive).shaded(shade),
+                        tint.glass.shaded(shade),
                         in: shape
                     )
                     .preferredColorScheme(.dark)
@@ -1584,10 +1617,10 @@ extension View {
 #if compiler(>=6.2)
     @available(macOS 26.0, *)
     extension LiquidGlassTint {
-        fileprivate func glass(interactive: Bool) -> Glass {
+        fileprivate var glass: Glass {
             switch self {
-            case .clear: interactive ? .clear.interactive() : .clear
-            case .regular: interactive ? .regular.interactive() : .regular
+            case .clear: .clear
+            case .regular: .regular
             case .identity: .identity
             }
         }

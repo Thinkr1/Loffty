@@ -237,6 +237,26 @@ struct LiquidGlassTintTests {
         #expect(LiquidGlassTint.identity.title == "Identity")
     }
 
+    @Test func resolvedUsesRegularGlassWhenFollowingSystem() {
+        for isFullScreen in [false, true] {
+            #expect(
+                LiquidGlassTint.resolved(
+                    followsSystem: true,
+                    isFullScreen: isFullScreen,
+                    windowed: .identity,
+                    fullScreen: .clear
+                ) == .regular
+            )
+        }
+    }
+
+    @Test func tintShadeScalesWithAmount() {
+        #expect(LiquidGlassTint.shade(amount: 0) == nil)
+        #expect(LiquidGlassTint.shade(amount: -1) == nil)
+        #expect(LiquidGlassTint.shade(amount: 1) == Color.black.opacity(0.75))
+        #expect(LiquidGlassTint.shade(amount: 4) == Color.black.opacity(0.75))
+    }
+
     @Test func resolvedFollowsFullScreen() {
         #expect(
             LiquidGlassTint.resolved(

@@ -107,11 +107,19 @@ enum LiquidGlassTint: String, CaseIterable, Identifiable {
     }
 
     nonisolated static func resolved(
+        followsSystem: Bool = false,
         isFullScreen: Bool,
         windowed: LiquidGlassTint,
         fullScreen: LiquidGlassTint
     ) -> LiquidGlassTint {
-        isFullScreen ? fullScreen : windowed
+        if followsSystem { return .regular }
+        return isFullScreen ? fullScreen : windowed
+    }
+
+    nonisolated static func shade(amount: Double) -> Color? {
+        let amount = min(1, max(0, amount))
+        guard amount > 0 else { return nil }
+        return Color.black.opacity(amount * 0.75)
     }
 }
 
@@ -596,6 +604,8 @@ final class AppSettings: ObservableObject {
         LiquidGlassTint.windowedStorageKey
     private static let liquidGlassTintFullScreenKey =
         LiquidGlassTint.fullScreenStorageKey
+    private static let liquidGlassFollowsSystemKey = "liquidGlassFollowsSystem"
+    private static let liquidGlassTintAmountKey = "liquidGlassTintAmount"
     private static let weatherEnabledKey = "weatherEnabled"
     private static let weatherSwipeEnabledKey = "weatherSwipeEnabled"
     private static let weatherShowLocationKey = "weatherShowLocation"
@@ -1269,6 +1279,35 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var liquidGlassFollowsSystem: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                liquidGlassFollowsSystem,
+                forKey: Self.liquidGlassFollowsSystemKey
+            )
+        }
+    }
+
+    @Published var liquidGlassTintAmount: Double {
+        didSet {
+            let clamped = min(1, max(0, liquidGlassTintAmount))
+            if clamped != liquidGlassTintAmount {
+                liquidGlassTintAmount = clamped
+                return
+            }
+            UserDefaults.standard.set(
+                clamped,
+                forKey: Self.liquidGlassTintAmountKey
+            )
+        }
+    }
+
+    var notchGlassShade: Color? {
+        LiquidGlassTint.shade(
+            amount: liquidGlassFollowsSystem ? 0 : liquidGlassTintAmount
+        )
+    }
+
     @Published var weatherEnabled: Bool {
         didSet {
             UserDefaults.standard.set(
@@ -1786,6 +1825,19 @@ final class AppSettings: ObservableObject {
         } else {
             liquidGlassTintFullScreen = .regular
         }
+        liquidGlassFollowsSystem =
+            UserDefaults.standard.object(
+                forKey: Self.liquidGlassFollowsSystemKey
+            ) as? Bool ?? true
+        liquidGlassTintAmount = min(
+            1,
+            max(
+                0,
+                UserDefaults.standard.object(
+                    forKey: Self.liquidGlassTintAmountKey
+                ) as? Double ?? 0
+            )
+        )
         weatherEnabled =
             UserDefaults.standard.object(forKey: Self.weatherEnabledKey)
             as? Bool ?? true

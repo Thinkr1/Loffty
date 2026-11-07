@@ -80,20 +80,17 @@ final class SettingsOpener {
         let w = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.contentSize),
             styleMask: [
-                .titled, .closable, .resizable, .fullSizeContentView,
+                .titled, .closable, .miniaturizable, .resizable,
+                .fullSizeContentView,
             ],
             backing: .buffered,
             defer: false
         )
         w.title = "Loffty Settings"
-        w.titleVisibility = .hidden
-        w.titlebarAppearsTransparent = true
+        w.toolbarStyle = .unified
         w.isMovableByWindowBackground = false
-        w.backgroundColor = .clear
-        w.isOpaque = false
-        w.standardWindowButton(.zoomButton)?.isHidden = true
-        w.standardWindowButton(.miniaturizeButton)?.isHidden = true
         let hosting = NSHostingView(rootView: SettingsView())
+        hosting.sceneBridgingOptions = [.toolbars, .title]
         hosting.frame = NSRect(origin: .zero, size: Self.contentSize)
         w.contentView = hosting
         w.contentMinSize = NSSize(width: 720, height: 580)

@@ -193,16 +193,14 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        NavigationSplitView {
             sidebar
-            Divider().opacity(0.5)
+        } detail: {
             detail
         }
+        .searchable(text: $query, placement: .sidebar, prompt: "Search")
+        .searchFocused($searchFocused)
         .frame(minWidth: 720, minHeight: 580)
-        .background(
-            VisualEffectBackground(material: .hudWindow)
-                .ignoresSafeArea()
-        )
         .background {
             Button("Search") { searchFocused = true }
                 .keyboardShortcut("f", modifiers: .command)
@@ -223,100 +221,67 @@ struct SettingsView: View {
         }
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Color.clear.frame(height: 30)
-
-            HStack(spacing: 10) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 34, height: 34)
-                Text("Settings")
-                    .font(.system(size: 14, weight: .semibold))
-                Spacer(minLength: 0)
+    private var selection: Binding<SettingsPage?> {
+        Binding(
+            get: { isSearching ? nil : page },
+            set: { newValue in
+                guard let newValue else { return }
+                query = ""
+                storedPage = newValue.rawValue
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 14)
-
-            SearchField(text: $query)
-                .focused($searchFocused)
-                .padding(.horizontal, 10)
-                .padding(.bottom, 8)
-
-            ScrollView {
-                GlassStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        sidebarSection("General", top: 4)
-                        ForEach(pages(in: .app)) { sidebarRow($0) }
-
-                        sidebarSection("Overlays")
-                        ForEach(pages(in: .overlays)) { sidebarRow($0) }
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.bottom, 8)
-            }
-            .scrollIndicators(.never)
-
-            Divider().opacity(0.35).padding(.horizontal, 12)
-
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(pages(in: .footer)) { sidebarRow($0) }
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: "power")
-                            .font(.system(size: 12, weight: .semibold))
-                            .frame(width: 18)
-                        Text("Quit Loffty")
-                            .font(.system(size: 13))
-                        Spacer(minLength: 0)
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .frame(height: 32)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut("q", modifiers: .command)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
-        }
-        .padding(.top, -30)
-        .frame(width: 208)
-        .background(VisualEffectBackground(material: .hudWindow))
+        )
     }
 
-    private func sidebarSection(_ title: String, top: CGFloat = 16) -> some View
-    {
-        Text(title.uppercased())
-            .font(.system(size: 11, weight: .semibold))
-            .tracking(0.8)
-            .foregroundStyle(.tertiary)
-            .padding(.horizontal, 12)
-            .padding(.top, top)
-            .padding(.bottom, 6)
+    private var sidebar: some View {
+        List(selection: selection) {
+            Section("General") {
+                ForEach(pages(in: .app)) { sidebarRow($0) }
+            }
+            Section("Overlays") {
+                ForEach(pages(in: .overlays)) { sidebarRow($0) }
+            }
+            Section {
+                ForEach(pages(in: .footer)) { sidebarRow($0) }
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Label("Quit Loffty", systemImage: "power")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .keyboardShortcut("q", modifiers: .command)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+        }
     }
 
     private func pages(in region: SettingsPage.Region) -> [SettingsPage] {
         SettingsPage.allCases.filter { $0.region == region }
     }
 
+    @ViewBuilder
     private func sidebarRow(_ item: SettingsPage) -> some View {
-        SidebarRow(
-            page: item,
-            isSelected: !isSearching && item == page,
-            badge: item == .updates ? updater.currentVersion : nil,
-            showsDot: item == .updates && updateAvailable
-        ) {
-            query = ""
-            guard item.rawValue != storedPage else { return }
-            withAnimation(.easeInOut(duration: 0.15)) {
-                storedPage = item.rawValue
-            }
+        let label = Label {
+            Text(item.title)
+        } icon: {
+            SettingsPageIcon(page: item)
+        }
+        .tag(item)
+        if item == .updates {
+            label.badge(
+                updateAvailable
+                    ? Text("Update").foregroundStyle(Color.accentColor)
+                    : Text(updater.currentVersion)
+            )
+        } else {
+            label
         }
     }
 
@@ -325,72 +290,26 @@ struct SettingsView: View {
         return false
     }
 
+    @ViewBuilder
     private var detail: some View {
-        ZStack(alignment: .topLeading) {
-            detailPage
-                .id(isSearching ? "search" : storedPage)
-                .transition(.opacity)
-        }
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: .infinity,
-            alignment: .topLeading
-        )
-    }
-
-    private var detailPage: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Color.clear.frame(height: 22)
-
-            Text(isSearching ? "Search" : page.title)
-                .font(.system(size: 28, weight: .bold))
-                .padding(.horizontal, 26)
-                .padding(.bottom, 18)
-
+        Group {
             if results.isEmpty {
-                emptyResults
+                ContentUnavailableView.search(text: query)
             } else {
-                ScrollView {
-                    GlassStack {
-                        LazyVStack(alignment: .leading, spacing: 22) {
-                            ForEach(results) { group in
-                                SettingsCard(
-                                    group: group,
-                                    showsPage: isSearching,
-                                    showsNote: !isSearching
-                                )
-                            }
-                        }
+                Form {
+                    ForEach(results) { group in
+                        SettingsSection(
+                            group: group,
+                            showsPage: isSearching,
+                            showsNote: !isSearching
+                        )
                     }
-                    .padding(.horizontal, 26)
-                    .padding(.bottom, 28)
                 }
-                .scrollIndicators(.automatic)
+                .formStyle(.grouped)
             }
         }
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: .infinity,
-            alignment: .topLeading
-        )
-    }
-
-    private var resultsCaption: String {
-        let count = results.reduce(0) { $0 + $1.entries.count }
-        let noun = count == 1 ? "match" : "matches"
-        return "\(count) \(noun) for “\(query)”"
-    }
-
-    private var emptyResults: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 26, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text("No settings match “\(query)”")
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle(isSearching ? "Search" : page.title)
+        .id(isSearching ? "search" : storedPage)
     }
 
     private var groups: [SettingsGroup] {
@@ -425,7 +344,7 @@ struct SettingsView: View {
                                     SMAppService.openSystemSettingsLoginItems()
                                 }
                                 .controlSize(.small)
-                                .settingsButton()
+                                .buttonStyle(.bordered)
                             }
                         ] : [])
             ),
@@ -457,50 +376,6 @@ struct SettingsView: View {
                         SettingsToggle(isOn: $settings.extendNotch)
                     },
                     SettingsEntry(
-                        "liquidGlassTintWhenNotFullScreen",
-                        title: "Liquid Glass",
-                        keywords: [
-                            "glass", "liquid", "tint", "clear", "regular",
-                            "identity", "frosted", "material", "off",
-                        ]
-                    ) {
-                        Picker(
-                            "",
-                            selection: $settings
-                                .liquidGlassTintWhenNotFullScreen
-                        ) {
-                            ForEach(LiquidGlassTint.allCases) { tint in
-                                Text(tint.title).tag(tint)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
-                        .fixedSize()
-                    },
-                    SettingsEntry(
-                        "liquidGlassTintFullScreen",
-                        title: "Liquid Glass in full screen",
-                        keywords: [
-                            "glass", "liquid", "tint", "clear", "regular",
-                            "identity", "frosted", "fullscreen", "full screen",
-                            "material", "off",
-                        ]
-                    ) {
-                        Picker(
-                            "",
-                            selection: $settings.liquidGlassTintFullScreen
-                        ) {
-                            ForEach(LiquidGlassTint.allCases) { tint in
-                                Text(tint.title).tag(tint)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
-                        .fixedSize()
-                    },
-                    SettingsEntry(
                         "hudDuration",
                         title: "Overlay duration",
                         keywords: ["hud", "timing", "seconds", "dismiss"],
@@ -519,6 +394,94 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 40, alignment: .trailing)
                         }
+                    },
+                ]
+            ),
+            SettingsGroup(
+                page: .general,
+                title: "Liquid Glass",
+                note:
+                    "By default the notch follows the Liquid Glass look chosen in System Settings -> Appearance. Turn this off to pick a look yourself.",
+                entries: [
+                    SettingsEntry(
+                        "liquidGlassFollowsSystem",
+                        title: "Match system Liquid Glass",
+                        keywords: [
+                            "glass", "liquid", "tint", "system", "appearance",
+                            "slider", "automatic",
+                        ]
+                    ) {
+                        SettingsToggle(isOn: $settings.liquidGlassFollowsSystem)
+                    },
+                    SettingsEntry(
+                        "liquidGlassTintAmount",
+                        title: "Tint",
+                        keywords: [
+                            "glass", "liquid", "tint", "slider", "clear",
+                            "tinted", "dark", "opacity", "transparency",
+                        ],
+                        isEnabled: !settings.liquidGlassFollowsSystem
+                    ) {
+                        HStack(spacing: 8) {
+                            Text("Clear")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                            SettingsSlider(
+                                value: $settings.liquidGlassTintAmount,
+                                range: 0...1,
+                                step: 0.1
+                            )
+                            .frame(width: 140)
+                            Text("Tinted")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    },
+                    SettingsEntry(
+                        "liquidGlassTintWhenNotFullScreen",
+                        title: "Notch glass",
+                        keywords: [
+                            "glass", "liquid", "tint", "clear", "regular",
+                            "identity", "frosted", "material", "off",
+                        ],
+                        isEnabled: !settings.liquidGlassFollowsSystem
+                    ) {
+                        Picker(
+                            "",
+                            selection: $settings
+                                .liquidGlassTintWhenNotFullScreen
+                        ) {
+                            ForEach(LiquidGlassTint.allCases) { tint in
+                                Text(tint.title).tag(tint)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
+                    },
+                    SettingsEntry(
+                        "liquidGlassTintFullScreen",
+                        title: "Notch glass in full screen",
+                        keywords: [
+                            "glass", "liquid", "tint", "clear", "regular",
+                            "identity", "frosted", "fullscreen", "full screen",
+                            "material", "off",
+                        ],
+                        isEnabled: !settings.liquidGlassFollowsSystem
+                    ) {
+                        Picker(
+                            "",
+                            selection: $settings.liquidGlassTintFullScreen
+                        ) {
+                            ForEach(LiquidGlassTint.allCases) { tint in
+                                Text(tint.title).tag(tint)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .fixedSize()
                     },
                 ]
             ),
@@ -556,7 +519,7 @@ struct SettingsView: View {
             ) {
                 Button("Add") { addFullScreenHideApps() }
                     .controlSize(.small)
-                    .settingsButton()
+                    .buttonStyle(.bordered)
             },
         ]
             + settings.hideNotchFullScreenApps.map { bundleID in
@@ -574,7 +537,7 @@ struct SettingsView: View {
                         settings.removeHideNotchFullScreenApp(bundleID)
                     }
                     .controlSize(.small)
-                    .settingsButton()
+                    .buttonStyle(.bordered)
                 }
             }
     }
@@ -638,7 +601,7 @@ struct SettingsView: View {
                             MediaToolbarEditorOpener.shared.open()
                         }
                         .controlSize(.small)
-                        .settingsButton(prominent: true)
+                        .buttonStyle(.borderedProminent)
                     }
                     //                     SettingsEntry(
                     //                         "spotifyLibraryAccount",
@@ -657,13 +620,13 @@ struct SettingsView: View {
                     //                                 spotifyLibrary.disconnect()
                     //                             }
                     //                             .controlSize(.small)
-                    //                             .settingsButton()
+                    //                             .buttonStyle(.bordered)
                     //                         } else {
                     //                             Button("Sign In") {
                     //                                 spotifyLibrary.connect()
                     //                             }
                     //                             .controlSize(.small)
-                    //                             .settingsButton(prominent: true)
+                    //                             .buttonStyle(.borderedProminent)
                     //                             .disabled(SpotifyConfig.resolvedClientID.isEmpty)
                     //                         }
                     //                     },
@@ -733,7 +696,7 @@ struct SettingsView: View {
                             PrivacyAccess.openAutomationSettings()
                         }
                         .controlSize(.small)
-                        .settingsButton()
+                        .buttonStyle(.bordered)
                     },
                 ]
             ),
@@ -1132,7 +1095,7 @@ struct SettingsView: View {
                                 PrivacyAccess.openFullDiskAccessSettings()
                             }
                             .controlSize(.small)
-                            .settingsButton()
+                            .buttonStyle(.bordered)
                         }
                     },
                 ]
@@ -1173,7 +1136,7 @@ struct SettingsView: View {
                         )
                     }
                     .controlSize(.small)
-                    .settingsButton()
+                    .buttonStyle(.bordered)
                 }
             }
         }
@@ -1291,7 +1254,7 @@ struct SettingsView: View {
                     ) {
                         Button("Reset") { settings.resetWidgetPosition() }
                             .controlSize(.small)
-                            .settingsButton()
+                            .buttonStyle(.bordered)
                     },
                 ]
             ),
@@ -1348,7 +1311,7 @@ struct SettingsView: View {
                             settings.resetLockScreenAccessoriesLayout()
                         }
                         .controlSize(.small)
-                        .settingsButton()
+                        .buttonStyle(.bordered)
                     },
                 ]
             ),
@@ -1536,12 +1499,12 @@ struct SettingsView: View {
                                 WeatherController.shared.requestAccessFromUser()
                             }
                             .controlSize(.small)
-                            .settingsButton(prominent: true)
+                            .buttonStyle(.borderedProminent)
                             Button("Settings") {
                                 PrivacyAccess.openLocationSettings()
                             }
                             .controlSize(.small)
-                            .settingsButton()
+                            .buttonStyle(.bordered)
                         }
                     },
                 ]
@@ -1582,7 +1545,7 @@ struct SettingsView: View {
                                 WeatherController.shared.refreshManualLocation()
                             }
                             .controlSize(.small)
-                            .settingsButton(prominent: true)
+                            .buttonStyle(.borderedProminent)
                         }
                     },
                 ]
@@ -1792,13 +1755,13 @@ struct SettingsView: View {
                                     updater.install(release)
                                 }
                                 .controlSize(.small)
-                                .settingsButton(prominent: true)
+                                .buttonStyle(.borderedProminent)
                             } else {
                                 Button("Check Now") {
                                     updater.checkForUpdatesNow()
                                 }
                                 .controlSize(.small)
-                                .settingsButton()
+                                .buttonStyle(.bordered)
                                 .disabled(isUpdateBusy)
                             }
                         }
@@ -1828,137 +1791,51 @@ struct SettingsView: View {
     }
 }
 
-private struct SidebarRow: View {
+private struct SettingsPageIcon: View {
     let page: SettingsPage
-    let isSelected: Bool
-    let badge: String?
-    let showsDot: Bool
-    let action: () -> Void
 
-    @Environment(\.colorScheme) private var scheme
-    @State private var hovering = false
+    @Environment(\.appearsActive) private var appearsActive
 
     var body: some View {
-        Button(action: action) {
-            decorated(
-                HStack(spacing: 9) {
-                    Image(systemName: page.symbol)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(isSelected ? Color.primary : page.tint)
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(width: 18)
-                    Text(page.title)
-                        .font(
-                            .system(
-                                size: 13,
-                                weight: isSelected ? .semibold : .regular
-                            )
-                        )
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    if showsDot {
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: 6, height: 6)
-                    }
-                    if let badge {
-                        Text(badge)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .frame(height: 32)
+        Image(systemName: page.symbol)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 20, height: 20)
+            .background(
+                (page == .general ? Color.gray : page.tint).gradient,
+                in: RoundedRectangle(cornerRadius: 5, style: .continuous)
             )
-            .contentShape(shape)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-    }
-
-    @ViewBuilder
-    private func decorated(_ content: some View) -> some View {
-        if isSelected {
-            content.settingsSurface(
-                shape,
-                scheme: scheme,
-                interactive: true,
-                fallbackFill: SettingsChrome.selectionFill(scheme)
-            )
-        } else if hovering {
-            content.background(shape.fill(SettingsChrome.hoverFill(scheme)))
-        } else {
-            content
-        }
+            .saturation(appearsActive ? 1 : 0.35)
+            .animation(.easeInOut(duration: 0.2), value: appearsActive)
     }
 }
 
-private struct SettingsCard: View {
+private struct SettingsSection: View {
     let group: SettingsGroup
     let showsPage: Bool
     let showsNote: Bool
 
-    @Environment(\.colorScheme) private var scheme
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(caption)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-
-            VStack(spacing: 0) {
-                if let accessory = group.accessory {
-                    accessory
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 10)
-                    if !group.entries.isEmpty {
-                        Rectangle()
-                            .fill(SettingsChrome.cardStroke(scheme))
-                            .frame(height: 1)
-                            .padding(.leading, 16)
-                    }
-                }
-                ForEach(Array(group.entries.enumerated()), id: \.element.id) {
-                    index,
-                    entry in
-                    if index > 0 {
-                        Rectangle()
-                            .fill(SettingsChrome.cardStroke(scheme))
-                            .frame(height: 1)
-                            .padding(.leading, 16)
-                    }
-                    SettingsRowView(entry: entry)
-                }
+        Section {
+            if let accessory = group.accessory {
+                accessory
             }
-            .settingsSurface(shape, scheme: scheme)
-
+            ForEach(group.entries) { entry in
+                SettingsRowView(entry: entry)
+            }
+        } header: {
+            Text(
+                showsPage
+                    ? "\(group.page.title) · \(group.title)" : group.title
+            )
+        } footer: {
             if showsNote, let note = group.note {
                 Text(note)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 4)
-                    .padding(.top, 2)
             }
         }
-    }
-
-    private var caption: String {
-        let text =
-            showsPage
-            ? "\(group.page.title) · \(group.title)"
-            : group.title
-        return text
-    }
-
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
     }
 }
 
@@ -1966,25 +1843,15 @@ private struct SettingsRowView: View {
     let entry: SettingsEntry
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
-                    .font(.system(size: 13, weight: .medium))
-                if let detail = entry.detail {
-                    Text(detail)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: 8)
+        LabeledContent {
             entry.control
                 .controlSize(.small)
+        } label: {
+            Text(entry.title)
+            if let detail = entry.detail {
+                Text(detail)
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .frame(minHeight: 46)
-        .opacity(entry.isEnabled ? 1 : 0.4)
         .disabled(!entry.isEnabled)
     }
 }
@@ -2085,89 +1952,7 @@ private struct SettingsSlider: View {
     }
 }
 
-private struct SearchField: View {
-    @Binding var text: String
-
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-            TextField("Search", text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 9)
-        .frame(height: 30)
-        .settingsSurface(shape, scheme: scheme, interactive: true)
-        .onExitCommand { text = "" }
-    }
-
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-    }
-}
-
 extension View {
-    @ViewBuilder
-    func settingsSurface<S: InsettableShape>(
-        _ shape: S,
-        scheme: ColorScheme,
-        interactive: Bool = false,
-        fallbackFill: Color? = nil
-    ) -> some View {
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                self.glassEffect(
-                    interactive ? .clear.interactive() : .clear,
-                    in: shape
-                )
-            } else {
-                settingsSurfaceFallback(
-                    shape,
-                    scheme: scheme,
-                    fallbackFill: fallbackFill
-                )
-            }
-        #else
-            settingsSurfaceFallback(
-                shape,
-                scheme: scheme,
-                fallbackFill: fallbackFill
-            )
-        #endif
-    }
-
-    @ViewBuilder
-    private func settingsSurfaceFallback<S: InsettableShape>(
-        _ shape: S,
-        scheme: ColorScheme,
-        fallbackFill: Color?
-    ) -> some View {
-        self
-            .background(
-                shape.fill(fallbackFill ?? SettingsChrome.cardFill(scheme))
-            )
-            .overlay(
-                shape.strokeBorder(
-                    SettingsChrome.cardStroke(scheme),
-                    lineWidth: 1
-                )
-            )
-    }
-
     @ViewBuilder
     func settingsButton(prominent: Bool = false) -> some View {
         #if compiler(>=6.2)
@@ -2192,22 +1977,6 @@ extension View {
     }
 }
 
-struct GlassStack<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                GlassEffectContainer(spacing: 0) { content }
-            } else {
-                content
-            }
-        #else
-            content
-        #endif
-    }
-}
-
 enum SettingsChrome {
     static func cardFill(_ scheme: ColorScheme) -> Color {
         scheme == .dark
@@ -2219,33 +1988,5 @@ enum SettingsChrome {
         scheme == .dark
             ? Color.white.opacity(0.10)
             : Color.black.opacity(0.05)
-    }
-
-    static func selectionFill(_ scheme: ColorScheme) -> Color {
-        scheme == .dark
-            ? Color.white.opacity(0.14)
-            : Color.white.opacity(0.62)
-    }
-
-    static func hoverFill(_ scheme: ColorScheme) -> Color {
-        scheme == .dark
-            ? Color.white.opacity(0.055)
-            : Color.black.opacity(0.04)
-    }
-}
-
-struct VisualEffectBackground: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {
-        view.material = material
     }
 }
