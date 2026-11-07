@@ -574,6 +574,10 @@ final class AppSettings: ObservableObject {
         "collapsedWaveformsAccent"
     private static let marqueeEnabledKey = "marqueeEnabled"
     private static let showAlbumKey = "showAlbum"
+    private static let flipArtworkOnTrackChangeKey =
+        "flipArtworkOnTrackChange"
+    private static let openPlayerOnArtworkClickKey =
+        "openPlayerOnArtworkClick"
     private static let automaticUpdatesKey = "automaticUpdates"
     private static let showAirPlayButtonKey = "showAirPlayButton"
     private static let idlePlayButtonKey = "idlePlayButton"
@@ -1104,6 +1108,24 @@ final class AppSettings: ObservableObject {
     @Published var showAlbum: Bool {
         didSet {
             UserDefaults.standard.set(showAlbum, forKey: Self.showAlbumKey)
+        }
+    }
+
+    @Published var flipArtworkOnTrackChange: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                flipArtworkOnTrackChange,
+                forKey: Self.flipArtworkOnTrackChangeKey
+            )
+        }
+    }
+
+    @Published var openPlayerOnArtworkClick: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                openPlayerOnArtworkClick,
+                forKey: Self.openPlayerOnArtworkClickKey
+            )
         }
     }
 
@@ -1675,6 +1697,14 @@ final class AppSettings: ObservableObject {
         showAlbum =
             UserDefaults.standard.object(forKey: Self.showAlbumKey) as? Bool
             ?? false
+        flipArtworkOnTrackChange =
+            UserDefaults.standard.object(
+                forKey: Self.flipArtworkOnTrackChangeKey
+            ) as? Bool ?? true
+        openPlayerOnArtworkClick =
+            UserDefaults.standard.object(
+                forKey: Self.openPlayerOnArtworkClickKey
+            ) as? Bool ?? true
         automaticUpdates =
             UserDefaults.standard.object(forKey: Self.automaticUpdatesKey)
             as? Bool ?? false

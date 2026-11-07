@@ -154,6 +154,7 @@ final class NotchViewModel: ObservableObject {
     @Published var weatherSlideOffset: CGFloat = 0
     @Published var nowPlaying = NowPlaying()
     @Published private(set) var trackChangeToken: UInt = 0
+    @Published private(set) var trackChangeForward = true
     @Published var accentColor: Color = NotchViewModel.defaultAccent
     @Published var isLocked = false
     @Published var isFullScreen = false
@@ -199,6 +200,7 @@ final class NotchViewModel: ObservableObject {
     private var accentTask: Task<Void, Never>?
     private var rapidSkipResetTask: Task<Void, Never>?
     private var lastTrackChangeAt = Date.distantPast
+    private var previousRequestedAt: Date?
     @Published private(set) var isRapidSkipping = false
     private let media = MediaController()
     private var likeRefreshTask: Task<Void, Never>?
@@ -578,6 +580,11 @@ final class NotchViewModel: ObservableObject {
             let now = Date()
             isRapidSkipping = now.timeIntervalSince(lastTrackChangeAt) < 0.25
             lastTrackChangeAt = now
+            trackChangeForward = Self.trackChangeIsForward(
+                previousRequestedAt: previousRequestedAt,
+                now: now
+            )
+            previousRequestedAt = nil
             trackChangeToken &+= 1
             accentTask?.cancel()
             rapidSkipResetTask?.cancel()
@@ -822,12 +829,23 @@ final class NotchViewModel: ObservableObject {
     func next() {
         applyDebounceTask?.cancel()
         pendingUpdate = nil
+        previousRequestedAt = nil
         media.command(.next)
     }
     func prev() {
         applyDebounceTask?.cancel()
         pendingUpdate = nil
+        previousRequestedAt = Date()
         media.command(.prev)
+    }
+
+    nonisolated static func trackChangeIsForward(
+        previousRequestedAt: Date?,
+        now: Date,
+        window: TimeInterval = 4
+    ) -> Bool {
+        guard let previousRequestedAt else { return true }
+        return now.timeIntervalSince(previousRequestedAt) > window
     }
 
     func seek(by delta: Double) {

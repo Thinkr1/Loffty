@@ -75,7 +75,8 @@ enum AppleMusicLibrary {
         return raw.trimmingCharacters(in: .whitespacesAndNewlines) == "ok"
     }
 
-    static nonisolated func parseFavoriteState(_ raw: String) -> FavoriteState? {
+    static nonisolated func parseFavoriteState(_ raw: String) -> FavoriteState?
+    {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != "unavailable" else { return nil }
         let parts = trimmed.split(
@@ -96,6 +97,107 @@ enum AppleMusicLibrary {
         default:
             return nil
         }
+    }
+
+    static nonisolated func revealCurrentTrack() async -> Bool {
+        let raw = await runAppleScript(
+            """
+            tell application "Music"
+              activate
+              try
+                reveal current track
+                return "ok"
+              on error
+                return "fail"
+              end try
+            end tell
+            """
+        )
+        return raw?.trimmingCharacters(in: .whitespacesAndNewlines) == "ok"
+    }
+
+    static nonisolated func catalogAlbumURL(
+        album: String,
+        artist: String,
+        region: String? = Locale.current.region?.identifier
+    ) async -> URL? {
+        guard !album.isEmpty else { return nil }
+        var components = URLComponents(
+            string: "https://itunes.apple.com/search"
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "term", value: "\(artist) \(album)"),
+            URLQueryItem(name: "entity", value: "album"),
+            URLQueryItem(name: "limit", value: "10"),
+        ]
+        if let region {
+            components?.queryItems?.append(
+                URLQueryItem(name: "country", value: region.lowercased())
+            )
+        }
+        guard let url = components?.url else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 4
+        guard
+            let (data, response) = try? await URLSession.shared.data(
+                for: request
+            ),
+            let http = response as? HTTPURLResponse,
+            (200...299).contains(http.statusCode)
+        else { return nil }
+        return albumURL(fromSearchResponse: data, album: album, artist: artist)
+    }
+
+    static nonisolated func albumURL(
+        fromSearchResponse data: Data,
+        album: String,
+        artist: String
+    ) -> URL? {
+        struct Response: Decodable {
+            struct Result: Decodable {
+                var collectionName: String?
+                var artistName: String?
+                var collectionViewUrl: String?
+            }
+            var results: [Result]
+        }
+        guard let decoded = try? JSONDecoder().decode(Response.self, from: data)
+        else { return nil }
+        let wantedAlbum = normalizedAlbum(album)
+        let wantedArtist = normalized(artist)
+        let matches = decoded.results.filter {
+            normalizedAlbum($0.collectionName ?? "") == wantedAlbum
+                && $0.collectionViewUrl != nil
+        }
+        let best =
+            matches.first {
+                let name = normalized($0.artistName ?? "")
+                return !name.isEmpty
+                    && (wantedArtist.contains(name)
+                        || name.contains(wantedArtist))
+            } ?? matches.first
+        guard let raw = best?.collectionViewUrl,
+            var components = URLComponents(string: raw)
+        else { return nil }
+        components.scheme = "music"
+        components.queryItems = nil
+        return components.url
+    }
+
+    private static nonisolated func normalized(_ text: String) -> String {
+        text.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: nil
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static nonisolated func normalizedAlbum(_ text: String) -> String {
+        var value = normalized(text)
+        for suffix in [" - single", " - ep"] where value.hasSuffix(suffix) {
+            value = String(value.dropLast(suffix.count))
+        }
+        return value
     }
 
     private static nonisolated func runAppleScript(_ source: String) async

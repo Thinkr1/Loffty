@@ -139,6 +139,41 @@ enum IdleMediaLaunch {
     }
 }
 
+enum NowPlayingLaunch {
+    @MainActor
+    static func openAlbum(of np: NowPlaying) {
+        let bundle = np.resolvedBundleIdentifier
+        switch bundle {
+        case AppleMusicTrack.clientBundle:
+            let album = np.album
+            let artist = np.artist
+            Task {
+                if let url = await AppleMusicLibrary.catalogAlbumURL(
+                    album: album,
+                    artist: artist
+                ) {
+                    NSWorkspace.shared.open(url)
+                } else if await !AppleMusicLibrary.revealCurrentTrack() {
+                    IdleMediaLaunch.open(bundleID: bundle)
+                }
+            }
+        case SpotifyTrack.clientBundle:
+            let knownID = SpotifyTrack.id(from: np.contentItemIdentifier)
+            Task {
+                var id = knownID
+                if id == nil { id = await SpotifyMetadata.currentTrackID() }
+                if let id, let url = URL(string: "spotify:track:\(id)") {
+                    NSWorkspace.shared.open(url)
+                } else {
+                    IdleMediaLaunch.open(bundleID: bundle)
+                }
+            }
+        default:
+            IdleMediaLaunch.open(bundleID: bundle)
+        }
+    }
+}
+
 @MainActor
 final class RecentPlaybackCache: ObservableObject {
     static let shared = RecentPlaybackCache()

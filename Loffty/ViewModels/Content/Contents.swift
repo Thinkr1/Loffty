@@ -236,6 +236,7 @@ struct ExpandedContent: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(NotchControlButtonStyle())
+                .allowsHitTesting(settings.openPlayerOnArtworkClick)
                 .accessibilityLabel(item.title)
             }
         }
@@ -271,6 +272,13 @@ struct ExpandedContent: View {
                         aspectRatio: artAspect,
                         websiteHost: vm.nowPlaying.websiteHost
                     )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard settings.openPlayerOnArtworkClick,
+                            !vm.isLocked
+                        else { return }
+                        NowPlayingLaunch.openAlbum(of: vm.nowPlaying)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 2) {

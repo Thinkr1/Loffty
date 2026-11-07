@@ -758,6 +758,32 @@ struct SettingsView: View {
                         SettingsToggle(isOn: $settings.showAlbum)
                     },
                     SettingsEntry(
+                        "flipArtworkOnTrackChange",
+                        title: "Flip album cover on track change",
+                        detail: "Not shown on the lock screen.",
+                        keywords: [
+                            "artwork", "animation", "flip", "rotate", "skip",
+                        ]
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.flipArtworkOnTrackChange
+                        )
+                    },
+                    SettingsEntry(
+                        "openPlayerOnArtworkClick",
+                        title: "Click album cover to open",
+                        detail:
+                            "Opens the playing album in Music, or a recent track when nothing is playing.",
+                        keywords: [
+                            "artwork", "click", "tap", "open", "launch",
+                            "recents", "idle",
+                        ]
+                    ) {
+                        SettingsToggle(
+                            isOn: $settings.openPlayerOnArtworkClick
+                        )
+                    },
+                    SettingsEntry(
                         "showAirPlayButton",
                         title: "Show AirPlay button",
                         keywords: ["output", "speaker", "route"]

@@ -241,6 +241,12 @@ private struct ArtworkCrossfade: View {
     @State private var blend: CGFloat = 1
     @State private var pop: CGFloat = 0
     @State private var loadGeneration = 0
+    @State private var displayedTrackKey = ""
+    @State private var flipAngle: Double = 0
+    @State private var flipMirrored = false
+    @State private var isFlipping = false
+
+    private static let flipDuration: Double = 0.4
 
     private var showsSlot: Bool {
         artwork != nil || !unavailable || front != nil || back != nil
@@ -266,6 +272,7 @@ private struct ArtworkCrossfade: View {
                     placeholder
                 }
             }
+            .scaleEffect(x: flipMirrored ? -1 : 1)
             .frame(width: width, height: height)
             .clipShape(
                 RoundedRectangle(
@@ -280,6 +287,11 @@ private struct ArtworkCrossfade: View {
                 )
                 .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
             }
+            .rotation3DEffect(
+                .degrees(flipAngle),
+                axis: (x: 0, y: 1, z: 0),
+                perspective: 0.45
+            )
             .shadow(
                 color: showsShadow
                     ? vm.accentColor.opacity(0.28 + pop * 0.22) : .clear,
@@ -371,6 +383,8 @@ private struct ArtworkCrossfade: View {
         animated: Bool
     ) {
         if front == data { return }
+        let trackChanged = trackKey != displayedTrackKey
+        displayedTrackKey = trackKey
 
         if front == nil {
             front = data
@@ -388,6 +402,11 @@ private struct ArtworkCrossfade: View {
             return
         }
 
+        if trackChanged, shouldFlip {
+            flip(to: image, data: data)
+            return
+        }
+
         back = front
         backImage = frontImage
         front = data
@@ -400,6 +419,34 @@ private struct ArtworkCrossfade: View {
                 back = nil
                 backImage = nil
             }
+        }
+    }
+
+    private var shouldFlip: Bool {
+        AppSettings.shared.flipArtworkOnTrackChange && !vm.isLocked
+            && !isFlipping
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private func flip(to image: NSImage, data: Data) {
+        isFlipping = true
+        back = nil
+        backImage = nil
+        blend = 1
+        let target = flipAngle + (vm.trackChangeForward ? 180 : -180)
+        let generation = loadGeneration
+        withAnimation(.easeInOut(duration: Self.flipDuration)) {
+            flipAngle = target
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.flipDuration / 2))
+            if generation == loadGeneration {
+                front = data
+                frontImage = image
+            }
+            flipMirrored = Int(target / 180) % 2 != 0
+            try? await Task.sleep(for: .seconds(Self.flipDuration / 2))
+            isFlipping = false
         }
     }
 }
