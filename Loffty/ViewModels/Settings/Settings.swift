@@ -532,6 +532,7 @@ final class AppSettings: ObservableObject {
     private static let lockScreenNotchKey = "lockScreenNotch"
     private static let lockScreenExpandNotchKey = "lockScreenExpandNotch"
     private static let lockScreenFullScreenArtKey = "lockScreenFullScreenArt"
+    private static let lockScreenLyricsKey = "lockScreenLyrics"
     private static let lockScreenWaveformsKey = "lockScreenWaveforms"
     private static let lockScreenWaveformsAccentKey =
         "lockScreenWaveformsAccent"
@@ -781,6 +782,15 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.set(
                 lockScreenFullScreenArt,
                 forKey: Self.lockScreenFullScreenArtKey
+            )
+        }
+    }
+
+    @Published var lockScreenLyrics: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                lockScreenLyrics,
+                forKey: Self.lockScreenLyricsKey
             )
         }
     }
@@ -1577,6 +1587,9 @@ final class AppSettings: ObservableObject {
             UserDefaults.standard.object(
                 forKey: Self.lockScreenFullScreenArtKey
             ) as? Bool ?? true
+        lockScreenLyrics =
+            UserDefaults.standard.object(forKey: Self.lockScreenLyricsKey)
+            as? Bool ?? true
         lockScreenWaveforms =
             UserDefaults.standard.object(forKey: Self.lockScreenWaveformsKey)
             as? Bool ?? true

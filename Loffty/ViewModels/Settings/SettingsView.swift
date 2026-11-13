@@ -1173,10 +1173,25 @@ struct SettingsView: View {
                 entries: [
                     SettingsEntry(
                         "lockScreenFullScreenArt",
-                        title: "Expand album artwork",
-                        keywords: ["cover", "full screen", "art"]
+                        title: "Full screen player",
+                        detail: "Click the album cover to open it.",
+                        keywords: [
+                            "cover", "full screen", "art", "player", "expand",
+                        ]
                     ) {
                         SettingsToggle(isOn: $settings.lockScreenFullScreenArt)
+                    },
+                    SettingsEntry(
+                        "lockScreenLyrics",
+                        title: "Show lyrics",
+                        detail:
+                            "Looks up synced lyrics on LRCLIB. Falls back to lyrics saved in Music.",
+                        keywords: [
+                            "lyrics", "karaoke", "words", "lrclib", "sing",
+                        ],
+                        isEnabled: settings.lockScreenFullScreenArt
+                    ) {
+                        SettingsToggle(isOn: $settings.lockScreenLyrics)
                     },
                     SettingsEntry(
                         "lockScreenWaveforms",

@@ -39,11 +39,8 @@ struct LockMorphCardView: View {
     @State private var canCollapse = false
     @State private var compactChromeVisible = true
 
-    private let expandAnimation = Animation.smooth(
-        duration: 0.46,
-        extraBounce: 0.04
-    )
-    private let collapseAnimation = Animation.smooth(duration: 0.42)
+    private let expandAnimation = Animation.smooth(duration: 0.62)
+    private let collapseAnimation = Animation.smooth(duration: 0.52)
     private let chromeRevealAnimation = Animation.easeOut(duration: 0.14)
 
     private let compactArtSize: CGFloat = 58
@@ -53,15 +50,19 @@ struct LockMorphCardView: View {
     private let compactRowGap: CGFloat = 14
     private let compactStackGap: CGFloat = 14
 
-    private let expandedCornerRadius: CGFloat = 34
-    private let expandedArtSide: CGFloat = 300
-    private let expandedArtCorner: CGFloat = 26
-    private let expandedHorizontalPad: CGFloat = 32
-    private let expandedVerticalPad: CGFloat = 32
-    private let expandedArtGap: CGFloat = 34
-    private let expandedSideColumnWidth: CGFloat = 250
+    private let expandedCornerRadius: CGFloat = 0
+    private let expandedArtMaxSide: CGFloat = 460
+    private let expandedArtCorner: CGFloat = 12
+    private let expandedVerticalPad: CGFloat = 72
+    private let artTextGap: CGFloat = 22
     private let textControlsGap: CGFloat = 16
     private let controlsBlockHeight: CGFloat = 70
+
+    private var showsLyrics: Bool { settings.lockScreenLyrics }
+    private var playerChromeOpacity: Double {
+        let x = Double(min(max((t - 0.4) / 0.6, 0), 1))
+        return x * x * (3 - 2 * x)
+    }
 
     private var t: CGFloat { min(max(progress, 0), 1) }
     private var isExpanded: Bool { t > 0.5 }
@@ -83,11 +84,46 @@ struct LockMorphCardView: View {
                     Color.black.opacity(0.001)
                         .frame(width: size.width, height: size.height)
                         .contentShape(Rectangle())
-                        .onTapGesture { collapse() }
                         .allowsHitTesting(canCollapse)
                 }
 
                 cardChrome(rect: card)
+
+                if t > 0.01 {
+                    LockPlayerBackdrop(
+                        artwork: vm.nowPlaying.fullArtwork
+                            ?? vm.nowPlaying.artwork,
+                        accent: vm.accentColor
+                    )
+                    .frame(width: card.width, height: card.height)
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: cardCornerRadius,
+                            style: .continuous
+                        )
+                    )
+                    .position(x: card.midX, y: card.midY)
+                    .opacity(Double(t))
+                    .allowsHitTesting(false)
+                }
+
+                if showsLyrics, t > 0.01 {
+                    let lyrics = lyricsRect(in: size)
+                    LockLyricsView(vm: vm, isActive: isExpanded)
+                        .frame(width: lyrics.width, height: lyrics.height)
+                        .position(x: lyrics.midX, y: lyrics.midY)
+                        .offset(x: (1 - t) * 40)
+                        .opacity(playerChromeOpacity)
+                        .allowsHitTesting(canCollapse && isExpanded)
+                }
+
+                if t > 0.01 {
+                    closeButton
+                        .position(x: 56, y: 56)
+                        .offset(y: (1 - t) * -12)
+                        .opacity(playerChromeOpacity)
+                        .allowsHitTesting(canCollapse && isExpanded)
+                }
 
                 flyingText(rect: text)
                 flyingControls(rect: controls)
@@ -164,25 +200,53 @@ struct LockMorphCardView: View {
         )
     }
 
-    private func expandedCardSize(in size: CGSize) -> CGSize {
-        let contentWidth =
-            expandedHorizontalPad * 2 + expandedArtSide + expandedArtGap
-            + expandedSideColumnWidth
-        let contentHeight = expandedVerticalPad * 2 + expandedArtSide
-        return CGSize(
-            width: min(contentWidth, size.width * 0.55),
-            height: min(contentHeight, size.height * 0.62)
+    private func expandedCardRect(in size: CGSize) -> CGRect {
+        CGRect(origin: .zero, size: size)
+    }
+
+    private var cardCornerRadius: CGFloat {
+        LockCardMetrics.cornerRadius
+            + (expandedCornerRadius - LockCardMetrics.cornerRadius) * t
+    }
+
+    private var columnStackHeight: CGFloat {
+        artTextGap + textBlockHeight + textControlsGap + controlsBlockHeight
+    }
+
+    private func expandedArtSide(in size: CGSize) -> CGFloat {
+        let widthLimit = size.width * (showsLyrics ? 0.3 : 0.4)
+        let heightLimit =
+            size.height - expandedVerticalPad * 2 - columnStackHeight
+        return max(160, min(expandedArtMaxSide, widthLimit, heightLimit))
+    }
+
+    private func expandedColumnCenterX(in size: CGSize) -> CGFloat {
+        showsLyrics ? size.width * 0.28 : size.width / 2
+    }
+
+    private func lyricsRect(in size: CGSize) -> CGRect {
+        let x = size.width * 0.5
+        let width = min(size.width * 0.42, 680)
+        return CGRect(
+            x: x,
+            y: expandedVerticalPad * 0.5,
+            width: width,
+            height: size.height - expandedVerticalPad
         )
     }
 
-    private func expandedCardRect(in size: CGSize) -> CGRect {
-        let s = expandedCardSize(in: size)
-        return CGRect(
-            x: (size.width - s.width) / 2,
-            y: (size.height - s.height) / 2,
-            width: s.width,
-            height: s.height
-        )
+    private var closeButton: some View {
+        Button(action: collapse) {
+            Image(systemName: "multiply")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+                .lockPlayerButtonGlass()
+        }
+        .buttonStyle(NotchControlButtonStyle())
+        .help("Close player")
+        .accessibilityLabel("Close player")
     }
 
     private func cardRect(in size: CGSize) -> CGRect {
@@ -204,19 +268,13 @@ struct LockMorphCardView: View {
     }
 
     private func expandedArtRect(in size: CGSize) -> CGRect {
-        let card = expandedCardRect(in: size)
-        let side = min(
-            expandedArtSide,
-            card.height - expandedVerticalPad * 2,
-            card.width - expandedHorizontalPad * 2
-        )
-        let ratio = max(artworkAspect, 1)
-        let width = side
-        let height = side / ratio
+        let side = expandedArtSide(in: size)
+        let height = side / max(artworkAspect, 1)
+        let groupHeight = height + columnStackHeight
         return CGRect(
-            x: card.minX + expandedHorizontalPad,
-            y: card.minY + (card.height - height) / 2,
-            width: width,
+            x: expandedColumnCenterX(in: size) - side / 2,
+            y: (size.height - groupHeight) / 2,
+            width: side,
             height: height
         )
     }
@@ -240,15 +298,10 @@ struct LockMorphCardView: View {
 
     private func expandedTextRect(in size: CGSize) -> CGRect {
         let art = expandedArtRect(in: size)
-        let card = expandedCardRect(in: size)
-        let x = art.maxX + expandedArtGap
-        let width = max(0, card.maxX - expandedHorizontalPad - x)
-        let groupH = textBlockHeight + textControlsGap + controlsBlockHeight
-        let groupTop = art.minY + (art.height - groupH) / 2
         return CGRect(
-            x: x,
-            y: groupTop,
-            width: width,
+            x: art.minX,
+            y: art.maxY + artTextGap,
+            width: art.width,
             height: textBlockHeight
         )
     }
@@ -293,11 +346,8 @@ struct LockMorphCardView: View {
     }
 
     private func cardChrome(rect: CGRect) -> some View {
-        let radius =
-            LockCardMetrics.cornerRadius
-            + (expandedCornerRadius - LockCardMetrics.cornerRadius) * t
         let shape = RoundedRectangle(
-            cornerRadius: radius,
+            cornerRadius: cardCornerRadius,
             style: .continuous
         )
         let tint = settings.lockScreenLiquidGlassTint
@@ -373,9 +423,11 @@ struct LockMorphCardView: View {
 
     private func flyingControls(rect: CGRect) -> some View {
         VStack(spacing: 14) {
-            MediaProgressRow(accent: vm.accentColor)
-                .frame(maxWidth: 310)
-                .padding(.bottom, -5)
+            MediaProgressRow(
+                accent: vm.accentColor.mix(with: .white, by: Double(t))
+            )
+            .frame(maxWidth: isExpanded ? rect.width : 310)
+            .padding(.bottom, -5)
             MediaTransportControls()
         }
         .frame(width: rect.width, height: rect.height, alignment: .top)
@@ -422,7 +474,7 @@ struct LockMorphCardView: View {
         canCollapse = false
         hideCompactChrome()
         withAnimation(expandAnimation) { progress = 1 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             canCollapse = true
         }
     }

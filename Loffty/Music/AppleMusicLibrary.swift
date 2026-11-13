@@ -99,6 +99,25 @@ enum AppleMusicLibrary {
         }
     }
 
+    static nonisolated func currentTrackLyrics() async -> String? {
+        let raw = await runAppleScript(
+            """
+            tell application "Music"
+              try
+                return lyrics of current track
+              on error
+                return ""
+              end try
+            end tell
+            """
+        )
+        guard
+            let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !text.isEmpty
+        else { return nil }
+        return text
+    }
+
     static nonisolated func revealCurrentTrack() async -> Bool {
         let raw = await runAppleScript(
             """

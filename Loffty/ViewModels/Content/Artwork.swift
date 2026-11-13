@@ -267,7 +267,7 @@ private struct ArtworkCrossfade: View {
                 if let frontImage {
                     artworkImage(frontImage)
                         .opacity(blend)
-                        .scaleEffect(0.965 + blend * 0.035)
+                        .scaleEffect(1 - (1 - blend) * crossfadeZoom)
                 } else if !loadingNewArt {
                     placeholder
                 }
@@ -303,7 +303,7 @@ private struct ArtworkCrossfade: View {
                 radius: 6,
                 y: 3
             )
-            .scaleEffect(1 + pop * 0.045)
+            .scaleEffect(1 + pop * Self.popScale(forSide: max(width, height)))
             .opacity(loadingNewArt ? 0.82 : 1)
             .animation(.easeInOut(duration: 0.22), value: loadingNewArt)
             .onAppear { syncArtwork(animated: false) }
@@ -312,14 +312,33 @@ private struct ArtworkCrossfade: View {
             .onChange(of: trackKey) { _, _ in syncArtwork(animated: true) }
             .onChange(of: vm.trackChangeToken) { _, token in
                 guard token > 0, !vm.isRapidSkipping else { return }
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.64)) {
+                let large = max(width, height) > Self.largeArtworkSide
+                withAnimation(
+                    large
+                        ? .smooth(duration: 0.4)
+                        : .spring(response: 0.34, dampingFraction: 0.64)
+                ) {
                     pop = 1
                 }
-                withAnimation(.easeOut(duration: 0.38).delay(0.07)) {
+                withAnimation(
+                    .easeOut(duration: large ? 0.5 : 0.38)
+                        .delay(large ? 0.12 : 0.07)
+                ) {
                     pop = 0
                 }
             }
         }
+    }
+
+    private static let largeArtworkSide: CGFloat = 160
+
+    private var crossfadeZoom: CGFloat {
+        max(width, height) > Self.largeArtworkSide ? 0.012 : 0.035
+    }
+
+    nonisolated static func popScale(forSide side: CGFloat) -> CGFloat {
+        guard side > largeArtworkSide else { return 0.045 }
+        return max(0.008, min(0.045, 5 / side))
     }
 
     private var placeholder: some View {
